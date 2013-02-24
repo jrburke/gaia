@@ -4,7 +4,7 @@
 
 /*jshint browser: true */
 /*global alert, define */
-define(['folder_depth_classes', 'mail-common', 'api!real', 'l10n'],
+define(['folder_depth_classes', 'mail-common', 'api!', 'l10n'],
 function (FOLDER_DEPTH_CLASSES, common, MailAPI, mozL10n) {
 
 var bindContainerHandler = common.bindContainerHandler,
@@ -139,7 +139,7 @@ FolderPickerCard.prototype = {
       Cards.eatEventsUntilNextCard();
 
       // load the folders for the account
-      this.foldersSlice = MailAPI.viewFolders('account', account);
+      this.foldersSlice = MailAPI().viewFolders('account', account);
       this.foldersSlice.onsplice = this.onFoldersSplice.bind(this);
       this.foldersSlice.onchange = this.onFoldersChange.bind(this);
       // This will cause the splice handler to select the inbox for us; we do

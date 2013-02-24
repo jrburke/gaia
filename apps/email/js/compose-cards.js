@@ -9,11 +9,10 @@
 define([
   'require',
   'mail-common',
-  'api!real',
   'iframe-shims',
   'l10n'
 ],
-function (require, common, MailAPI, iframeShims, mozL10n) {
+function (require, common, iframeShims, mozL10n) {
 
 var cmpNodes = common.cmpNodes,
     prettyFileSize = common.prettyFileSize,

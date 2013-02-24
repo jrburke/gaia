@@ -22,12 +22,19 @@ function dieOnFatalError(msg) {
   throw new Error(msg);
 }
 
-var fldNodes, msgNodes, cmpNodes, supNodes, tngNodes;
-function processTemplNodes(prefix) {
+var fldNodes = {},
+    msgNodes = {},
+    cmpNodes = {},
+    supNodes = {},
+    tngNodes = {};
+
+function processTemplNodes(prefix, nodes) {
   var holder = document.getElementById('templ-' + prefix),
-      nodes = {},
       node = holder.firstElementChild,
       reInvariant = new RegExp('^' + prefix + '-');
+
+  nodes = nodes || {};
+
   while (node) {
     var classes = node.classList, found = false;
     for (var i = 0; i < classes.length; i++) {
@@ -49,11 +56,11 @@ function processTemplNodes(prefix) {
   return nodes;
 }
 function populateTemplateNodes() {
-  fldNodes = processTemplNodes('fld');
-  msgNodes = processTemplNodes('msg');
-  cmpNodes = processTemplNodes('cmp');
-  supNodes = processTemplNodes('sup');
-  tngNodes = processTemplNodes('tng');
+  processTemplNodes('fld', fldNodes);
+  processTemplNodes('msg', msgNodes);
+  processTemplNodes('cmp', cmpNodes);
+  processTemplNodes('sup', supNodes);
+  processTemplNodes('tng', tngNodes);
 }
 
 function addClass(domNode, name) {

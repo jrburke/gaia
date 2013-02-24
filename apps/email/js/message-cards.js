@@ -8,7 +8,7 @@
 define([
   'require',
   'mail-common',
-  'api!real',
+  'api!',
   'iframe-shims',
   'l10n'
 ],
@@ -23,7 +23,7 @@ var Cards = common.Cards,
     bindContainerHandler = common.bindContainerHandler,
     prettyDate = common.prettyDate,
     appendMatchItemTo = common.appendMatchItemTo,
-    bindSanitizedClickHandler = common.bindSanitizedClickHandler;
+    bindSanitizedClickHandler = iframeShims.bindSanitizedClickHandler;
 
 /**
  * Try and keep at least this many display heights worth of undisplayed
@@ -330,7 +330,7 @@ MessageListCard.prototype = {
   },
 
   onCompose: function() {
-    var composer = MailAPI.beginMessageComposition(null, this.curFolder, null,
+    var composer = MailAPI().beginMessageComposition(null, this.curFolder, null,
       function composerReady() {
         Cards.pushCard('compose', 'default', 'animate',
                        { composer: composer });
@@ -357,7 +357,7 @@ MessageListCard.prototype = {
 
     this.hideEmptyLayout();
 
-    this.messagesSlice = MailAPI.viewFolderMessages(folder);
+    this.messagesSlice = MailAPI().viewFolderMessages(folder);
     this.messagesSlice.onsplice = this.onMessagesSplice.bind(this);
     this.messagesSlice.onchange = this.updateMessageDom.bind(this, false);
     this.messagesSlice.onstatus = this.onStatusChange.bind(this);
@@ -388,7 +388,7 @@ MessageListCard.prototype = {
     if (phrase.length < 1)
       return false;
 
-    this.messagesSlice = MailAPI.searchFolderMessages(
+    this.messagesSlice = MailAPI().searchFolderMessages(
       folder, phrase,
       {
         author: filter === 'all' || filter === 'author',
@@ -806,14 +806,14 @@ MessageListCard.prototype = {
   },
 
   onStarMessages: function() {
-    var op = MailAPI.markMessagesStarred(this.selectedMessages,
+    var op = MailAPI().markMessagesStarred(this.selectedMessages,
                                          this.setAsStarred);
     this.setEditMode(false);
     Toaster.logMutation(op);
   },
 
   onMarkMessagesRead: function() {
-    var op = MailAPI.markMessagesRead(this.selectedMessages, this.setAsRead);
+    var op = MailAPI().markMessagesRead(this.selectedMessages, this.setAsRead);
     this.setEditMode(false);
     Toaster.logMutation(op);
   },
@@ -829,7 +829,7 @@ MessageListCard.prototype = {
       { // Confirm
         id: 'msg-delete-ok',
         handler: function() {
-          var op = MailAPI.deleteMessages(this.selectedMessages);
+          var op = MailAPI().deleteMessages(this.selectedMessages);
           Toaster.logMutation(op);
           this.setEditMode(false);
         }.bind(this)
@@ -845,7 +845,7 @@ MessageListCard.prototype = {
     // TODO: Batch move back-end mail api is not ready now.
     //       Please verify this function when api landed.
     Cards.folderSelector(function(folder) {
-      var op = MailAPI.moveMessages(this.selectedMessages, folder);
+      var op = MailAPI().moveMessages(this.selectedMessages, folder);
       Toaster.logMutation(op);
       this.setEditMode(false);
     }.bind(this));
@@ -1202,7 +1202,7 @@ MessageReaderCard.prototype = {
       if (cname)
         node.setAttribute('class', cname);
 
-      var subnodes = MailAPI.utils.linkifyPlain(rep[i + 1], document);
+      var subnodes = MailAPI().utils.linkifyPlain(rep[i + 1], document);
       for (var iNode = 0; iNode < subnodes.length; iNode++) {
         node.appendChild(subnodes[iNode]);
       }
@@ -1292,7 +1292,7 @@ MessageReaderCard.prototype = {
         var iframe = iframeShim.iframe;
         var bodyNode = iframe.contentDocument.body;
         this.iframeResizeHandler = iframeShim.resizeHandler;
-        MailAPI.utils.linkifyHTML(iframe.contentDocument);
+        MailAPI().utils.linkifyHTML(iframe.contentDocument);
         this.htmlBodyNodes.push(bodyNode);
         if (body.checkForExternalImages(bodyNode))
           hasExternalImages = true;

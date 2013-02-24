@@ -8,20 +8,28 @@
 
 // set up loading of scripts.
 require.config({
+  baseUrl: 'js',
   paths: {
-    mailapi: 'js/ext/mailapi',
-    shared: '../../../shared',
-    l10nbase: '../../../shared/js/l10n',
-    l10n: '../../../shared/js/l10n_date'
+    //l10nbase: '../../../shared/js/l10n',
+    //l10n: '../../../shared/js/l10n_date',
+    style: '../style',
+    mailapi: 'ext/mailapi',
+    shared: '../../../shared'
   },
-  shim: {
+  /* shim: {
     l10n: {
       deps: ['l10nbase'],
       exports: 'navigator.mozL10n'
     }
-  },
+  }, */
   scriptType: 'application/javascript;version=1.8',
   definePrim: 'prim'
+});
+
+// localization stuff wants to be first, still figuring out how to dynamically
+// load it.
+define('l10n', [], function () {
+  return navigator.mozL10n;
 });
 
 // q shim for rdcommon/log, just enough for it to
@@ -58,8 +66,8 @@ var App = {
   _init: function() {
     // If our password is bad, we need to pop up a card to ask for the updated
     // password.
-    if (!MailAPI._fake) {
-      MailAPI.onbadlogin = function(account, problem) {
+    if (!MailAPI()._fake) {
+      MailAPI().onbadlogin = function(account, problem) {
         switch (problem) {
           case 'bad-user-or-pass':
             Cards.pushCard('setup-fix-password', 'default', 'animate',
@@ -79,7 +87,7 @@ var App = {
         }
       };
 
-      MailAPI.useLocalizedStrings({
+      MailAPI().useLocalizedStrings({
         wrote: mozL10n.get('reply-quoting-wrote'),
         originalMessage: mozL10n.get('forward-original-message'),
         forwardHeaderLabels: {
@@ -110,7 +118,7 @@ var App = {
    */
   showMessageViewOrSetup: function(showLatest, isUpgradeCheck) {
     // Get the list of accounts including the unified account (if it exists)
-    var acctsSlice = MailAPI.viewAccounts(false);
+    var acctsSlice = MailAPI().viewAccounts(false);
     acctsSlice.oncomplete = function() {
       // - we have accounts, show the message view!
       if (acctsSlice.items.length) {
@@ -120,7 +128,7 @@ var App = {
         //       the latest account which user just added.
         var account = showLatest ? acctsSlice.items.slice(-1)[0] :
                                    acctsSlice.items[0];
-        var foldersSlice = MailAPI.viewFolders('account', account);
+        var foldersSlice = MailAPI().viewFolders('account', account);
         foldersSlice.oncomplete = function() {
           var inboxFolder = foldersSlice.getFirstFolderWithType('inbox');
           if (!inboxFolder)
@@ -185,9 +193,8 @@ var App = {
 
       // If have a fake API object, now dynamically load
       // the real one.
-      if (MailAPI._fake) {
+      if (MailAPI()._fake) {
         require(['api!real'], function (api) {
-          MailAPI = api;
           if (gotLocalized)
             doInit();
         });
@@ -239,8 +246,8 @@ var queryURI = function _queryURI(uri) {
 };
 
 
-var gotLocalized = (mozL10n.readyState === 'interactive') ||
-                   (mozL10n.readystate === 'complete'),
+var gotLocalized = (mozL10n.readyState === 'interactive' ||
+                   mozL10n.readyState === 'complete'),
     inited = false;
 
 function doInit() {
@@ -248,7 +255,7 @@ function doInit() {
     if (inited) {
       App._init();
 
-      if (!MailAPI._fake) {
+      if (!MailAPI()._fake) {
         // Real MailAPI set up now. We could have guessed wrong
         // for the fast path, particularly if this is an email
         // app upgrade, where they set up an account, but our
@@ -323,7 +330,7 @@ if ('mozSetMessageHandler' in window.navigator) {
         }
         return true;
       }
-      var composer = MailAPI.beginMessageComposition(
+      var composer = MailAPI().beginMessageComposition(
         null, folderToUse, null,
         function() {
           /* to/cc/bcc/subject/body all have default values that shouldn't be

@@ -11,5 +11,6 @@ define({
     style.rel = 'stylesheet';
     style.href = require.toUrl(id + '.css');
     document.head.appendChild(style);
+    onload();
   }
 });

@@ -9,7 +9,7 @@ define([
   'require',
   'mail-common',
   'mail-app',
-  'api!real',
+  'api!',
   'iframe-shims',
   'l10n'
 ],
@@ -354,7 +354,7 @@ function SetupProgressCard(domNode, mode, args) {
 
   var self = this;
   this.creationInProcess = true;
-  MailAPI.tryToCreateAccount(
+  MailAPI().tryToCreateAccount(
     {
       displayName: args.displayName,
       emailAddress: args.emailAddress,
@@ -526,7 +526,7 @@ Cards.defineCardWithDefaultMode(
 function SettingsMainCard(domNode, mode, args) {
   this.domNode = domNode;
 
-  this.acctsSlice = MailAPI.viewAccounts(false);
+  this.acctsSlice = MailAPI().viewAccounts(false);
   this.acctsSlice.onsplice = this.onAccountsSplice.bind(this);
 
   domNode.getElementsByClassName('tng-close-btn')[0]
@@ -534,8 +534,8 @@ function SettingsMainCard(domNode, mode, args) {
 
   var checkIntervalNode =
     domNode.getElementsByClassName('tng-main-check-interval')[0];
-console.log('  CONFIG CURRENTLY:', JSON.stringify(MailAPI.config));//HACK
-  checkIntervalNode.value = MailAPI.config.syncCheckIntervalEnum;
+console.log('  CONFIG CURRENTLY:', JSON.stringify(MailAPI().config));//HACK
+  checkIntervalNode.value = MailAPI().config.syncCheckIntervalEnum;
   checkIntervalNode.addEventListener(
     'change', this.onChangeSyncInterval.bind(this), false);
 
@@ -596,7 +596,7 @@ SettingsMainCard.prototype = {
 
   onChangeSyncInterval: function(event) {
     console.log('sync interval changed to', event.target.value);
-    MailAPI.modifyConfig({
+    MailAPI().modifyConfig({
       syncCheckIntervalEnum: event.target.value });
   },
 
@@ -897,11 +897,11 @@ SettingsDebugCard.prototype = {
   },
 
   dumpLog: function(target) {
-    MailAPI.debugSupport('dumpLog', target);
+    MailAPI().debugSupport('dumpLog', target);
   },
 
   cycleLogging: function(doChange, changeValue) {
-    var value = MailAPI.config.debugLogging;
+    var value = MailAPI().config.debugLogging;
     if (doChange) {
       if (changeValue === true)
         value = !value;
@@ -913,7 +913,7 @@ SettingsDebugCard.prototype = {
       // (ignore dangerous button if not enabled)
       else
         return;
-      MailAPI.debugSupport('setLogging', value);
+      MailAPI().debugSupport('setLogging', value);
     }
     var label, dangerLabel;
     if (value === true) {
