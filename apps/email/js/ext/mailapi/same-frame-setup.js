@@ -18756,10 +18756,6 @@ function onUniverse() {
     _universeCallbacks[i](universe);
   }
   _universeCallbacks = null;
-  var evtObject = document.createEvent('Event');
-  evtObject.initEvent('mailapi', false, false);
-  evtObject.mailAPI = localMailAPI;
-  window.dispatchEvent(evtObject);
 }
 
 var universe = new $mailuniverse.MailUniverse(onUniverse);
