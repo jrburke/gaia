@@ -8,6 +8,7 @@ manifest.appcache
 
 /apps/system/camera
 /apps/settings/resources/gaia_commit.txt
+/apps/email/js/mail-app-built.js
 /apps/homescreen/js/init.json
 /apps/homescreen/js/hiddenapps.js
 /apps/settings/js/hiddenapps.js

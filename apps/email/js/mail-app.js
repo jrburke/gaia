@@ -32,7 +32,18 @@ define('q', ['prim'], function (prim) {
   };
 });
 
-define('mail-app', ['require', 'mail-common', 'api!fake', 'l10n'],
+// Named module, so it is the same before and after build.
+define('mail-app', [
+  'require',
+  'mail-common',
+  'api!fake',
+  'l10n',
+
+  // Some default cards to load, do not need local var
+  // refs for these.
+  'message-cards',
+  'folder-cards'
+],
 function (require, common, MailAPI, mozL10n) {
 
 var Cards = common.Cards,
@@ -359,5 +370,5 @@ return App;
 
 });
 
-// Run the app module
-require(['mail-app']);
+// Run the app module, bring in fancy logging
+require(['console-hook', 'mail-app']);
