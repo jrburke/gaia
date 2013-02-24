@@ -17,6 +17,10 @@ How to:
   prompt1.addToList('Another button', function(){alert('Another action');});
   prompt1.show();
 */
+/*jshint browser: true */
+/*global alert, define */
+define(['folder_depth_classes', 'l10n'],
+function (FOLDER_DEPTH_CLASSES, mozL10n) {
 
 function ValueSelector(title, list) {
   var init, show, hide, render, setTitle, emptyList, addToList,
@@ -150,3 +154,7 @@ function ValueSelector(title, list) {
     List: list
   };
 }
+
+return ValueSelector;
+
+});

@@ -2,15 +2,14 @@
  * Card definitions/logic for the folder navigation / picker for move targets.
  **/
 
-const FOLDER_DEPTH_CLASSES = [
-    'fld-folder-depth0',
-    'fld-folder-depth1',
-    'fld-folder-depth2',
-    'fld-folder-depth3',
-    'fld-folder-depth4',
-    'fld-folder-depth5',
-    'fld-folder-depthmax'
-  ];
+/*jshint browser: true */
+/*global alert, define */
+define(['folder_depth_classes', 'common', 'api!real', 'l10n'],
+function (FOLDER_DEPTH_CLASSES, common, MailAPI, mozL10n) {
+
+var bindContainerHandler = common.bindContainerHandler,
+    Cards = common.Cards,
+    fldNodes = common.fldNodes;
 
 function FolderPickerCard(domNode, mode, args) {
   this.domNode = domNode;
@@ -222,7 +221,7 @@ FolderPickerCard.prototype = {
       this.lastSyncedAtNode.dataset.time =
         this.mostRecentSyncTimestamp.valueOf();
       this.lastSyncedAtNode.textContent =
-        prettyDate(this.mostRecentSyncTimestamp);
+        common.prettyDate(this.mostRecentSyncTimestamp);
     }
     else {
       this.lastSyncedAtNode.textContent = mozL10n.get('account-never-synced');
@@ -306,5 +305,7 @@ Cards.defineCard({
     }
   },
   constructor: FolderPickerCard
+});
+
 });
 

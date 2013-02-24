@@ -1,4 +1,11 @@
+/*jshint browser: true */
+/*global console, define */
+
+define(['shared/js/gesture_detector'], function () {
+
 'use strict';
+
+var GestureDetector = window.GestureDetector;
 
 /**
  * Some default styles to override the canonical HTML5 styling defaults that
@@ -9,7 +16,7 @@
  * us for the non-newsletter case.  We could also internally load the CSS file
  * and splice it in rather than hardcoding it.
  */
-const DEFAULT_STYLE_TAG =
+var DEFAULT_STYLE_TAG =
   '<style type="text/css">\n' +
   // ## blockquote
   // blockquote per html5: before: 1em, after: 1em, start: 40px, end: 40px
@@ -412,3 +419,10 @@ function bindSanitizedClickHandler(target, clickHandler, topNode) {
       }
     });
 }
+
+return {
+  createAndInsertIframeForContent: createAndInsertIframeForContent,
+  bindSanitizedClickHandler: bindSanitizedClickHandler
+};
+
+});

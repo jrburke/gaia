@@ -1,16 +1,32 @@
-'use strict';
 /**
  * Card definitions/logic for adding accounts, changing accounts, and
  * generally managing our settings.
  **/
 
+/*jshint browser: true */
+/*global define, console, alert */
+define([
+  'require',
+  'mail-common',
+  'mail-app',
+  'api!real',
+  'iframe-shims',
+  'l10n'
+],
+function (require, common, App, MailAPI, iframeShims, mozL10n) {
+'use strict';
+
+var Cards = common.Cards,
+    ConfirmDialog = common.ConfirmDialog,
+    FormNavigation = common.FormNavigation,
+    tngNodes = common.tngNodes;
 /**
  * Map error codes to their l10n string id.  This exists because we have
  * revised some of the strings and so a direct transformation is no longer
  * sufficient.  If an error code does not exist in this map, it gets mapped
  * to the "unknown" value's l10n string id.
  */
-const SETUP_ERROR_L10N_ID_MAP = {
+var SETUP_ERROR_L10N_ID_MAP = {
   'offline': 'setup-error-offline',
   'bad-user-or-pass': 'setup-error-bad-user-or-pass2',
   'not-authorized': 'setup-error-not-authorized',
@@ -604,6 +620,7 @@ SettingsMainCard.prototype = {
 
   onClickSecretButton: function() {
     if (this._secretButtonTimer === null) {
+      var self = this;
       this._secretButtonTimer = window.setTimeout(
         function() {
           self._secretButtonTimer = null;
@@ -924,3 +941,4 @@ Cards.defineCardWithDefaultMode(
     SettingsDebugCard
 );
 
+});

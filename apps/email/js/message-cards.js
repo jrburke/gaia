@@ -3,15 +3,37 @@
  * search.
  **/
 
+/*jshint browser: true */
+/*global define, console, MozActivity, confirm */
+define([
+  'require',
+  'mail-common',
+  'api!real',
+  'iframe-shims',
+  'l10n'
+],
+function (require, common, MailAPI, iframeShims, mozL10n) {
+
+var Cards = common.Cards,
+    Toaster = common.Toaster,
+    ConfirmDialog = common.ConfirmDialog,
+    msgNodes = common.msgNodes,
+    batchAddClass = common.batchAddClass,
+    bindContainerClickAndHold = common.bindContainerClickAndHold,
+    bindContainerHandler = common.bindContainerHandler,
+    prettyDate = common.prettyDate,
+    appendMatchItemTo = common.appendMatchItemTo,
+    bindSanitizedClickHandler = common.bindSanitizedClickHandler;
+
 /**
  * Try and keep at least this many display heights worth of undisplayed
  * messages.
  */
-const SCROLL_MIN_BUFFER_SCREENS = 2;
+var SCROLL_MIN_BUFFER_SCREENS = 2;
 /**
  * Keep around at most this many display heights worth of undisplayed messages.
  */
-const SCROLL_MAX_RETENTION_SCREENS = 7;
+var SCROLL_MAX_RETENTION_SCREENS = 7;
 
 /**
  * Format the message subject appropriately.  This means ensuring that if the
@@ -858,7 +880,7 @@ Cards.defineCard({
   constructor: MessageListCard
 });
 
-const CONTENT_TYPES_TO_CLASS_NAMES = [
+var CONTENT_TYPES_TO_CLASS_NAMES = [
     null,
     'msg-body-content',
     'msg-body-signature',
@@ -869,7 +891,7 @@ const CONTENT_TYPES_TO_CLASS_NAMES = [
     'msg-body-product',
     'msg-body-ads'
   ];
-const CONTENT_QUOTE_CLASS_NAMES = [
+var CONTENT_QUOTE_CLASS_NAMES = [
     'msg-body-q1',
     'msg-body-q2',
     'msg-body-q3',
@@ -880,7 +902,7 @@ const CONTENT_QUOTE_CLASS_NAMES = [
     'msg-body-q8',
     'msg-body-q9'
   ];
-const MAX_QUOTE_CLASS_NAME = 'msg-body-qmax';
+var MAX_QUOTE_CLASS_NAME = 'msg-body-qmax';
 
 function MessageReaderCard(domNode, mode, args) {
   this.domNode = domNode;
@@ -931,7 +953,7 @@ MessageReaderCard.prototype = {
   postInsert: function() {
     // iframes need to be linked into the DOM tree before their contentDocument
     // can be instantiated.
-    App.loader.load('js/iframe-shims.js', function() {
+    require(['iframe-shims'], function() {
       this.buildBodyDom(this.domNode);
     }.bind(this));
   },
@@ -1264,7 +1286,7 @@ MessageReaderCard.prototype = {
         this._populatePlaintextBodyNode(rootBodyNode, rep);
       }
       else if (repType === 'html') {
-        var iframeShim = createAndInsertIframeForContent(
+        var iframeShim = iframeShims.createAndInsertIframeForContent(
           rep, this.scrollContainer, rootBodyNode, null,
           'interactive', this.onHyperlinkClick.bind(this));
         var iframe = iframeShim.iframe;
@@ -1324,7 +1346,7 @@ MessageReaderCard.prototype = {
           state = 'nodownload';
         attTemplate.setAttribute('state', state);
         filenameTemplate.textContent = attachment.filename;
-        filesizeTemplate.textContent = prettyFileSize(
+        filesizeTemplate.textContent = common.prettyFileSize(
           attachment.sizeEstimateInBytes);
 
         var attachmentNode = attTemplate.cloneNode(true);
@@ -1361,3 +1383,4 @@ Cards.defineCardWithDefaultMode(
     MessageReaderCard
 );
 
+});

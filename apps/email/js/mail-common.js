@@ -1,16 +1,20 @@
 /**
  * UI infrastructure code and utility code for the gaia email app.
  **/
+/*jshint browser: true */
+/*global define, console */
+define(['require', 'exports' , 'value_selector', 'l10n'],
+function (require, exports, ValueSelector, mozL10n) {
 
-var mozL10n = navigator.mozL10n;
+var Cards, Toaster;
 
 // Dependcy handling for Cards
 // We match the first section of each card type to the key
 // E.g., setup-progress, would load the 'setup' lazyCards.setup
 var lazyCards = {
-    compose: ['js/compose-cards.js', 'style/compose-cards.css'],
-    settings: ['js/setup-cards.js', 'style/setup-cards.css'],
-    setup: ['js/setup-cards.js', 'style/setup-cards.css']
+    compose: ['compose-cards', 'css!style/compose-cards'],
+    settings: ['setup-cards', 'css!style/setup-cards'],
+    setup: ['setup-cards', 'css!style/setup-cards']
 };
 
 function dieOnFatalError(msg) {
@@ -78,10 +82,10 @@ function batchRemoveClass(domNode, searchClass, classToRemove) {
   }
 }
 
-const MATCHED_TEXT_CLASS = 'highlight';
+var MATCHED_TEXT_CLASS = 'highlight';
 
 function appendMatchItemTo(matchItem, node) {
-  const text = matchItem.text;
+  var text = matchItem.text;
   var idx = 0;
   for (var iRun = 0; iRun <= matchItem.matchRuns.length; iRun++) {
     var run;
@@ -165,7 +169,7 @@ function bindContainerClickAndHold(containerNode, clickFunc, holdFunc) {
  * transitions.  We are cribbing from deuxdrop's mobile UI's cards.js
  * implementation created jrburke.
  */
-var Cards = {
+Cards = {
   /* @dictof[
    *   @key[name String]
    *   @value[@dict[
@@ -392,16 +396,14 @@ var Cards = {
    */
   pushCard: function(type, mode, showMethod, args, placement) {
     var cardDef = this._cardDefs[type];
-    var typePrefix = type.split('-')[0]; 
+    var typePrefix = type.split('-')[0];
 
     if (!cardDef && lazyCards[typePrefix]) {
-      var args = Array.slice(arguments);
-      var callback = function() {
-        this.pushCard.apply(this, args);
-      };
-
+      var cbArgs = Array.slice(arguments);
       this.eatEventsUntilNextCard();
-      App.loader.load(lazyCards[typePrefix], callback.bind(this));
+      require(lazyCards[typePrefix], function() {
+        this.pushCard.apply(this, cbArgs);
+      }.bind(this));
       return;
     } else if (!cardDef)
       throw new Error('No such card def type: ' + type);
@@ -489,7 +491,7 @@ var Cards = {
   folderSelector: function(callback) {
     var self = this;
 
-    App.loader.load(['style/value_selector.css', 'js/value_selector.js'], function() {
+    require(['css!style/value_selector', 'value_selector'], function() {
       // XXX: Unified folders will require us to make sure we get the folder list
       //      for the account the message originates from.
       if (!self.folderPrompt) {
@@ -862,7 +864,7 @@ var Cards = {
  * Central tracker of poptart messages; specifically, ongoing message sends,
  * failed sends, and recently performed undoable mutations.
  */
-var Toaster = {
+Toaster = {
   get body() {
     delete this.body;
     return this.body =
@@ -1173,3 +1175,23 @@ FormNavigation.prototype = {
     return null;
   }
 };
+
+exports.Cards = Cards;
+exports.Toaster = Toaster;
+exports.ConfirmDialog = ConfirmDialog;
+exports.FormNavigation = FormNavigation;
+exports.msgNodes = msgNodes;
+exports.cmpNodes = cmpNodes;
+exports.fldNodes = fldNodes;
+exports.tngNodes = tngNodes;
+exports.prettyDate = prettyDate;
+exports.prettyFileSize = prettyFileSize;
+exports.batchAddClass = batchAddClass;
+exports.bindContainerClickAndHold = bindContainerClickAndHold;
+exports.bindContainerHandler = bindContainerHandler;
+exports.prettyDate = prettyDate;
+exports.appendMatchItemTo = appendMatchItemTo;
+exports.bindContainerHandler = bindContainerHandler;
+exports.dieOnFatalError = dieOnFatalError;
+exports.populateTemplateNodes = populateTemplateNodes;
+});

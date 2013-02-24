@@ -3,30 +3,43 @@
  * startup and eventually notifications.
  **/
 
-var MailAPI = null;
+/*jshint browser: true */
+/*global define, require, console, confirm */
+
+// set up loading of scripts.
+require.config({
+  paths: {
+    mailapi: 'js/ext/mailapi',
+    shared: '../../../shared',
+    l10nbase: '../../../shared/js/l10n',
+    l10n: '../../../shared/js/l10n_date'
+  },
+  shim: {
+    l10n: {
+      deps: ['l10nbase'],
+      exports: 'navigator.mozL10n'
+    }
+  },
+  scriptType: 'application/javascript;version=1.8',
+  definePrim: 'prim'
+});
+
+// q shim for rdcommon/log, just enough for it to
+// work. Just uses defer, promise, resolve and reject.
+define('q', ['prim'], function (prim) {
+  return {
+    defer: prim
+  };
+});
+
+define('mail-app', ['require', 'mail-common', 'api!fake', 'l10n'],
+function (require, common, MailAPI, mozL10n) {
+
+var Cards = common.Cards,
+    activityCallback = null;
 
 var App = {
   initialized: false,
-
-  loader: LazyLoader,
-
-  /**
-   * Preloads all remaining resources
-   */
-  preloadAll: function(cb) {
-    cb = cb || function() {};
-
-    App.loader.load(
-      ['style/value_selector.css',
-      'style/compose-cards.css',
-      'style/setup-cards.css',
-      'js/value_selector.js',
-      'js/iframe-shims.js',
-      'js/setup-cards.js',
-      'js/compose-cards.js'],
-      cb
-    );
-  },
 
   /**
    * Bind any global notifications, relay localizations to the back-end.
@@ -100,7 +113,7 @@ var App = {
         foldersSlice.oncomplete = function() {
           var inboxFolder = foldersSlice.getFirstFolderWithType('inbox');
           if (!inboxFolder)
-            dieOnFatalError('We have an account without an inbox!',
+            common.dieOnFatalError('We have an account without an inbox!',
                 foldersSlice.items);
 
           if (isUpgradeCheck) {
@@ -149,10 +162,24 @@ var App = {
       }
 
       if (!isUpgradeCheck) {
-        // Preload all resources after 2s
-        setTimeout(function preloadTimeout() {
-          App.preloadAll();
-        }, 4000);
+        require(['css!style/value_selector',
+                 'css!style/compose-cards',
+                 'css!style/setup-cards',
+                 'value_selector',
+                 'iframe-shims',
+                 'setup-cards',
+                 'compose-cards'
+        ]);
+      }
+
+      // If have a fake API object, now dynamically load
+      // the real one.
+      if (MailAPI._fake) {
+        require(['api!real'], function (api) {
+          MailAPI = api;
+          if (gotLocalized)
+            doInit();
+        });
       }
     };
   }
@@ -164,7 +191,7 @@ var queryURI = function _queryURI(uri) {
       return [''];
     addresses = addresses.split(';');
     var addressesArray = addresses.filter(function notEmpty(addr) {
-      return addr.trim() != '';
+      return addr.trim() !== '';
     });
     return addressesArray;
   }
@@ -200,67 +227,51 @@ var queryURI = function _queryURI(uri) {
 
 };
 
-function hookStartup() {
-  var gotLocalized = (mozL10n.readyState === 'interactive') ||
-                     (mozL10n.readystate === 'complete'),
-      gotMailAPI = false,
-      inited = false;
-  function doInit() {
-    try {
-      if (inited) {
-        App._init();
 
-        if (!MailAPI._fake) {
-          // Real MailAPI set up now. We could have guessed wrong
-          // for the fast path, particularly if this is an email
-          // app upgrade, where they set up an account, but our
-          // fast path for no account setup was not in place then.
-          // In those cases, if we have accounts, need to switch
-          // to showing accounts. This should only happen once on
-          // app upgrade.
-          App.showMessageViewOrSetup(null, true);
-        }
-      } else {
-        inited = true;
-        populateTemplateNodes();
-        Cards._init();
-        App._init();
-        App.showMessageViewOrSetup();
+var gotLocalized = (mozL10n.readyState === 'interactive') ||
+                   (mozL10n.readystate === 'complete'),
+    inited = false;
+
+function doInit() {
+  try {
+    if (inited) {
+      App._init();
+
+      if (!MailAPI._fake) {
+        // Real MailAPI set up now. We could have guessed wrong
+        // for the fast path, particularly if this is an email
+        // app upgrade, where they set up an account, but our
+        // fast path for no account setup was not in place then.
+        // In those cases, if we have accounts, need to switch
+        // to showing accounts. This should only happen once on
+        // app upgrade.
+        App.showMessageViewOrSetup(null, true);
       }
-    }
-    catch (ex) {
-      console.error('Problem initializing', ex, '\n', ex.stack);
+    } else {
+      inited = true;
+      common.populateTemplateNodes();
+      Cards._init();
+      App._init();
+      App.showMessageViewOrSetup();
     }
   }
-
-  if (!gotLocalized) {
-    window.addEventListener('localized', function localized() {
-      console.log('got localized!');
-      gotLocalized = true;
-      window.removeEventListener('localized', localized);
-      if (gotMailAPI)
-        doInit();
-    });
-  }
-  window.addEventListener('mailapi', function(event) {
-    console.log('got MailAPI!');
-    MailAPI = event.mailAPI;
-    gotMailAPI = true;
-    if (gotLocalized)
-      doInit();
-  }, false);
-
-  if (window.tempMailAPI) {
-    console.log('got MailAPI from window!');
-    MailAPI = window.tempMailAPI;
-    gotMailAPI = true;
-    if (gotLocalized)
-      doInit();
+  catch (ex) {
+    console.error('Problem initializing', ex, '\n', ex.stack);
   }
 }
-hookStartup();
 
-var activityCallback = null;
+if (!gotLocalized) {
+  window.addEventListener('localized', function localized() {
+    console.log('got localized!');
+    gotLocalized = true;
+    window.removeEventListener('localized', localized);
+    doInit();
+  });
+} else {
+  console.log('got localized via readyState!');
+  doInit();
+}
+
 if ('mozSetMessageHandler' in window.navigator) {
   window.navigator.mozSetMessageHandler('activity',
                                         function actHandle(activity) {
@@ -274,9 +285,13 @@ if ('mozSetMessageHandler' in window.navigator) {
     else if (activityName === 'new' ||
              activityName === 'view') {
       // new uses URI, view uses url
-      var [to, subject, body, cc, bcc] = queryURI(
-        activity.source.data.url ||
-        activity.source.data.URI);
+      var parts = queryURI(activity.source.data.url ||
+                           activity.source.data.URI),
+        to = parts[0],
+        subject = parts[1],
+        body = parts[2],
+        cc = parts[3],
+        bcc = parts[4];
     }
     var sendMail = function actHandleMail() {
       var folderToUse;
@@ -339,3 +354,10 @@ if ('mozSetMessageHandler' in window.navigator) {
 else {
   console.warn('Activity support disabled!');
 }
+
+return App;
+
+});
+
+// Run the app module
+require(['mail-app']);

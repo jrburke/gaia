@@ -4,6 +4,22 @@
  * web activity or shared code.
  **/
 
+/*jshint browser: true */
+/*global define, console, MozActivity, alert */
+define([
+  'require',
+  'mail-common',
+  'api!real',
+  'iframe-shims',
+  'l10n'
+],
+function (require, common, MailAPI, iframeShims, mozL10n) {
+
+var cmpNodes = common.cmpNodes,
+    prettyFileSize = common.prettyFileSize,
+    Cards = common.Cards,
+    ConfirmDialog = common.ConfirmDialog;
+
 /**
  * Composer card; wants an initialized message composition object when it is
  * created (for now).
@@ -105,7 +121,7 @@ ComposeCard.prototype = {
   postInsert: function() {
     // the HTML bit needs us linked into the DOM so the iframe can be linked in,
     // hence this happens in postInsert.
-    App.loader.load('js/iframe-shims.js', function() {
+    require(['iframe-shims'], function() {
       this._loadStateFromComposer();
     }.bind(this));
   },
@@ -147,12 +163,12 @@ ComposeCard.prototype = {
       // it gets to live in an iframe.  Its read-only and the user needs to be
       // able to see what they are sending, so reusing the viewing functionality
       // is desirable.
-      var iframeShims = createAndInsertIframeForContent(
+      var ishims = iframeShims.createAndInsertIframeForContent(
         this.composer.body.html, this.scrollContainer,
         this.htmlBodyContainer, /* append */ null,
         'noninteractive',
         /* no click handler because no navigation desired */ null);
-      this.htmlIframeNode = iframeShims.iframe;
+      this.htmlIframeNode = ishims.iframe;
     }
   },
 
@@ -485,3 +501,4 @@ ComposeCard.prototype = {
 };
 Cards.defineCardWithDefaultMode('compose', {}, ComposeCard);
 
+});
