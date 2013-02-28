@@ -1,0 +1,19 @@
+{
+  "name": "Lazy3Only",
+  "description": "Lazy 3 Only Test",
+  "launch_path": "/index.html",
+  "developer": {
+    "name": "The Gaia Team",
+    "url": "https://github.com/mozilla-b2g/gaia"
+  },
+  "locales": {
+    "en-US": {
+      "name": "Lazy3Only",
+      "description": "Lazy 3 Only Test"
+    }
+  },
+  "default_locale": "en-US",
+  "icons": {
+    "128": "/style/icons/Blank.png"
+  }
+}
