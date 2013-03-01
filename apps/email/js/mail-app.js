@@ -116,12 +116,12 @@ var App = {
    * Show the best inbox we have (unified if >1 account, just the inbox if 1) or
    * start the setup process if we have no accounts.
    */
-  showMessageViewOrSetup: function(showLatest, isUpgradeCheck) {
+  showMessageViewOrSetup: function(showLatest) {
     // Get the list of accounts including the unified account (if it exists)
     var acctsSlice = MailAPI().viewAccounts(false);
     acctsSlice.oncomplete = function() {
       // - we have accounts, show the message view!
-      if (acctsSlice.items.length) {
+      if (acctsSlice.items.length && !MailAPI._fake) {
         // For now, just use the first one; we do attempt to put unified first
         // so this should generally do the right thing.
         // XXX: Because we don't have unified account now, we should switch to
@@ -135,14 +135,32 @@ var App = {
             common.dieOnFatalError('We have an account without an inbox!',
                 foldersSlice.items);
 
-          if (isUpgradeCheck) {
-            // Clear out old cards, start fresh
-            Cards.removeCardAndSuccessors(null, 'none');
+          // Find out if a blank message-list card was already inserted, and
+          // if so, then just reuse it.
+          var hasMessageListCard = Cards.hasCard(['message-list', 'nonsearch']);
+
+          if (hasMessageListCard) {
+            // Just update existing card
+            Cards.tellCard(
+              ['message-list', 'nonsearch'],
+              { folder: inboxFolder }
+            );
           } else {
-            Cards.assertNoCards();
+            // Clear out old cards, start fresh. This can happen for
+            // an incorrect fast path guess, and likely to happen for
+            // email apps that get upgraded from a version that did
+            // not have the cookie fast path.
+            Cards.removeAllCards();
+
+            // Push the message list card
+            Cards.pushCard(
+              'message-list', 'nonsearch', 'immediate',
+              {
+                folder: inboxFolder
+              });
           }
 
-          // Push the navigation cards
+          // Add navigation, but before the message list.
           Cards.pushCard(
             'folder-picker', 'navigation', 'none',
             {
@@ -150,21 +168,25 @@ var App = {
               curAccount: account,
               foldersSlice: foldersSlice,
               curFolder: inboxFolder
-            });
-          // Push the message list card
-          Cards.pushCard(
-            'message-list', 'nonsearch', 'immediate',
-            {
-              folder: inboxFolder
-            });
+            },
+            // Place to left of message list
+            'left');
+
           if (activityCallback) {
             activityCallback();
             activityCallback = null;
           }
         };
+      } else if (MailAPI._fake && MailAPI.hasAccounts) {
+        // Insert a fake card while loading finishes.
+        Cards.assertNoCards();
+        Cards.pushCard(
+          'message-list', 'nonsearch', 'immediate',
+          { folder: null }
+        );
       }
       // - no accounts, show the setup page!
-      else if (!isUpgradeCheck) {
+      else if (!Cards.hasCard(['setup-account-info', 'default'])) {
         acctsSlice.die();
         if (activityCallback) {
           var result = activityCallback();
@@ -172,7 +194,12 @@ var App = {
           if (!result)
             return;
         }
-        Cards.assertNoCards();
+
+        // Could have bad state from an incorrect _fake fast path.
+        // Mostly likely when the email app is updated from one that
+        // did not have the fast path cookies set up.
+        Cards.removeAllCards();
+
         Cards.pushCard(
           'setup-account-info', 'default', 'immediate',
           {
@@ -180,23 +207,19 @@ var App = {
           });
       }
 
-      if (!isUpgradeCheck) {
-        require(['css!style/value_selector',
-                 'css!style/compose-cards',
-                 'css!style/setup-cards',
-                 'value_selector',
-                 'iframe-shims',
-                 'setup-cards',
-                 'compose-cards'
-        ]);
-      }
-
-      // If have a fake API object, now dynamically load
-      // the real one.
       if (MailAPI()._fake) {
         require(['api!real'], function (api) {
           if (gotLocalized)
             doInit();
+
+          require(['css!style/value_selector',
+                   'css!style/compose-cards',
+                   'css!style/setup-cards',
+                   'value_selector',
+                   'iframe-shims',
+                   'setup-cards',
+                   'compose-cards'
+          ]);
         });
       }
     };
@@ -245,7 +268,6 @@ var queryURI = function _queryURI(uri) {
 
 };
 
-
 var gotLocalized = (mozL10n.readyState === 'interactive' ||
                    mozL10n.readyState === 'complete'),
     inited = false;
@@ -253,17 +275,13 @@ var gotLocalized = (mozL10n.readyState === 'interactive' ||
 function doInit() {
   try {
     if (inited) {
-      App._init();
-
-      if (!MailAPI()._fake) {
+      if (!MailAPI._fake) {
         // Real MailAPI set up now. We could have guessed wrong
         // for the fast path, particularly if this is an email
         // app upgrade, where they set up an account, but our
         // fast path for no account setup was not in place then.
-        // In those cases, if we have accounts, need to switch
-        // to showing accounts. This should only happen once on
-        // app upgrade.
-        App.showMessageViewOrSetup(null, true);
+        App._init();
+        App.showMessageViewOrSetup();
       }
     } else {
       inited = true;
@@ -272,8 +290,7 @@ function doInit() {
       App._init();
       App.showMessageViewOrSetup();
     }
-  }
-  catch (ex) {
+  } catch (ex) {
     console.error('Problem initializing', ex, '\n', ex.stack);
   }
 }
@@ -304,12 +321,12 @@ if ('mozSetMessageHandler' in window.navigator) {
              activityName === 'view') {
       // new uses URI, view uses url
       var parts = queryURI(activity.source.data.url ||
-                           activity.source.data.URI),
-        to = parts[0],
-        subject = parts[1],
-        body = parts[2],
-        cc = parts[3],
-        bcc = parts[4];
+                           activity.source.data.URI);
+      var to = parts[0];
+      var subject = parts[1];
+      var body = parts[2];
+      var cc = parts[3];
+      var bcc = parts[4];
     }
     var sendMail = function actHandleMail() {
       var folderToUse;
