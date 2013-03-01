@@ -194,6 +194,10 @@ function optimize_aggregateJsResources(doc, webapp, htmlFile) {
 
     script.src = rootUrl + '/' + scriptBaseName;
     script.defer = lastScript.defer;
+
+    if (lastScript.hasAttribute('data-main'))
+      script.setAttribute('data-main', lastScript.getAttribute('data-main'));
+
     // use the config's type if given (for text/javascript;version=x)
     script.type = config.type || lastScript.type;
 

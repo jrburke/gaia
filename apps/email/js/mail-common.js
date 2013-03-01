@@ -2,8 +2,8 @@
  * UI infrastructure code and utility code for the gaia email app.
  **/
 /*jshint browser: true */
-/*global define, console */
-define(['require', 'exports' , 'value_selector', 'l10n'],
+/*global define, console, hookupInputAreaResetButtons */
+define(['require', 'exports' , 'value_selector', 'l10n', 'input_areas'],
 function (require, exports, ValueSelector, mozL10n) {
 
 var Cards, Toaster;
