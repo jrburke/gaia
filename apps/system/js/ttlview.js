@@ -17,6 +17,7 @@ var TTLView = {
 
   show: function tv_show() {
     var element = this.element;
+    var output = '';
     if (!element) {
       element = document.createElement('div');
       element.id = 'debug-ttl';
@@ -29,10 +30,18 @@ var TTLView = {
       // this is fired when the app launching is initialized
       window.addEventListener('appwillopen', function willopen(e) {
         element.innerHTML = '00000';
+        output = '';
       });
 
       window.addEventListener('apploadtime', function apploadtime(e) {
-        element.innerHTML = e.detail.time + ' [' + e.detail.type + ']';
+        output += (output ? ' | ' : '') + 'L ' +
+                  e.detail.time + ' [' + e.detail.type + ']';
+        element.innerHTML = output;
+      });
+
+      window.addEventListener('appuserready', function appuserreadytime(e) {
+        output += (output ? ' | ' : '') + 'R ' + e.detail.time;
+        element.innerHTML = output;
       });
     }
 

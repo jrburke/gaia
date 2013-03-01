@@ -85,6 +85,14 @@ var App = {
    * start the setup process if we have no accounts.
    */
   showMessageViewOrSetup: function(showLatest) {
+
+    function appRendered() {
+      //Mmmmm, delicious hack.
+      var now = window.location.hash || '#';
+      window.location.replace('#x-moz-perf-user-ready');
+      window.location.replace(now);
+    }
+
     // Get the list of accounts including the unified account (if it exists)
     var acctsSlice = MailAPI.viewAccounts(false);
     acctsSlice.oncomplete = function() {
@@ -140,6 +148,8 @@ var App = {
             // Place to left of message list
             'left');
 
+          appRendered();
+
           if (activityCallback) {
             activityCallback();
             activityCallback = null;
@@ -178,6 +188,8 @@ var App = {
           {
             allowBack: false
           });
+
+        appRendered();
       }
 
       if (MailAPI._fake) {
