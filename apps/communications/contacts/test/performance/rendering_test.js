@@ -13,7 +13,8 @@ suite(window.mozTestInfo.appPath + ' >', function() {
   });
 
   setup(function() {
-    yield IntegrationHelper.unlock(device); // it affects the first run otherwise
+    // it affects the first run otherwise
+    yield IntegrationHelper.unlock(device);
   });
 
   test('rendering time >', function() {
@@ -33,20 +34,16 @@ suite(window.mozTestInfo.appPath + ' >', function() {
       lastEvent: lastEvent
     });
 
-    // FIXME When Bug 846302 lands, the loop will be handled by
-    // performanceHelper instead.
-    for (var i = 0; i < performanceHelper.runs; i++) {
-
-      yield performanceHelper.delay();
+    yield performanceHelper.repeatWithDelay(function(app, next) {
 
       var waitForBody = false;
       yield app.launch(waitForBody);
 
-      var runResults = yield performanceHelper.observe();
+      var runResults = yield performanceHelper.observe(next);
 
       performanceHelper.reportRunDurations(runResults);
       yield app.close();
-    }
+    });
 
     performanceHelper.finish();
 

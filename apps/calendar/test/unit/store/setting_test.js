@@ -12,7 +12,7 @@ suite('store/setting', function() {
   setup(function(done) {
     this.timeout(5000);
     app = testSupport.calendar.app();
-    db = testSupport.calendar.db();
+    db = app.db;
     subject = db.getStore('Setting');
 
     db.open(function(err) {
@@ -79,6 +79,17 @@ suite('store/setting', function() {
       subject.getValue('syncFrequency', function(err, value) {
         done(function() {
           assert.equal(value, subject.defaults.syncFrequency);
+          assert.ok(value);
+        });
+      });
+    });
+
+    test('with a zero default', function(done) {
+      subject.defaults.someZeroDefault = 0;
+      subject.getValue('someZeroDefault', function(err, value) {
+        done(function() {
+          assert.equal(value, subject.defaults.someZeroDefault);
+          assert.equal(value, 0);
         });
       });
     });

@@ -384,8 +384,7 @@ section[role="region"].new > header:first-child form {
   background: url('images/icons/exclamation.png') no-repeat center center;
   background-size: 2.2rem;
   width: 3.2rem;
-  height: 2.2rem;
-  margin-top: 1rem;
+  height: 4.5rem;
 }
 #messages-container[data-type="list"] li.bubble aside progress {
   margin-top: 0.4rem;
@@ -469,11 +468,12 @@ form.bottom[role="search"].new-sms-form {
 
 #send-message:before {
   content: attr(data-counter);
-  font-size: 1.2rem;
-  color: #606060;
+  color: #666;
+  font-weight: normal;
+  font-size: -moz-calc(8 * 0.226rem);
   position: absolute;
-  right: 1.5rem;
-  bottom: 2.4rem;
+  right: 1rem;
+  top: -0.2rem;
 }
 
 #message-to-send {

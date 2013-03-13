@@ -92,6 +92,9 @@ var ThreadUI = {
 
   init: function thui_init() {
     this.sendButton.addEventListener('click', this.sendMessage.bind(this));
+    // Allow for stubbing in environments that do not implement the
+    // `navigator.mozSms` API
+    this._mozSms = navigator.mozSms || window.MockNavigatormozSms;
 
     // Prevent sendbutton to hide the keyboard:
     this.sendButton.addEventListener('mousedown',
@@ -239,7 +242,7 @@ var ThreadUI = {
     var kMaxConcatenatedMessages = 10;
 
     // Use backend api for precise sms segmetation information.
-    var smsInfo = navigator.mozSms.getSegmentInfoForText(value);
+    var smsInfo = this._mozSms.getSegmentInfoForText(value);
     var segments = smsInfo.segments;
     var availableChars = smsInfo.charsAvailableInLastSegment;
     var counter = '';
@@ -546,7 +549,6 @@ var ThreadUI = {
     switch (message.delivery) {
       case 'error':
         asideHTML = '<aside class="pack-end"></aside>';
-        ThreadUI.addResendHandler(message, messageDOM);
         break;
       case 'sending':
         asideHTML = '<aside class="pack-end">' +
@@ -563,6 +565,10 @@ var ThreadUI = {
     messageHTML += asideHTML;
     messageHTML += '<p>' + bodyHTML + '</p></a>';
     messageDOM.innerHTML = messageHTML;
+
+    if (message.delivery === 'error')
+      ThreadUI.addResendHandler(message, messageDOM);
+
     // Add to the right position
     var messageContainer = ThreadUI.getMessageContainer(timestamp, hidden);
     if (!messageContainer.firstElementChild) {
@@ -591,7 +597,8 @@ var ThreadUI = {
   },
 
   addResendHandler: function thui_addResendHandler(message, messageDOM) {
-    messageDOM.addEventListener('click', function resend(e) {
+    var aElement = messageDOM.querySelector('aside');
+    aElement.addEventListener('click', function resend(e) {
       var hash = window.location.hash;
       if (hash != '#edit') {
         var resendConfirmStr = _('resend-confirmation');

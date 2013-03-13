@@ -364,11 +364,11 @@ var BalanceTab = (function() {
 
   var topUpCountdown, countdown;
   function resetTopUpCountdown() {
-    getTopUpTimeout(function (timeout) {
+    getTopUpTimeout(function(timeout) {
       if (!timeout) {
         return;
       }
-      countdown = Math.floor((timeout.getTime() - Date.now())/1000);
+      countdown = Math.floor((timeout.getTime() - Date.now()) / 1000);
       if (countdown < 0) {
         return;
       }
@@ -385,16 +385,16 @@ var BalanceTab = (function() {
           countdown -= 1;
         }
       }, 1000);
-    })
+    });
   }
 
   var ERRORS = {
-    'airplane_mode': { priority: 1, string: 'airplane-mode-error-message2' },
-    'no_service': { priority: 2, string: 'no-coverage-error-message2' },
+    'airplane_mode': { priority: 1, string: 'airplane-mode-error-message' },
+    'no_service': { priority: 2, string: 'no-coverage-error-message' },
     'no_coverage': { priority: 2, string: 'no-coverage-error-message' },
-    'topup_timeout': { priority: 3, string: 'top-up-timed-out2' },
-    'balance_error': { priority: 4, string: 'balance-error-message2' },
-    'non_free_in_roaming': { priority: 4, string: 'on-roaming-message2' }
+    'topup_timeout': { priority: 3, string: 'top-up-timed-out' },
+    'balance_error': { priority: 4, string: 'balance-error-message' },
+    'non_free_in_roaming': { priority: 4, string: 'on-roaming-message' }
   };
   var currentError = '';
 

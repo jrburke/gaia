@@ -14,7 +14,10 @@
     selectors: {
       element: '#advanced-settings-view',
       accountList: '#advanced-settings-view .account-list',
-      syncFrequency: '#setting-sync-frequency'
+      syncFrequency: '#setting-sync-frequency',
+
+      standardAlarmLabel: '#default-event-alarm',
+      alldayAlarmLabel: '#default-allday-alarm'
     },
 
     get accountList() {
@@ -23,6 +26,22 @@
 
     get syncFrequency() {
       return this._findElement('syncFrequency');
+    },
+
+    get standardAlarmLabel() {
+      return this._findElement('standardAlarmLabel');
+    },
+
+    get alldayAlarmLabel() {
+      return this._findElement('alldayAlarmLabel');
+    },
+
+    get standardAlarm() {
+      return this.standardAlarmLabel.querySelector('select');
+    },
+
+    get alldayAlarm() {
+      return this.alldayAlarmLabel.querySelector('select');
     },
 
     _formatModel: function(model) {
@@ -48,6 +67,9 @@
 
       setting.on('syncFrequencyChange', this);
       this.syncFrequency.addEventListener('change', this);
+
+      this.standardAlarmLabel.addEventListener('change', this);
+      this.alldayAlarmLabel.addEventListener('change', this);
     },
 
     handleSettingDbChange: function(type, value) {
@@ -65,6 +87,8 @@
         value = null;
 
       switch (type) {
+        case 'alldayAlarmDefault':
+        case 'standardAlarmDefault':
         case 'syncFrequency':
           if (!value === null) {
             value = parseInt(value);
@@ -107,35 +131,61 @@
     },
 
     render: function() {
-      var accounts = this.app.store('Account');
-      var items = accounts.cached;
-      var list = this.accountList;
+      var self = this;
+      var pending = 4;
 
-      // update accounts
-
-      var key;
-      var result = '';
-
-      for (key in items) {
-        if (this._displayAccount(items[key])) {
-          result += template.account.render(
-            this._formatModel(items[key])
-          );
+      function next() {
+        if (!--pending && self.onrender) {
+          self.onrender();
         }
       }
-      list.innerHTML = result;
+
+      function renderSyncFrequency(err, value) {
+        self.syncFrequency.value = String(value);
+        next();
+      }
+
+      function renderAccounts(err, accounts) {
+        self.accountList.innerHTML = '';
+
+        for (var id in accounts) {
+          self._addAccount(id, accounts[id]);
+        }
+
+        next();
+      }
+
+      function renderAlarmDefault(type) {
+        return function(err, value) {
+
+          var element = type + 'AlarmLabel';
+          var existing = self[element].querySelector('select');
+
+          if (existing) {
+            existing.parentNode.removeChild(existing);
+          }
+
+          // Render the select box
+          var template = Calendar.Templates.Alarm;
+          var select = document.createElement('select');
+          select.name = type + 'AlarmDefault';
+          select.innerHTML = template.options.render({
+            layout: type,
+            trigger: value
+          });
+          self[element].appendChild(select);
+
+          next();
+        };
+      }
 
       var settings = this.app.store('Setting');
+      var accounts = this.app.store('Account');
 
-      // update settings
-
-      // we only have on setting right now this will change
-      // and we should have a sane abstraction over multiple
-      // types of settings...
-      var syncFrequency = this.syncFrequency;
-      settings.getValue('syncFrequency', function(err, value) {
-        syncFrequency.value = String(value);
-      });
+      settings.getValue('syncFrequency', renderSyncFrequency);
+      settings.getValue('standardAlarmDefault', renderAlarmDefault('standard'));
+      settings.getValue('alldayAlarmDefault', renderAlarmDefault('allday'));
+      accounts.all(renderAccounts);
     }
 
   };

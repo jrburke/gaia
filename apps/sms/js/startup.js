@@ -7,7 +7,6 @@ var lazyLoadFiles = [
   'shared/js/async_storage.js',
   'shared/js/l10n_date.js',
   'shared/js/custom_dialog.js',
-  'shared/js/desktop.js',
   'shared/js/notification_helper.js',
   'js/blacklist.js',
   'js/contacts.js',
@@ -18,11 +17,14 @@ var lazyLoadFiles = [
   'js/utils.js',
   'js/search_utils.js',
   'js/fixed_header.js',
+  'js/action_menu.js',
   'shared/style/input_areas.css',
   'shared/style/switches.css',
   'shared/style/confirm.css',
   'shared/style_unstable/progress_activity.css',
-  'style/custom_dialog.css'
+  'style/custom_dialog.css',
+  'shared/style/action_menu.css',
+  'shared/style/responsive.css'
 ];
 
 window.addEventListener('localized', function showBody() {
@@ -45,7 +47,7 @@ window.addEventListener('load', function() {
   navigator.mozL10n.ready(function waitLocalizedForLoading() {
     LazyLoader.load(lazyLoadFiles, function() {
       if (!navigator.mozSms) {
-        LazyLoader.load(['js/desktop_testing.js'], function() {
+        LazyLoader.load(['js/sms_mock.js'], function() {
           MessageManager.init(initUIApp);
         });
         return;
