@@ -79,7 +79,8 @@ var Contacts = (function() {
                 if ('extras' in params) {
                   addExtrasToContact(params['extras']);
                 }
-                contactsForm.render(currentContact, goToForm);
+                contactsForm.render(currentContact, goToForm,
+                                    null, params['fromUpdateActivity']);
               }, function onError() {
                 console.log('Error retrieving contact to be edited');
                 contactsForm.render(null, goToForm);
@@ -93,7 +94,7 @@ var Contacts = (function() {
         initForm(function onInitForm() {
           navigation.home();
           if ('tel' in params) {
-            selectList(params['tel']);
+            selectList(params['tel'], true);
           }
         });
         return;
@@ -175,6 +176,7 @@ var Contacts = (function() {
       window.removeEventListener('asyncScriptsLoaded', onAsyncLoad);
       contactsList.initAlphaScroll();
       checkUrl();
+      PerformanceTestingHelper.dispatch('contacts-init-finished');
     });
   };
 
@@ -304,7 +306,7 @@ var Contacts = (function() {
     contactsList.handleClick(contactListClickHandler);
   };
 
-  var selectList = function selectList(phoneNumber) {
+  var selectList = function selectList(phoneNumber, fromUpdateActivity) {
     addButton.classList.add('hide');
     contactsList.clearClickHandlers();
     contactsList.handleClick(function addToContactHandler(id) {
@@ -316,8 +318,11 @@ var Contacts = (function() {
           }
         ]
       };
-      window.location.hash = '#view-contact-form?extras=' +
+      var hash = '#view-contact-form?extras=' +
         encodeURIComponent(JSON.stringify(data)) + '&id=' + id;
+      if (fromUpdateActivity)
+        hash += '&fromUpdateActivity=1';
+      window.location.hash = hash;
       contactsList.clearClickHandlers();
       contactsList.handleClick(contactListClickHandler);
       addButton.classList.remove('hide');
@@ -710,7 +715,7 @@ var Contacts = (function() {
   };
 
   var addAsyncScripts = function addAsyncScripts() {
-    var scripts = [
+    var lazyLoadFiles = [
       '/contacts/js/utilities/templates.js',
       '/contacts/js/contacts_shortcuts.js',
       '/contacts/js/utilities/responsive.js',
@@ -724,10 +729,7 @@ var Contacts = (function() {
       '/contacts/js/utilities/normalizer.js',
       '/contacts/js/utilities/status.js',
       '/contacts/js/utilities/overlay.js',
-      '/contacts/js/search.js'
-    ];
-
-    var styles = [
+      '/contacts/js/search.js',
       '/shared/style_unstable/progress_activity.css',
       '/shared/style/status.css',
       '/shared/style/switches.css',
@@ -740,34 +742,10 @@ var Contacts = (function() {
       '/contacts/style/fb_extensions.css'
     ];
 
-    var fragment = document.createDocumentFragment();
-
-    var onScriptLoaded = function onScriptLoaded() {
-      scriptsLoaded++;
-      if (scriptsLoaded === scripts.length) {
-        var event = new CustomEvent('asyncScriptsLoaded');
-        window.dispatchEvent(event);
-      }
-    };
-
-    for (var i = 0; i < styles.length; i++) {
-      var style = styles[i];
-      var elem = document.createElement('link');
-      elem.setAttribute('rel', 'stylesheet');
-      elem.href = style;
-      fragment.appendChild(elem);
-    }
-
-    for (var i = 0; i < scripts.length; i++) {
-      var script = scripts[i];
-      var elem = document.createElement('script');
-      elem.setAttribute('type', 'text/javascript');
-      elem.src = script;
-      elem.addEventListener('load', onScriptLoaded);
-      fragment.appendChild(elem);
-    }
-
-    document.head.appendChild(fragment);
+    LazyLoader.load(lazyLoadFiles, function() {
+      var event = new CustomEvent('asyncScriptsLoaded');
+      window.dispatchEvent(event);
+    });
   };
 
   var pendingChanges = {};
@@ -819,11 +797,12 @@ var Contacts = (function() {
           currentContact.id == event.contactID) {
           contactsList.getContactById(event.contactID,
             function success(contact, enrichedContact) {
-            currentContact = enrichedContact || contact;
-            contactsDetails.render(currentContact, false,
+            currentContact = contact;
+            var mergedContact = enrichedContact || contact;
+            contactsDetails.render(mergedContact, false,
                                    enrichedContact ? true : false);
-            contactsList.refresh(currentContact, checkPendingChanges,
-              event.reason);
+            contactsList.refresh(mergedContact, checkPendingChanges,
+                                 event.reason);
           });
         } else {
           contactsList.refresh(event.contactID, checkPendingChanges,

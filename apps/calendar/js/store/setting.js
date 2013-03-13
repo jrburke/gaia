@@ -13,6 +13,8 @@ Calendar.ns('Store').Setting = (function() {
      * Default option values.
      */
     defaults: {
+      standardAlarmDefault: -300,
+      alldayAlarmDefault: 0,
       syncFrequency: 15,
       syncAlarm: {
         alarmId: null,
@@ -24,10 +26,6 @@ Calendar.ns('Store').Setting = (function() {
     /** disable caching */
     _addToCache: function() {},
     _removeFromCache: function() {},
-
-    _parseId: function(id) {
-      return id;
-    },
 
     /**
      * This method also will use the internal cache to ensure
@@ -47,9 +45,9 @@ Calendar.ns('Store').Setting = (function() {
     getValue: function(key, callback) {
       var self = this;
 
-      if (key in this.cached) {
+      if (key in this._cached) {
         Calendar.nextTick(function handleCached() {
-          callback(null, self.cached[key].value);
+          callback(null, self._cached[key].value);
         });
 
         // we have cached value exit...
@@ -61,11 +59,11 @@ Calendar.ns('Store').Setting = (function() {
           return callback(err);
         }
 
-        if (value === undefined && self.defaults[key]) {
+        if (value === undefined && self.defaults[key] !== undefined) {
           value = { value: self.defaults[key] };
         }
 
-        self.cached[key] = value;
+        self._cached[key] = value;
         callback(null, value.value);
       });
     },
@@ -105,7 +103,7 @@ Calendar.ns('Store').Setting = (function() {
         trans = null;
       }
 
-      var cached = this.cached[key];
+      var cached = this._cached[key];
       var record;
 
       if (cached && cached._id) {

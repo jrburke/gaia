@@ -70,7 +70,9 @@ suiteGroup('Views.AdvancedSettings', function() {
         '<option value="15">15</option>',
         '<option value="30">30</option>',
         '<option selected value="60">60</option>',
-      '</select>'
+      '</select>',
+      '<div id="default-event-alarm"></div>',
+      '<div id="default-allday-alarm"></div>'
     ].join('');
 
     document.body.appendChild(div);
@@ -86,9 +88,34 @@ suiteGroup('Views.AdvancedSettings', function() {
     accountStore = app.store('Account');
     settings = app.store('Setting');
 
-    app.db.open(function() {
+    app.db.open(done);
+  });
+
+  setup(function(done) {
+    var trans = db.transaction('accounts', 'readwrite');
+
+    for (var key in fixtures) {
+      accountStore.persist(fixtures[key], trans);
+    }
+
+    trans.oncomplete = function() {
       done();
-    });
+    };
+
+    trans.onerror = function(e) {
+      done(e);
+    };
+  });
+
+  teardown(function(done) {
+    testSupport.calendar.clearStore(
+      app.db,
+      ['accounts'],
+      function() {
+        app.db.close();
+        done();
+      }
+    );
   });
 
   test('#accountList', function() {
@@ -213,23 +240,32 @@ suiteGroup('Views.AdvancedSettings', function() {
   });
 
   suite('#render', function() {
-    var result;
     var list;
-    var frequencyCall;
+    var expectedSyncFreq = 30;
 
-    setup(function() {
+    var expectedEventAlarm = -300;
+    var expectedAllDayAlarm = 0;
+
+    setup(function(done) {
+      var pending = 3;
+
+      settings.set('syncFrequency', expectedSyncFreq, next);
+      settings.set('standardAlarmDefault', expectedEventAlarm, next);
+      settings.set('alldayAlarmDefault', expectedAllDayAlarm, next);
+
+      function next() {
+        if (!(--pending)) {
+          done();
+        }
+      }
+    });
+
+    setup(function(done) {
       list = subject.accountList;
       accountStore._cached = fixtures;
 
-      var realGetValue = settings.getValue;
-      settings.getValue = function(key, callback) {
-        if (key === 'syncFrequency') {
-          frequencyCall = callback;
-        }
-      };
-
       subject.render();
-      result = subject.element.innerHTML;
+      subject.onrender = done;
     });
 
     test('number of items', function() {
@@ -243,20 +279,42 @@ suiteGroup('Views.AdvancedSettings', function() {
       assert.equal(item.outerHTML, expected, name);
     }
 
-    test('result', function() {
+    test('accounts', function() {
       checkItem(0, 'a');
       checkItem(1, 'b');
     });
 
-    test('syncFrequency value', function() {
-      var initialValue = 15;
+    test('syncFrequency', function() {
       var element = subject.syncFrequency;
+      assert.ok(
+        element.value == expectedSyncFreq,
+        'set to stored value'
+      );
+    });
 
-      assert.ok(element.value !== '15', 'intiail value is not 15');
-      assert.ok(frequencyCall, 'has requested frequency');
+    test('alarm select populated', function() {
+      assert.equal(
+        subject.standardAlarmLabel.querySelectorAll('select').length,
+        1
+      );
+      assert.equal(
+        subject.alldayAlarmLabel.querySelectorAll('select').length,
+        1
+      );
+    });
 
-      frequencyCall(null, initialValue);
-      assert.ok(element.value == initialValue, 'changes value after result');
+    test('alarms set to stored value', function() {
+      var element = subject.standardAlarm;
+      assert.equal(
+        element.value, expectedEventAlarm,
+        'event alarm set to stored value'
+      );
+
+      var element = subject.alldayAlarm;
+      assert.equal(
+        element.value, expectedAllDayAlarm,
+        'event alarm set to stored value'
+      );
     });
   });
 

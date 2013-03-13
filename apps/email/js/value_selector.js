@@ -86,17 +86,17 @@ function ValueSelector(title, list) {
     if (Array.isArray(list)) {
       data.list = list;
     }
-  }
+  };
 
   show = function() {
     render();
     el.classList.add('visible');
-  }
+  };
 
   hide = function() {
     el.classList.remove('visible');
     emptyList();
-  }
+  };
 
   render = function() {
     var title = el.querySelector('h3'),
@@ -125,15 +125,15 @@ function ValueSelector(title, list) {
       li.appendChild(label);
       list.appendChild(li);
     }
-  }
+  };
 
   setTitle = function(str) {
     data.title = str;
-  }
+  };
 
   emptyList = function() {
     data.list = [];
-  }
+  };
 
   addToList = function(label, depth, callback) {
     data.list.push({
@@ -141,7 +141,7 @@ function ValueSelector(title, list) {
       depth: depth,
       callback: callback
     });
-  }
+  };
 
   init();
 

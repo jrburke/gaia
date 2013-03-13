@@ -504,7 +504,7 @@ Cards = {
       return undefined;
   },
 
-  hasCard: function (query) {
+  hasCard: function(query) {
     return this._findCard(query, true) > -1;
   },
 
@@ -523,21 +523,23 @@ Cards = {
         self.folderPrompt = new ValueSelector(selectorTitle);
       }
 
-      var folderCardObj = Cards.findCardObject(['folder-picker', 'navigation']);
-      var folderImpl = folderCardObj.cardImpl;
-      var folders = folderImpl.foldersSlice.items;
-      for (var i = 0; i < folders.length; i++) {
-        var folder = folders[i];
-        self.folderPrompt.addToList(folder.name, folder.depth, function(folder) {
-          return function() {
-            self.folderPrompt.hide();
-            callback(folder);
-          }
-        }(folder));
+        var folderCardObj =
+          Cards.findCardObject(['folder-picker', 'navigation']);
+        var folderImpl = folderCardObj.cardImpl;
+        var folders = folderImpl.foldersSlice.items;
+        for (var i = 0; i < folders.length; i++) {
+          var folder = folders[i];
+          self.folderPrompt.addToList(folder.name, folder.depth,
+            function(folder) {
+              return function() {
+                self.folderPrompt.hide();
+                callback(folder);
+              }
+            }(folder));
 
-      }
-      self.folderPrompt.show();
-    });
+        }
+        self.folderPrompt.show();
+      });
   },
 
   moveToCard: function(query, showMethod) {
@@ -694,7 +696,7 @@ Cards = {
   /**
    * Shortcut for removing all the cards
    */
-  removeAllCards: function () {
+  removeAllCards: function() {
     return this.removeCardAndSuccessors(null, 'none');
   },
 
@@ -944,15 +946,12 @@ Toaster = {
   /**
    * Tell toaster listeners about a mutation we just made.
    *
-   * @args[
-   *   @param[undoableOp]
-   *   @param[pending #:optional Boolean]{
-   *     If true, indicates that we should wait to display this banner until we
-   *     transition to the next card.  This is appropriate for things like
-   *     deleting the message that is displayed on the current card (and which
-   *     will be imminently closed).
-   *   }
-   * ]
+   * @param {Object} undoableOp undoable operation.
+   * @param {Boolean} pending
+   *   If true, indicates that we should wait to display this banner until we
+   *   transition to the next card.  This is appropriate for things like
+   *   deleting the message that is displayed on the current card (and which
+   *   will be imminently closed).
    */
   logMutation: function(undoableOp, pending) {
     if (pending) {

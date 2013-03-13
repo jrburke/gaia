@@ -1,6 +1,6 @@
 'use strict';
 
-const GridManager = (function() {
+var GridManager = (function() {
   var MAX_ICONS_PER_PAGE = 4 * 4;
   var PREFERRED_ICON_SIZE = 60;
   var SAVE_STATE_TIMEOUT = 100;
@@ -10,7 +10,7 @@ const GridManager = (function() {
   var SCALE_RATIO = window.innerWidth / BASE_WIDTH;
   var AVAILABLE_SPACE = DEVICE_HEIGHT - (BASE_HEIGHT * SCALE_RATIO);
 
-// Check if there is space for another row of icons
+  // Check if there is space for another row of icons
   if (AVAILABLE_SPACE > BASE_HEIGHT / 5) {
     var MAX_ICONS_PER_PAGE = 4 * 5;
   }
@@ -18,22 +18,18 @@ const GridManager = (function() {
   var container;
 
   var windowWidth = window.innerWidth;
-  var panningThreshold = window.innerWidth / 4, tapThreshold;
+  var swipeThreshold, swipeFriction, tapThreshold;
 
   var dragging = false;
 
   var opacityOnAppGridPageMax = .7;
-  var kPageTransitionDuration = 300;
-  var overlay, overlayStyle;
-  var overlayTransition = 'opacity ' + kPageTransitionDuration + 'ms ease';
+  var kPageTransitionDuration, overlayTransition, overlay, overlayStyle;
 
   var numberOfSpecialPages = 0, landingPage, prevLandingPage, nextLandingPage;
   var pages = [];
   var currentPage = 1;
 
   var saveStateTimeout = null;
-
-  var appMgr = navigator.mozApps.mgmt;
 
   // Limits for changing pages during dragging
   var limits = {
@@ -50,94 +46,110 @@ const GridManager = (function() {
   var touchend = isTouch ? 'touchend' : 'mouseup';
 
   var getX = (function getXWrapper() {
-    return isTouch ? function(e) { return e.touches[0].pageX } :
-                     function(e) { return e.pageX };
+    return isTouch ? function(e) { return e.touches[0].pageX; } :
+                     function(e) { return e.pageX; };
   })();
 
+  var panningResolver;
 
-  // This will be a function that returns an actual or predicted deltaX
-  // from a mouse or touch event
-  var getDeltaX;
-
-  function initPanningPrediction() {
+  function createPanningResolver() {
     // Get our configuration data from build/applications-data.js
     var configuration = Configurator.getSection('prediction') ||
       { enabled: false };
 
-    // Assume that if we're using mouse events we're on a desktop that
-    // is fast enough that we don't need to do this prediction.
-    if (!isTouch || !configuration.enabled) {
-      getDeltaX = function getDeltaX(evt) {
-        return currentX - startX;
-      };
-      return;
-    }
-
-    // Predictions are based on the change between events, so we need to
+    // This algorithm is based on the change between events, so we need to
     // remember some things from the previous invocation
-    var lookahead, lastPrediction, x0, t0, x1, t1 = 0;
+    var lookahead, lastPrediction, x0, t0, x1, t1 = 0, dx, velocity;
 
-    getDeltaX = function getDeltaX(evt) {
-      var dx, dt, velocity, adjustment, prediction, deltaP;
-
+    function calculateVelocity(evt) {
       if (t1 < touchStartTimestamp) {
         // If this is the first move of this series, use the start event
         x0 = startX;
         t0 = touchStartTimestamp;
-        lastPrediction = null;
-        // Start each new touch with the configured lookahead value
-        lookahead = configuration.lookahead;
       } else {
         x0 = x1;
         t0 = t1;
-      }
-
-      // If we've overshot too many times, don't predict anything
-      if (lookahead === 0) {
-        return currentX - startX;
       }
 
       x1 = currentX;
       t1 = evt.timeStamp;
 
       dx = x1 - x0;
-      dt = t1 - t0;
-      velocity = dx / dt; // px/ms
-
-      // Guess how much extra motion we will have by the time the redraw happens
-      adjustment = velocity * lookahead;
-
-      // predict deltaX based on that extra motion
-      prediction = Math.round(x1 + adjustment - startX);
-
-      // Make sure we don't return a prediction greater than the screen width
-      if (prediction >= windowWidth) {
-        prediction = windowWidth - 1;
-      }
-      else if (prediction <= -windowWidth) {
-        prediction = -windowWidth + 1;
-      }
-
-      // If the change in the prediction has a different sign than the
-      // change in the user's finger position, then we overshot: the
-      // previous prediction was too large. So temporarily reduce the
-      // lookahead so we don't overshoot as easily next time. Also,
-      // return the last prediction to give the user's finger a chance
-      // to catch up with where we've already panned to. If we don't
-      // do this, the panning changes direction and looks jittery.
-      if (lastPrediction !== null) {
-        deltaP = prediction - lastPrediction;
-        if ((deltaP > 0 && dx < 0) || (deltaP < 0 && dx > 0)) {
-          lookahead = lookahead >> 1;  // avoid future overshoots for this pan
-          startX += deltaP;            // adjust for overshoot
-          prediction = lastPrediction; // alter our prediction
-        }
-      }
-
-      // Remember this for next time.
-      lastPrediction = prediction;
-      return prediction;
+      velocity = dx / (t1 - t0); // px/ms
     }
+
+    var getDeltaX;
+    // Assume that if we're using mouse events we're on a desktop that
+    // is fast enough that we don't need to do this prediction.
+    if (!isTouch || !configuration.enabled) {
+      getDeltaX = function getDeltaX(evt) {
+        calculateVelocity(evt);
+        return currentX - startX;
+      };
+    } else {
+      getDeltaX = function getDeltaX(evt) {
+        calculateVelocity(evt);
+
+        // If we've overshot too many times, don't predict anything
+        if (lookahead === 0) {
+          return currentX - startX;
+        }
+
+        // Guess how much extra motion we will have by the time the redraw
+        // happens
+        var adjustment = velocity * lookahead;
+
+        // predict deltaX based on that extra motion
+        var prediction = Math.round(x1 + adjustment - startX);
+
+        // Make sure we don't return a prediction greater than the screen width
+        if (prediction >= windowWidth) {
+          prediction = windowWidth - 1;
+        }
+        else if (prediction <= -windowWidth) {
+          prediction = -windowWidth + 1;
+        }
+
+        // If the change in the prediction has a different sign than the
+        // change in the user's finger position, then we overshot: the
+        // previous prediction was too large. So temporarily reduce the
+        // lookahead so we don't overshoot as easily next time. Also,
+        // return the last prediction to give the user's finger a chance
+        // to catch up with where we've already panned to. If we don't
+        // do this, the panning changes direction and looks jittery.
+        if (lastPrediction !== null) {
+          var deltaP = prediction - lastPrediction;
+          if ((deltaP > 0 && dx < 0) || (deltaP < 0 && dx > 0)) {
+            lookahead = lookahead >> 1;  // avoid future overshoots for this pan
+            startX += deltaP;            // adjust for overshoot
+            prediction = lastPrediction; // alter our prediction
+          }
+        }
+
+        // Remember this for next time.
+        lastPrediction = prediction;
+        return prediction;
+      };
+    }
+
+    return {
+      reset: function reset() {
+        lastPrediction = null;
+        // Start each new touch with the configured lookahead value
+        lookahead = configuration.lookahead;
+        t1 = 0;
+        velocity = 0;
+      },
+
+      // This will be a function that returns an actual or predicted deltaX
+      // from a mouse or touch event
+      getDeltaX: getDeltaX,
+
+      // Returns the velocity of the swipe gesture in px/ms
+      getVelocity: function getVelocity() {
+        return velocity;
+      }
+    };
   }
 
   function addActive(target) {
@@ -146,7 +158,7 @@ const GridManager = (function() {
       removeActive = function _removeActive() {
         target.classList.remove('active');
         removeActive = noop;
-      }
+      };
     } else {
       removeActive = noop;
     }
@@ -166,6 +178,7 @@ const GridManager = (function() {
         removePanHandler = noop;
         isPanning = false;
         addActive(evt.target);
+        panningResolver.reset();
         break;
 
       case touchmove:
@@ -177,7 +190,7 @@ const GridManager = (function() {
         // the tap when we've moved far enough.
         startX = startEvent.pageX;
         currentX = getX(evt);
-        deltaX = getDeltaX(evt);
+        deltaX = panningResolver.getDeltaX(evt);
 
         if (deltaX === 0)
           return;
@@ -197,6 +210,7 @@ const GridManager = (function() {
         removeActive();
 
         var refresh;
+
         if (currentPage === 0) {
           var next = pages[currentPage + 1].container.style;
           refresh = function(e) {
@@ -256,7 +270,7 @@ const GridManager = (function() {
         if (currentPage > nextLandingPage || Homescreen.isInEditMode()) {
           var pan = function(e) {
             currentX = getX(e);
-            deltaX = getDeltaX(e);
+            deltaX = panningResolver.getDeltaX(e);
 
             if (!isPanning && Math.abs(deltaX) >= tapThreshold) {
               isPanning = true;
@@ -273,13 +287,13 @@ const GridManager = (function() {
               var opacity = opacityOnAppGridPageMax -
                     (Math.abs(deltaX) / windowWidth) * opacityOnAppGridPageMax;
               overlayStyle.opacity = Math.round(opacity * 10) / 10;
-            }
+            };
           } else if (currentPage === landingPage) {
             setOpacityToOverlay = function() {
               var opacity = (Math.abs(deltaX) / windowWidth) *
                             opacityOnAppGridPageMax;
               overlayStyle.opacity = Math.round(opacity * 10) / 10;
-            }
+            };
           } else {
             setOpacityToOverlay = function() {
               if (forward)
@@ -288,12 +302,12 @@ const GridManager = (function() {
               var opacity = opacityOnAppGridPageMax -
                     (Math.abs(deltaX) / windowWidth) * opacityOnAppGridPageMax;
               overlayStyle.opacity = Math.round(opacity * 10) / 10;
-            }
+            };
           }
 
           var pan = function(e) {
             currentX = getX(e);
-            deltaX = getDeltaX(e);
+            deltaX = panningResolver.getDeltaX(e);
 
             if (!isPanning && Math.abs(deltaX) >= tapThreshold) {
               isPanning = true;
@@ -358,11 +372,12 @@ const GridManager = (function() {
 
   function onTouchEnd(deltaX, evt) {
     var page = currentPage;
-    // If movement over 25% of the screen size or
-    // fast movement over threshold for tapping, then swipe
-    if (Math.abs(deltaX) > panningThreshold ||
-        (Math.abs(deltaX) > tapThreshold &&
-        touchEndTimestamp - touchStartTimestamp < kPageTransitionDuration)) {
+
+    var velocity = panningResolver.getVelocity();
+    var distanceToTravel = 0.5 * Math.abs(velocity) * velocity / swipeFriction;
+    // If the actual distance plus the coast distance is more than 40% the
+    // screen, transition to the next page
+    if (Math.abs(deltaX + distanceToTravel) > swipeThreshold) {
       var forward = dirCtrl.goesForward(deltaX);
       if (forward && currentPage < pages.length - 1) {
         page = page + 1;
@@ -387,6 +402,25 @@ const GridManager = (function() {
   function releaseEvents() {
     window.removeEventListener(touchmove, handleEvent);
     window.removeEventListener(touchend, handleEvent);
+  }
+
+  function exitFromEditMode() {
+    markDirtyState();
+    goToPage(currentPage);
+  }
+
+  function ensurePanning() {
+    container.addEventListener(touchstart, handleEvent, true);
+  }
+
+  function markDirtyState() {
+    if (saveStateTimeout != null) {
+      window.clearTimeout(saveStateTimeout);
+    }
+    saveStateTimeout = window.setTimeout(function saveStateTrigger() {
+      saveStateTimeout = null;
+      pageHelper.saveAll();
+    }, SAVE_STATE_TIMEOUT);
   }
 
   function togglePagesVisibility(start, end) {
@@ -770,7 +804,7 @@ const GridManager = (function() {
 
     container = document.querySelector(selector);
     container.addEventListener('contextmenu', handleEvent);
-    container.addEventListener(touchstart, handleEvent, true);
+    ensurePanning();
 
     limits.left = container.offsetWidth * 0.05;
     limits.right = container.offsetWidth * 0.95;
@@ -791,7 +825,7 @@ const GridManager = (function() {
       pages.push(page);
     }
 
-    initPanningPrediction();
+    panningResolver = createPanningResolver();
   }
 
   /*
@@ -799,6 +833,8 @@ const GridManager = (function() {
    * state with the applications known to the system.
    */
   function initApps(apps) {
+    var appMgr = navigator.mozApps.mgmt;
+
     appMgr.oninstall = function oninstall(event) {
      GridManager.install(event.application);
     };
@@ -834,7 +870,7 @@ const GridManager = (function() {
         for (var entryPoint in iconsForApp) {
           var icon = iconsForApp[entryPoint];
           icon.remove();
-          GridManager.markDirtyState();
+          markDirtyState();
         }
       }
 
@@ -951,7 +987,7 @@ const GridManager = (function() {
       pageHelper.addPage([icon]);
     }
 
-    GridManager.markDirtyState();
+    markDirtyState();
   }
 
   /*
@@ -1045,41 +1081,66 @@ const GridManager = (function() {
     return app.origin + url;
   }
 
+  var defaults = {
+    gridSelector: '.apps',
+    dockSelector: '.dockWrapper',
+    tapThreshold: 10,
+    swipeThreshold: 0.4,
+    swipeFriction: 0.1,
+    swipeTransitionDuration: 300
+  };
+
+  function doInit(options, callback) {
+    pages = [];
+    initUI(options.gridSelector);
+
+    tapThreshold = options.tapThreshold;
+    swipeThreshold = windowWidth * options.swipeThreshold;
+    swipeFriction = options.swipeFriction || defaults.swipeFriction; // Not zero
+    kPageTransitionDuration = options.swipeTransitionDuration;
+    overlayTransition = 'opacity ' + kPageTransitionDuration + 'ms ease';
+
+    // Initialize the grid from the state saved in IndexedDB.
+    HomeState.init(function eachPage(pageState) {
+      // First 'page' is the dock.
+      if (pageState.index == 0) {
+        var dockContainer = document.querySelector(options.dockSelector);
+        var dock = new Dock(dockContainer,
+          convertDescriptorsToIcons(pageState));
+        DockManager.init(dockContainer, dock, tapThreshold);
+        return;
+      }
+      pageHelper.addPage(convertDescriptorsToIcons(pageState));
+    }, function onState() {
+      initApps();
+      callback();
+    }, function onError(error) {
+      var dockContainer = document.querySelector(options.dockSelector);
+      var dock = new Dock(dockContainer, []);
+      DockManager.init(dockContainer, dock, tapThreshold);
+      initApps();
+      callback();
+    });
+  }
 
   return {
     /*
      * Initializes the grid manager
      *
-     * @param {String} selector
-     *                 Specifies the HTML container element for the pages.
+     * @param {Object} Hash of options
+     *
+     * @param {Function} Success callback
      *
      */
-    init: function gm_init(gridSelector, dockSelector, pTapThreshold, callback)
-    {
-      initUI(gridSelector);
-
-      tapThreshold = pTapThreshold;
-      // Initialize the grid from the state saved in IndexedDB.
-      HomeState.init(function eachPage(pageState) {
-        // First 'page' is the dock.
-        if (pageState.index == 0) {
-          var dockContainer = document.querySelector(dockSelector);
-          var dock = new Dock(dockContainer,
-            convertDescriptorsToIcons(pageState));
-          DockManager.init(dockContainer, dock, tapThreshold);
-          return;
+    init: function gm_init(options, callback) {
+      // Populate defaults
+      for (var key in defaults) {
+        if (typeof options[key] === 'undefined') {
+          options[key] = defaults[key];
         }
-        pageHelper.addPage(convertDescriptorsToIcons(pageState));
-      }, function onState() {
-        initApps();
-        callback();
-      }, function onError(error) {
-        var dockContainer = document.querySelector(dockSelector);
-        var dock = new Dock(dockContainer, []);
-        DockManager.init(dockContainer, dock, tapThreshold);
-        initApps();
-        callback();
-      });
+      }
+
+      doInit(options, callback);
     },
 
     onDragStart: function gm_onDragSart() {
@@ -1092,7 +1153,7 @@ const GridManager = (function() {
       delete document.body.dataset.dragging;
       dragging = false;
       delete document.body.dataset.transitioning;
-      container.addEventListener(touchstart, handleEvent, true);
+      ensurePanning();
       ensurePagesOverflow();
       removeEmptyPages();
     },
@@ -1142,18 +1203,10 @@ const GridManager = (function() {
         DockManager.afterRemovingApp();
 
       removeEmptyPages();
-      this.markDirtyState();
+      markDirtyState();
     },
 
-    markDirtyState: function gm_markDirtyState() {
-      if (saveStateTimeout != null) {
-        window.clearTimeout(saveStateTimeout);
-      }
-      saveStateTimeout = window.setTimeout(function saveStateTrigger() {
-        saveStateTimeout = null;
-        pageHelper.saveAll();
-      }, SAVE_STATE_TIMEOUT);
-    },
+    markDirtyState: markDirtyState,
 
     getIcon: getIcon,
 
@@ -1181,6 +1234,10 @@ const GridManager = (function() {
       return landingPage;
     },
 
-    showRestartDownloadDialog: showRestartDownloadDialog
+    showRestartDownloadDialog: showRestartDownloadDialog,
+
+    exitFromEditMode: exitFromEditMode,
+
+    ensurePanning: ensurePanning
   };
 })();
