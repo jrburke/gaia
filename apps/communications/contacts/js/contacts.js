@@ -2,6 +2,8 @@
 
 var _;
 var TAG_OPTIONS;
+var COMMS_APP_ORIGIN = document.location.protocol + '//' +
+  document.location.host;
 
 var Contacts = (function() {
   var navigation = new navigationStack('view-contacts-list');
@@ -176,7 +178,7 @@ var Contacts = (function() {
       window.removeEventListener('asyncScriptsLoaded', onAsyncLoad);
       contactsList.initAlphaScroll();
       checkUrl();
-      PerformanceTestingHelper.dispatch('contacts-init-finished');
+      PerformanceTestingHelper.dispatch('init-finished');
     });
   };
 
@@ -488,7 +490,7 @@ var Contacts = (function() {
     // post message to parent page included Contacts app.
     if (params['back_to_previous_tab'] === '1') {
       var message = { 'type': 'contactsiframe', 'message': 'back' };
-      window.parent.postMessage(message, '*');
+      window.parent.postMessage(message, COMMS_APP_ORIGIN);
     }
   };
 
