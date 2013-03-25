@@ -2,6 +2,7 @@
 
 var MockUssdUI = {
 
+  COMMS_APP_ORIGIN: 'http://communications.gaiamobile.org:8080',
   ready: true,
   _messageReceived: null,
   _sessionEnded: null,
@@ -29,7 +30,8 @@ var MockUssdUI = {
       data: {
         type: 'reply',
         message: message
-      }
+      },
+      origin: this.COMMS_APP_ORIGIN
     };
     UssdManager.handleEvent(evt);
   },
@@ -39,7 +41,8 @@ var MockUssdUI = {
       type: 'message',
       data: {
         type: 'close'
-      }
+      },
+      origin: this.COMMS_APP_ORIGIN
     };
     UssdManager.handleEvent(evt);
   },
@@ -49,7 +52,8 @@ var MockUssdUI = {
       type: 'message',
       data: {
         type: 'cancel'
-      }
+      },
+      origin: this.COMMS_APP_ORIGIN
     };
     UssdManager.handleEvent(evt);
   },
