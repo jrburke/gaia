@@ -236,20 +236,75 @@ var Browser = {
 
   populateDefaultData: function browser_populateDefaultData() {
     console.log('Populating default data.');
-    // Fetch default data
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', '/js/init.json', true);
-    xhr.addEventListener('load', (function browser_defaultDataListener() {
-      if (!(xhr.status === 200 | xhr.status === 0))
-        return;
-      var data = JSON.parse(xhr.responseText);
 
+    var DEFAULT_BOOKMARK = '000000';
+    var iccSettings = { mcc: -1, mnc: -1 };
+
+    // Read the mcc/mnc settings, then trigger callback.
+    // pattern from system/js/operator_variant/operator_variant.js
+    function getICCSettings(callback, data) {
+      var transaction = navigator.mozSettings.createLock();
+      var mccKey = 'operatorvariant.mcc';
+      var mncKey = 'operatorvariant.mnc';
+
+      var mccRequest = transaction.get(mccKey);
+      mccRequest.onsuccess = function() {
+        iccSettings.mcc = parseInt(mccRequest.result[mccKey], 10) || 0;
+        var mncRequest = transaction.get(mncKey);
+        mncRequest.onsuccess = function() {
+          iccSettings.mnc = parseInt(mncRequest.result[mncKey], 10) || 0;
+          callback(data);
+        };
+      };
+    }
+
+    function addDefaultBookmarks(data) {
       // Save bookmarks
       data.bookmarks.forEach(function browser_addDefaultBookmarks(bookmark) {
         Places.addBookmark(bookmark.uri, bookmark.title);
         if (bookmark.iconUri)
           Places.setAndLoadIconForPage(bookmark.uri, bookmark.iconUri);
       });
+    }
+
+    // pad leading zeros
+    function zfill(num, len) {
+      var n = num + '';
+      while (n.length < len) n = '0' + n;
+      return n;
+    }
+
+    /* Match best bookmark setting by
+     * 1. check carrier with region
+     * 2. check carrier
+     * 3. fallback to no SIM card case
+     */
+    function customizeDefaultBookmark(data) {
+      var DEFAULT_MNC = '000';
+      var codename = DEFAULT_BOOKMARK; //fallback to no SIM card case
+      var pad_mcc = zfill(iccSettings.mcc, 3);
+      var pad_mnc = zfill(iccSettings.mnc, 3);
+      if (data[pad_mcc + pad_mnc]) {
+        codename = pad_mcc + pad_mnc;
+      } else if (data[pad_mcc + DEFAULT_MNC]) {
+        codename = pad_mcc + DEFAULT_MNC;
+      }
+      addDefaultBookmarks(data[codename]);
+    }
+
+    // Fetch default data
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/js/init.json', true);
+    xhr.addEventListener('load', (function browser_defaultDataListener() {
+      if (!(xhr.status === 200 | xhr.status === 0))
+        return;
+
+      var data = JSON.parse(xhr.responseText);
+      if (data[DEFAULT_BOOKMARK]) { //has default bookmark
+        getICCSettings(customizeDefaultBookmark, data);
+      } else {
+        console.log('No default bookmark.');
+      }
 
     }).bind(this), false);
     xhr.onerror = function getDefaultDataError() {
@@ -677,28 +732,65 @@ var Browser = {
 
   removeBookmark: function browser_removeBookmark(e) {
     e.preventDefault();
-    if (!this.currentTab.url)
+    if (!this.bookmarkMenuRemove.dataset.url)
       return;
-    Places.removeBookmark(this.currentTab.url,
+
+    Places.removeBookmark(this.bookmarkMenuRemove.dataset.url,
       this.refreshBookmarkButton.bind(this));
     this.hideBookmarkMenu();
+    // refresh bookmark tab
+    this.showBookmarksTab();
   },
 
+  // responsible to show the specific action menu
+  showActionMenu: function browser_showActionMenu(url, from) {
+      if (!url)
+        return;
+      this.bookmarkMenu.classList.remove('hidden');
+      Places.getBookmark(url, (function(bookmark) {
+        if (bookmark) {
+          if (from && from === 'bookmarksTab') { //show actions in bookmark tab
+
+            this.bookmarkMenuAdd.parentNode.classList.add('hidden');
+            //append url to button's dataset
+            this.bookmarkMenuRemove.dataset.url = url;
+            this.bookmarkMenuRemove.parentNode.classList.remove('hidden');
+            //XXX not implement yet: edit bookmark in bookmarktab #838041
+            this.bookmarkMenuEdit.parentNode.classList.add('hidden');
+            //XXX not implement yet: link to home in bookmarktab #850999
+            this.bookmarkMenuAddHome.parentNode.classList.add('hidden');
+
+          } else { //show actions in browser page
+
+            this.bookmarkMenuAdd.parentNode.classList.add('hidden');
+            this.bookmarkMenuRemove.dataset.url = url;
+            this.bookmarkMenuRemove.parentNode.classList.remove('hidden');
+            this.bookmarkMenuEdit.dataset.url = url;
+            this.bookmarkMenuEdit.parentNode.classList.remove('hidden');
+            //XXX not implement yet: link to home in bookmarktab #850999
+            this.bookmarkMenuAddHome.parentNode.classList.remove('hidden');
+
+          }
+        } else { //show actions in browser page
+
+          this.bookmarkMenuAdd.parentNode.classList.remove('hidden');
+          this.bookmarkMenuRemove.parentNode.classList.add('hidden');
+          this.bookmarkMenuEdit.parentNode.classList.add('hidden');
+          //XXX not implement yet: link to home in bookmarktab #850999
+          this.bookmarkMenuAddHome.parentNode.classList.remove('hidden');
+
+        }
+      }).bind(this));
+  },
+
+  // Adaptor to show menu while press bookmark star
   showBookmarkMenu: function browser_showBookmarkMenu() {
-    if (!this.currentTab.url)
-      return;
-    this.bookmarkMenu.classList.remove('hidden');
-    Places.getBookmark(this.currentTab.url, (function(bookmark) {
-      if (bookmark) {
-        this.bookmarkMenuAdd.parentNode.classList.add('hidden');
-        this.bookmarkMenuRemove.parentNode.classList.remove('hidden');
-        this.bookmarkMenuEdit.parentNode.classList.remove('hidden');
-      } else {
-        this.bookmarkMenuAdd.parentNode.classList.remove('hidden');
-        this.bookmarkMenuRemove.parentNode.classList.add('hidden');
-        this.bookmarkMenuEdit.parentNode.classList.add('hidden');
-      }
-    }).bind(this));
+    this.showActionMenu(this.currentTab.url);
+  },
+
+  // Adaptor to show menu while longpress in bookmark tab
+  showBookmarkTabContextMenu: function browser_showBookmarkTabContextMenu(url) {
+    this.showActionMenu(url, 'bookmarksTab');
   },
 
   hideBookmarkMenu: function browser_hideBookmarkMenu() {
@@ -962,7 +1054,7 @@ var Browser = {
   },
 
   drawAwesomescreenListItem: function browser_drawAwesomescreenListItem(list,
-    data, filter) {
+    data, filter, current_tab) {
     var entry = document.createElement('li');
     var link = document.createElement('a');
     var title = document.createElement('h5');
@@ -983,6 +1075,14 @@ var Browser = {
     link.appendChild(url);
     entry.appendChild(link);
     list.appendChild(entry);
+
+    // enable longpress manipulation in bookmark tab
+    if (current_tab === 'bookmark') {
+      var that = this;
+      link.addEventListener('contextmenu', function() {
+        that.showBookmarkTabContextMenu(link.href);
+      });
+    }
 
     if (!data.iconUri) {
       link.style.backgroundImage = 'url(' + this.DEFAULT_FAVICON + ')';
@@ -1046,7 +1146,7 @@ var Browser = {
     list.setAttribute('role', 'listbox');
     this.bookmarks.appendChild(list);
     bookmarks.forEach(function browser_processBookmark(data) {
-      this.drawAwesomescreenListItem(list, data);
+      this.drawAwesomescreenListItem(list, data, null, 'bookmark');
     }, this);
   },
 

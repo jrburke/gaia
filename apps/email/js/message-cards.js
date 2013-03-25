@@ -957,6 +957,8 @@ MessageReaderCard.prototype = {
   postInsert: function() {
     // iframes need to be linked into the DOM tree before their contentDocument
     // can be instantiated.
+    this.buildBodyDom(this.domNode);
+
     require(['iframe-shims'], function() {
       this.buildBodyDom(this.domNode);
     }.bind(this));
@@ -1223,10 +1225,9 @@ MessageReaderCard.prototype = {
     }
   },
 
-  buildBodyDom: function(domNode) {
+  buildHeaderDom: function(domNode) {
     var header = this.header, body = this.body;
 
-    // -- Header
     function addHeaderEmails(lineClass, peeps) {
       var lineNode = domNode.getElementsByClassName(lineClass)[0];
 
@@ -1281,8 +1282,11 @@ MessageReaderCard.prototype = {
 
     displaySubject(domNode.getElementsByClassName('msg-envelope-subject')[0],
                    header);
+  },
 
-    // -- Bodies
+  buildBodyDom: function(domNode) {
+    var body = this.body;
+
     var rootBodyNode = domNode.getElementsByClassName('msg-body-container')[0],
         reps = body.bodyReps,
         hasExternalImages = false,

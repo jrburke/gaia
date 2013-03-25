@@ -221,6 +221,11 @@ section li.password > p {
  * Call settings
  */
 
+.call-settings-disabled a {
+  opacity: 0.6;
+  color: #797e80;
+}
+
 /* three-state items: on|off|unknown */
 #menuItem-callWaiting .checkbox-label,
 #menuItem-callWaiting[data-state="on"] .checkbox-label,
@@ -306,7 +311,7 @@ section li.password > p {
 }
 
 #wallpaper-button {
-  background: url(images/wallpaper_edit.png) no-repeat 25rem 11.5rem;
+  background: url(images/wallpaper_edit.png) no-repeat 25rem 11.5rem / 4.5rem;
   position: absolute;
   border: none;
   height: 100%;
@@ -356,12 +361,14 @@ ul li > label .range-icons.volume {
   background:
     url(images/range_icons_volume_min.png) no-repeat 0 50%,
     url(images/range_icons_volume_max.png) no-repeat 100% 50%;
+    background-size: 3rem;
 }
 
 ul li > label .range-icons.brightness {
   background:
     url(images/range_icons_brightness_min.png) no-repeat 0 50%,
     url(images/range_icons_brightness_max.png) no-repeat 100% 50%;
+  background-size: 3rem;
   left: 2.5rem;
   right: auto;
 }

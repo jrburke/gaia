@@ -130,6 +130,7 @@ var ThreadUI = {
     this.title.addEventListener('click', this.activateContact.bind(this));
     this.clearButton.addEventListener('click', this.clearContact.bind(this));
     this.view.addEventListener('click', this);
+    this.view.addEventListener('contextmenu', this);
     this.editForm.addEventListener('submit', this);
     this.telForm.addEventListener('submit', this);
     this.sendForm.addEventListener('submit', this);
@@ -407,7 +408,7 @@ var ThreadUI = {
     // Add data to contact activity interaction
     this.title.dataset.phoneNumber = number;
 
-    ContactDataManager.getContactData(number, function gotContact(contacts) {
+    Contacts.findByString(number, function gotContact(contacts) {
       var carrierTag = document.getElementById('contact-carrier');
       /** If we have more than one contact sharing the same phone number
        *  we show the name of the first contact and how many other contacts
@@ -527,17 +528,14 @@ var ThreadUI = {
     MessageManager.getMessages(renderingOptions);
   },
 
-  appendMessage: function thui_appendMessage(message, hidden) {
+  buildMessageDOM: function thui_buildMessageDOM(message, hidden) {
     // Retrieve all data from message
     var id = message.id;
     var bodyText = message.body;
-    var bodyHTML = Utils.escapeHTML(bodyText);
-    var timestamp = message.timestamp.getTime();
     var messageClass = message.delivery;
 
     var messageDOM = document.createElement('li');
     messageDOM.classList.add('bubble');
-    messageDOM.dataset.timestamp = timestamp;
 
     if (hidden) {
       messageDOM.classList.add('hidden');
@@ -555,7 +553,6 @@ var ThreadUI = {
                     '<progress></progress></aside>';
         break;
     }
-
     // Create HTML content
     var messageHTML = '<label class="danger">' +
                       '<input type="checkbox" value="' + inputValue + '">' +
@@ -563,12 +560,28 @@ var ThreadUI = {
                       '</label>' +
                     '<a class="' + messageClass + '">';
     messageHTML += asideHTML;
-    messageHTML += '<p>' + bodyHTML + '</p></a>';
+    messageHTML += '<p></p></a>';
     messageDOM.innerHTML = messageHTML;
-
     if (message.delivery === 'error')
       ThreadUI.addResendHandler(message, messageDOM);
 
+    var bodyHTML = LinkHelper.searchAndLinkClickableData(bodyText);
+    // check for messageDOM paragraph element to assign linked message html
+    // For now keeping the containing anchor markup as this
+    // structure is part of building blocks.
+    // http://buildingfirefoxos.com/building-blocks/lists/
+    // Todo: Open bug to fix contaning anchor to div to avoid
+    // below extra innerHTML call
+    var pElement = messageDOM.querySelector('p');
+    pElement.innerHTML = bodyHTML;
+    return messageDOM;
+  },
+
+  appendMessage: function thui_appendMessage(message, hidden) {
+    // build messageDOM adding the links
+    var messageDOM = this.buildMessageDOM(message, hidden);
+    var timestamp = message.timestamp.getTime();
+    messageDOM.dataset.timestamp = timestamp;
     // Add to the right position
     var messageContainer = ThreadUI.getMessageContainer(timestamp, hidden);
     if (!messageContainer.firstElementChild) {
@@ -733,13 +746,19 @@ var ThreadUI = {
     switch (evt.type) {
       case 'click':
         if (window.location.hash != '#edit') {
+           //Handle events on links in a message
+           LinkActionHandler.handleTapEvent(evt);
           return;
         }
+
         var inputs = evt.target.parentNode.getElementsByTagName('input');
         if (inputs && inputs.length > 0) {
           ThreadUI.chooseMessage(inputs[0]);
           ThreadUI.checkInputs();
         }
+        break;
+      case 'contextmenu':
+        LinkActionHandler.handleLongPressEvent(evt);
         break;
       case 'submit':
         evt.preventDefault();
@@ -967,7 +986,7 @@ var ThreadUI = {
     }
     var contactsContainer = document.createElement('ul');
 
-    ContactDataManager.searchContactData(string, function gotContact(contacts) {
+    Contacts.findByString(string, function gotContact(contacts) {
       self.view.innerHTML = '';
       if (!contacts || contacts.length == 0) {
 

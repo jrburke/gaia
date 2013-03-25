@@ -13,8 +13,49 @@ require.config({
     //l10nbase: '../../../shared/js/l10n',
     //l10n: '../../../shared/js/l10n_date',
     style: '../style',
-    mailapi: 'ext/mailapi',
-    shared: '../../../shared'
+    shared: '../../../shared',
+
+    mailapi: 'js/ext/mailapi',
+    mimelib: 'js/ext/mimelib',
+
+    // mailcomposer is in the mailapi/composer layer.
+    mailcomposer: 'js/ext/mailapi/composer',
+
+    // Point activesync protocol modules to their layer
+    'wbxml': 'js/ext/mailapi/activesync/protocollayer',
+    'activesync/codepages': 'js/ext/mailapi/activesync/protocollayer',
+    'activesync/protocol': 'js/ext/mailapi/activesync/protocollayer',
+
+    // activesync/codepages is split across two layers. If
+    // activesync/protocol loads first (for autoconfig work on account setup),
+    // then indicate the parts of codepages that are in activesync/configurator
+    'activesync/codepages/FolderHierarchy':
+                                      'js/ext/mailapi/activesync/configurator',
+    'activesync/codepages/ComposeMail':
+                                      'js/ext/mailapi/activesync/configurator',
+    'activesync/codepages/AirSync':
+                                      'js/ext/mailapi/activesync/configurator',
+    'activesync/codepages/AirSyncBase':
+                                      'js/ext/mailapi/activesync/configurator',
+    'activesync/codepages/ItemEstimate':
+                                      'js/ext/mailapi/activesync/configurator',
+    'activesync/codepages/Email':
+                                      'js/ext/mailapi/activesync/configurator',
+    'activesync/codepages/ItemOperations':
+                                      'js/ext/mailapi/activesync/configurator',
+    'activesync/codepages/Move':
+                                      'js/ext/mailapi/activesync/configurator',
+
+    // Point chew methods to the chew layer
+    'mailapi/htmlchew': 'js/ext/mailapi/chewlayer',
+    'mailapi/quotechew': 'js/ext/mailapi/chewlayer',
+    'mailapi/imap/imapchew': 'js/ext/mailapi/chewlayer',
+
+    // The imap probe layer also contains the imap module
+    'imap': 'js/ext/mailapi/imap/probe',
+
+    // The smtp probe layer also contains the simpleclient
+    'simplesmtp/lib/client': 'js/ext/mailapi/smtp/probe'
   },
   /* shim: {
     l10n: {
