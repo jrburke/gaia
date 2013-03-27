@@ -22,9 +22,9 @@ var fldNodes, msgNodes, cmpNodes, supNodes, tngNodes;
 function processTemplNodes(prefix) {
   var holder = document.getElementById('templ-' + prefix),
       nodes = {},
-      node = holder.firstElementChild,
+      node = holder && holder.firstElementChild,
       reInvariant = new RegExp('^' + prefix + '-');
-  while (node) {
+  while (holder && node) {
     var classes = node.classList, found = false;
     for (var i = 0; i < classes.length; i++) {
       if (reInvariant.test(classes[i])) {
