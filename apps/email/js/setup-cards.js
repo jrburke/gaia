@@ -354,6 +354,9 @@ function SetupProgressCard(domNode, mode, args) {
 
   var self = this;
   this.creationInProcess = true;
+
+console.log('MAILAPI: ' + MailAPI + ': fake: ' + MailAPI()._fake +
+            ', fn: ' + MailAPI().tryToCreateAccount);
   MailAPI().tryToCreateAccount(
     {
       displayName: args.displayName,

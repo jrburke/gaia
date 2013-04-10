@@ -186,7 +186,7 @@ var App = {
     var acctsSlice = MailAPI().viewAccounts(false);
     acctsSlice.oncomplete = function() {
       // - we have accounts, show the message view!
-      if (acctsSlice.items.length && !MailAPI._fake) {
+      if (acctsSlice.items.length && !MailAPI()._fake) {
         // For now, just use the first one; we do attempt to put unified first
         // so this should generally do the right thing.
         // XXX: Because we don't have unified account now, we should switch to
@@ -242,7 +242,7 @@ var App = {
             activityCallback = null;
           }
         };
-      } else if (MailAPI._fake && MailAPI.hasAccounts) {
+      } else if (MailAPI()._fake && MailAPI().hasAccounts) {
         // Insert a fake card while loading finishes.
         Cards.assertNoCards();
         Cards.pushCard(
@@ -345,7 +345,7 @@ var gotLocalized = (mozL10n.readyState === 'interactive' ||
 function doInit() {
   try {
     if (inited) {
-      if (!MailAPI._fake) {
+      if (!MailAPI()._fake) {
         // Real MailAPI set up now. We could have guessed wrong
         // for the fast path, particularly if this is an email
         // app upgrade, where they set up an account, but our
@@ -448,7 +448,7 @@ if ('mozSetMessageHandler' in window.navigator) {
         });
     };
 
-    if (MailAPI && !MailAPI._fake) {
+    if (MailAPI && !MailAPI()._fake) {
       console.log('activity', activityName, 'triggering compose now');
       sendMail();
     } else {

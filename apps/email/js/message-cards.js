@@ -14,6 +14,8 @@ define([
 ],
 function (require, common, MailAPI, iframeShims, mozL10n) {
 
+console.log('MESSAGE CARD GOT: ' + MailAPI);
+
 var Cards = common.Cards,
     Toaster = common.Toaster,
     ConfirmDialog = common.ConfirmDialog,
@@ -406,7 +408,7 @@ MessageListCard.prototype = {
 
     // We are creating a new slice, so any pending snippet requests are moot.
     this._snippetRequestPending = false;
-    this.messagesSlice = MailAPI.viewFolderMessages(folder);
+    this.messagesSlice = MailAPI().viewFolderMessages(folder);
     this.messagesSlice.onsplice = this.onMessagesSplice.bind(this);
     this.messagesSlice.onchange = this.updateMessageDom.bind(this, false);
     this.messagesSlice.onstatus = this.onStatusChange.bind(this);
@@ -439,7 +441,7 @@ MessageListCard.prototype = {
 
     // We are creating a new slice, so any pending snippet requests are moot.
     this._snippetRequestPending = false;
-    this.messagesSlice = MailAPI.searchFolderMessages(
+    this.messagesSlice = MailAPI().searchFolderMessages(
       folder, phrase,
       {
         author: filter === 'all' || filter === 'author',
@@ -1320,7 +1322,7 @@ MessageReaderCard.prototype = {
         // and easily undone, so we don't show them as toaster actions.
         case 'msg-contact-menu-new':
           var composer =
-            MailAPI.beginMessageComposition(this.header, null, null,
+            MailAPI().beginMessageComposition(this.header, null, null,
             function composerReady() {
               composer.to = [{
                 address: target.dataset.address,

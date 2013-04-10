@@ -3,7 +3,7 @@
 /*global define */
 define(['require'], function (require) {
 
-// Local API objec used by front end. Starts off fake to give to front
+// Local API object used by front end. Starts off fake to give to front
 // end something quick to use when no accounts.
 var apiLocal = {
   _fake: true,
@@ -27,35 +27,37 @@ function MailAPI() {
   return apiLocal;
 }
 
-function loadBackEnd(onload) {
+function loadBackEnd() {
 
-  window.addEventListener('mailapi', function(event) {
-    console.log('got MailAPI!');
-    onload(event.mailAPI);
-  }, false);
+  function onMailAPI(event) {
+    window.removeEventListener('mailapi', onMailAPI, false);
+    console.log('got MailAPI FOR REALZ!');
+    apiLocal = event.mailAPI;
+  }
+  window.addEventListener('mailapi', onMailAPI, false);
 
   require(['mailapi/main-frame-setup'], function () {
-    // Call function set up by same-frame-setup for getting mail API.
-    if (!apiLocal._fake) {
-      onload(MailAPI);
-    }
   });
 }
 
 return {
   load: function (id, require, onload, config) {
-      if (config.isBuild)
-          return onload();
+    if (config.isBuild)
+      return onload();
+
+    apiLocal.hasAccounts = (document.cookie || '')
+                              .indexOf('mailHasAccounts') !== -1;
 
     // Trigger module resolution for backend to start.
     // If no accounts, load a fake shim that allows
     // bootstrapping to "Enter account" screen faster.
-    if (apiLocal._fake && (id === 'real' ||
-        (document.cookie || '').indexOf('mailHasAccounts') !== -1)) {
+    if (apiLocal._fake && (id === 'real' || apiLocal.hasAccounts)) {
       loadBackEnd(onload);
+      onload(MailAPI);
     } else {
       // Create global property too, in case app comes
       // up after the event has fired.
+console.log('WE THINK WE ARE LEGIT: ' + MailAPI()._fake);
       onload(MailAPI);
     }
   }
