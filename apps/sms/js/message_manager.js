@@ -4,6 +4,8 @@
 'use strict';
 
 var MessageManager = {
+  currentNum: null,
+  currentThread: null,
   init: function mm_init(callback) {
     if (this.initialized) {
       return;
@@ -21,7 +23,7 @@ var MessageManager = {
     window.addEventListener('hashchange', this.onHashChange.bind(this));
     document.addEventListener('mozvisibilitychange',
                               this.onVisibilityChange.bind(this));
-    this.fullHeight = ThreadListUI.view.offsetHeight;
+
     // Callback if needed
     if (callback && typeof callback === 'function') {
       callback();
@@ -56,6 +58,7 @@ var MessageManager = {
     // thread without requesting Gecko, so we increase the performance and we
     // reduce Gecko requests.
     return {
+        id: message.threadId,
         senderOrReceiver: message.sender,
         body: message.body,
         timestamp: message.timestamp,
@@ -66,13 +69,9 @@ var MessageManager = {
   onMessageReceived: function mm_onMessageReceived(e) {
     var message = e.message;
 
-    var num;
-    if (this.currentNum) {
-      num = this.currentNum;
-    }
-
     var sender = message.sender;
-    if (num && num === sender) {
+    var threadId = message.threadId;
+    if (threadId && threadId === this.currentThread) {
       //Append message and mark as unread
       this.markMessagesRead([message.id], true, function() {
         MessageManager.getThreads(ThreadListUI.renderThreads);
@@ -82,12 +81,11 @@ var MessageManager = {
       Utils.updateTimeHeaders();
     } else {
       var threadMockup = this.createThreadMockup(message);
-      if (ThreadListUI.view.getElementsByTagName('ul').length === 0) {
+      if (ThreadListUI.container.getElementsByTagName('ul').length === 0) {
         ThreadListUI.renderThreads([threadMockup]);
       } else {
-        var num = threadMockup.senderOrReceiver;
         var timestamp = threadMockup.timestamp.getTime();
-        var previousThread = document.getElementById('thread_' + num);
+        var previousThread = document.getElementById('thread_' + threadId);
         if (previousThread && previousThread.dataset.time > timestamp) {
           // If the received SMS it's older that the latest one
           // We need only to update the 'unread status'
@@ -102,8 +100,8 @@ var MessageManager = {
             // If it's the last one we should remove the container
             var oldThreadContainer = previousThread.parentNode;
             var oldHeaderContainer = oldThreadContainer.previousSibling;
-            ThreadListUI.view.removeChild(oldThreadContainer);
-            ThreadListUI.view.removeChild(oldHeaderContainer);
+            ThreadListUI.container.removeChild(oldThreadContainer);
+            ThreadListUI.container.removeChild(oldHeaderContainer);
           } else {
             var threadsContainerID = 'threadsContainer_' +
                               Utils.getDayDate(threadMockup.timestamp);
@@ -155,14 +153,18 @@ var MessageManager = {
     var threadMessages = document.getElementById('thread-messages');
     switch (window.location.hash) {
       case '#new':
-        var messageInput = document.getElementById('message-to-send');
-        var receiverInput = document.getElementById('receiver-input');
+        var input = document.getElementById('messages-input');
+        var receiverInput = document.getElementById('messages-recipient');
         //Keep the  visible button the :last-child
-        var contactButton = document.getElementById('icon-contact');
+        var contactButton = document.getElementById(
+            'messages-contact-pick-button'
+        );
         contactButton.parentNode.appendChild(contactButton);
         document.getElementById('messages-container').innerHTML = '';
         ThreadUI.cleanFields();
+        // Cleaning global params related with the previous thread
         MessageManager.currentNum = null;
+        MessageManager.currentThread = null;
         threadMessages.classList.add('new');
         MessageManager.slide(function() {
           receiverInput.focus();
@@ -172,7 +174,9 @@ var MessageManager = {
         //Keep the  visible button the :last-child
         var editButton = document.getElementById('icon-edit');
         editButton.parentNode.appendChild(editButton);
+        // Cleaning global params related with the previous thread
         MessageManager.currentNum = null;
+        MessageManager.currentThread = null;
         if (mainWrapper.classList.contains('edit')) {
           mainWrapper.classList.remove('edit');
           if (ThreadListUI.editDone) {
@@ -190,7 +194,7 @@ var MessageManager = {
           });
         } else {
           MessageManager.slide(function() {
-            ThreadUI.view.innerHTML = '';
+            ThreadUI.container.innerHTML = '';
             if (MessageManager.activityTarget) {
               window.location.hash =
                 '#num=' + MessageManager.activityTarget;
@@ -209,7 +213,7 @@ var MessageManager = {
         var num = this.getNumFromHash();
         if (num) {
           var filter = this.createFilter(num);
-          var messageInput = document.getElementById('message-to-send');
+          var input = document.getElementById('messages-input');
           MessageManager.currentNum = num;
           if (mainWrapper.classList.contains('edit')) {
             mainWrapper.classList.remove('edit');
@@ -220,7 +224,8 @@ var MessageManager = {
           } else {
             // As soon as we click in the thread, we visually mark it
             // as read.
-            var threadRead = document.getElementById('thread_' + num);
+            var threadRead =
+              document.querySelector('li[data-phone-number="' + num + '"]');
             if (threadRead) {
               threadRead.getElementsByTagName('a')[0].classList
                     .remove('unread');
@@ -358,5 +363,3 @@ var MessageManager = {
     };
   }
 };
-
-

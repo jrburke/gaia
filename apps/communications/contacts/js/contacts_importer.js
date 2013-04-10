@@ -13,19 +13,37 @@
     var next = 0;
     var self = this;
     var serviceConnector = pConnector;
+    var totalImported = 0;
+
+    var mustHold = false;
+    var holded = false;
+    var mustFinish = false;
+
+    var isOnLine = navigator.onLine;
+
+    window.addEventListener('online', onLineChanged);
+    window.addEventListener('offline', onLineChanged);
+
+    function onLineChanged() {
+      isOnLine = navigator.onLine;
+    }
 
     function contactSaved(e) {
+      var cfdata = this;
       if (typeof self.oncontactimported === 'function') {
-        window.setTimeout(self.oncontactimported, 0);
+        window.setTimeout(function() {
+          self.oncontactimported(cfdata);
+        }, 0);
       }
       continueCb();
     }
 
     function contactSaveError(e) {
-      window.console.error('Error while importing contact: ', req.error.name);
+      window.console.error('Error while importing contact: ',
+                           e.target.error.name);
 
       if (typeof self.onerror === 'function') {
-        window.setTimeout(self.onerror.bind(null, req.error), 0);
+        window.setTimeout(self.onerror.bind(null, e.target.error), 0);
       }
       continueCb();
     }
@@ -48,23 +66,49 @@
       }
       var deviceContact = self.adapt(this);
 
-      self.persist(deviceContact, contactSaved, contactSaveError);
+      self.persist(deviceContact, contactSaved.bind(this), contactSaveError);
     }
 
     function pictureError() {
       window.console.error('Error while getting picture for contact: ',
                            this.user_id);
-      self.persist(self.adapt(this), contactSaved, contactSaveError);
+      self.persist(self.adapt(this), contactSaved.bind(this), contactSaveError);
     }
 
     function pictureTimeout() {
       window.console.warn('Timeout while getting picture for contact: ',
                            this.user_id);
-      self.persist(self.adapt(this), contactSaved, contactSaveError);
+      self.persist(self.adapt(this), contactSaved.bind(this),
+                   contactSaveError);
     }
 
     this.start = function() {
+      mustHold = false;
+      holded = false;
+      mustFinish = false;
       importContacts(next);
+    };
+
+    this.hold = function() {
+      mustHold = true;
+    };
+
+    this.finish = function() {
+      mustFinish = true;
+
+      if (holded) {
+        notifySuccess();
+      }
+    };
+
+    this.resume = function() {
+      mustHold = false;
+      holded = false;
+      mustFinish = false;
+
+      window.setTimeout(function resume_import() {
+        importContacts(next);
+      }, 0);
     };
 
     // This method might be overritten
@@ -87,23 +131,44 @@
           timeout: pictureTimeout.bind(serviceContact)
         };
 
-        serviceConnector.downloadContactPicture(serviceContact,
+        if (isOnLine === true) {
+          serviceConnector.downloadContactPicture(serviceContact,
                                              access_token, callbacks);
+        }
+        else {
+          callbacks.success(null);
+        }
+      }
+    }
+
+    function notifySuccess() {
+      if (typeof self.onsuccess === 'function') {
+        window.setTimeout(function do_success() {
+          self.onsuccess(totalImported);
+        }, 0);
       }
     }
 
     function continueCb() {
       next++;
       numResponses++;
+      totalImported++;
       if (next < total && numResponses === CHUNK_SIZE) {
         numResponses = 0;
-        importContacts(next);
+        if (!mustHold && !mustFinish) {
+          importContacts(next);
+        }
+        else if (mustFinish && !holded) {
+          notifySuccess();
+        }
+
+        if (mustHold) {
+          holded = true;
+        }
       }
       else if (next >= total) {
         // End has been reached
-        if (typeof self.onsuccess === 'function') {
-          window.setTimeout(self.onsuccess, 0);
-        }
+        notifySuccess();
       }
     }
   };
