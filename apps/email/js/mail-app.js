@@ -27,8 +27,8 @@
 require.config({
   baseUrl: 'js',
   paths: {
-    //l10nbase: '../../../shared/js/l10n',
-    //l10n: '../../../shared/js/l10n_date',
+    l10nbase: '../../../shared/js/l10n',
+    l10ndate: '../../../shared/js/l10n_date',
     style: '../style',
     shared: '../../../shared',
 
@@ -80,19 +80,15 @@ require.config({
     // The smtp probe layer also contains the simpleclient
     'simplesmtp/lib/client': 'ext/mailapi/smtp/probe'
   },
-  /* shim: {
-    l10n: {
-      deps: ['l10nbase'],
-      exports: 'navigator.mozL10n'
-    }
-  }, */
+  shim: {
+    l10ndate: ['l10nbase']
+  },
   scriptType: 'application/javascript;version=1.8',
   definePrim: 'prim'
 });
 
-// localization stuff wants to be first, still figuring out how to dynamically
-// load it.
-define('l10n', [], function () {
+// localization stuff
+define('l10n', ['l10ndate', 'l10ndate'], function () {
   return navigator.mozL10n;
 });
 

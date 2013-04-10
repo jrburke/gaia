@@ -347,7 +347,7 @@ function optimize_compile(webapp, file) {
 
   // if this HTML document uses l10n.js, pre-localize it --
   // selecting a language triggers `XMLHttpRequest' and `dispatchEvent' above
-  if (win.document.querySelector('script[src$="l10n.js"]')) {
+  if (win.document.querySelector('link[type="application/l10n"]')) {
     debug('localizing: ' + file.path);
     mozL10n.language.code = l10nLocales[processedLocales];
   }

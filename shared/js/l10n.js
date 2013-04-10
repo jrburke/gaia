@@ -9,6 +9,9 @@
  */
 
 (function(window) {
+
+  var _start = window.performance ? window.performance.now() : 0;
+
   var gL10nData = {};
   var gTextProp = 'textContent';
   var gLanguage = '';
@@ -39,11 +42,11 @@
    *   gDEBUG == 2: display all console messages
    */
 
-  var gDEBUG = 1;
+  var gDEBUG = 2;
 
   function consoleLog(message) {
-    if (gDEBUG >= 2) {
-      console.log('[l10n] ' + message);
+    if (gDEBUG >= 2 && typeof console !== 'undefined') {
+      console.log('[l10n] ' + message + ': ' + (window.performance.now() - _start));
     }
   };
 
