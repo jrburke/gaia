@@ -1642,15 +1642,9 @@ MessageReaderCard.prototype = {
       if (rep.type === 'plain') {
         this._populatePlaintextBodyNode(rootBodyNode, rep.content);
       }
-<<<<<<< HEAD
-      else if (repType === 'html') {
-        var iframeShim = iframeShims.createAndInsertIframeForContent(
-          rep, this.scrollContainer, rootBodyNode, null,
-=======
       else if (rep.type === 'html') {
         var iframeShim = createAndInsertIframeForContent(
           rep.content, this.scrollContainer, rootBodyNode, null,
->>>>>>> master
           'interactive', this.onHyperlinkClick.bind(this));
         var iframe = iframeShim.iframe;
         var bodyNode = iframe.contentDocument.body;
