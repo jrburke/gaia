@@ -68,6 +68,12 @@ require.config({
     'mailapi/quotechew': 'ext/mailapi/chewlayer',
     'mailapi/imap/imapchew': 'ext/mailapi/chewlayer',
 
+    // Imap body fetching / parsing / sync
+    'mailapi/imap/protocol/sync': 'ext/mailapi/imap/protocollayer',
+    'mailapi/imap/protocol/textparser': 'ext/mailapi/imap/protocollayer',
+    'mailapi/imap/protocol/snippetparser': 'ext/mailapi/imap/protocollayer',
+    'mailapi/imap/protocol/bodyfetcher': 'ext/mailapi/imap/protocollayer',
+
     // The imap probe layer also contains the imap module
     'imap': 'ext/mailapi/imap/probe',
 
@@ -163,7 +169,8 @@ var App = {
           trash: mozL10n.get('folder-trash'),
           queue: mozL10n.get('folder-queue'),
           junk: mozL10n.get('folder-junk'),
-          archives: mozL10n.get('folder-archives')
+          archives: mozL10n.get('folder-archives'),
+          localdrafts: mozL10n.get('folder-localdrafts')
         }
       });
     }

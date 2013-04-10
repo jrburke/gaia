@@ -32,6 +32,16 @@ var Calls = (function(window, document, undefined) {
   var settings = window.navigator.mozSettings;
   var _voiceServiceClassMask = mobileConnection.ICC_SERVICE_CLASS_VOICE;
 
+  function isPhoneNumberValid(number) {
+    if (number) {
+      var re = /^([\+]*[0-9])+$/;
+      if (re.test(number)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   // Stores settings into the database.
   function setToSettingsDB(settingKey, value, callback) {
     var done = function done() {
@@ -71,6 +81,7 @@ var Calls = (function(window, document, undefined) {
     }
 
     element.textContent = _('callForwardingNotForwarding');
+    element.dataset.l10nId = 'callForwardingNotForwarding';
     document.getElementById('cf-' + settingKey + '-number').disabled = false;
   };
 
@@ -95,6 +106,40 @@ var Calls = (function(window, document, undefined) {
         document.getElementById('cfnrep-desc').textContent =
           document.getElementById('cfnrea-desc').textContent =
             what;
+  };
+
+  // Display information relevant to the SIM card state
+  function displaySimCardStateInfo() {
+    var simCardState = mobileConnection.cardState;
+    /**
+     * Check SIM card state
+     * Possible values: null, 'unknown', 'absent', 'pinRequired',
+     * 'pukRequired', 'networkLocked', 'ready'.
+     */
+    switch (simCardState) {
+      case 'absent':
+        displayInfoForAll(_('noSimCard'));
+        break;
+      case 'pinRequired':
+        displayInfoForAll(_('simCardLockedMsg'));
+        break;
+      case 'pukRequired':
+        displayInfoForAll(_('simCardLockedMsg'));
+        break;
+      case 'networkLocked':
+        displayInfoForAll(_('simLockedPhone'));
+        break;
+      case 'unknown':
+        displayInfoForAll(_('unknownSimCardState'));
+        break;
+      case null:
+        displayInfoForAll(_('simCardNotReady'));
+        break;
+      default:
+        // For any other case (including 'ready') display
+        // the call forwarding network request message
+        displayInfoForAll(_('callForwardingRequesting'));
+    }
   };
 
   // Stores current states (enabler or not) of the call forwaring reason.
@@ -234,7 +279,7 @@ var Calls = (function(window, document, undefined) {
   function updateCallForwardingSubpanels() {
     updatingInProgress = true;
 
-    displayInfoForAll(_('callForwardingRequesting'));
+    displaySimCardStateInfo();
     enableTapOnCallForwardingItems(false);
     getCallForwardingOption(function got_cfOption(cfOptions) {
       if (cfOptions) {
@@ -244,7 +289,7 @@ var Calls = (function(window, document, undefined) {
         displayRule(cfOptions['notreachable'], 'cfnrea-desc', 'notreachable');
         enableTapOnCallForwardingItems(true);
       } else {
-        displayInfoForAll(_('callForwardingQueryError'));
+        displaySimCardStateInfo();
         enableTapOnCallForwardingItems(false);
       }
       updatingInProgress = false;
@@ -281,7 +326,15 @@ var Calls = (function(window, document, undefined) {
         mozMobileCFInfo['reason'] = _cfReasonMapping[key];
         mozMobileCFInfo['serviceClass'] =
           mobileConnection.ICC_SERVICE_CLASS_VOICE;
-        // TODO: Check number.
+
+        if (!isPhoneNumberValid(textInput.value)) {
+          document.getElementById('cf-confirm-message').textContent =
+            _('callForwardingInvalidNumberError');
+          var cfAlertPanel = document.querySelector('#call .cf-alert');
+          cfAlertPanel.hidden = false;
+          updateCallForwardingSubpanels();
+          return;
+        }
         mozMobileCFInfo['number'] = textInput.value;
         mozMobileCFInfo['timeSecond'] =
           mozMobileCFInfo['reason'] !=
@@ -317,7 +370,7 @@ var Calls = (function(window, document, undefined) {
     });
 
     // Init call forwarding option.
-    displayInfoForAll(_('callForwardingRequesting'));
+    displaySimCardStateInfo();
     getCallForwardingOption(function call_gotCFOption(cfOptions) {
       if (cfOptions) {
         displayRule(cfOptions['unconditional'], 'cfu-desc', 'unconditional');
@@ -332,6 +385,13 @@ var Calls = (function(window, document, undefined) {
       setTimeout(initCallForwardingObservers, 500);
     });
 
+    // Initialize the call forwarding alert panel.
+    var cfAlertPanel = document.querySelector('#call .cf-alert');
+    var cfContinueBtn = cfAlertPanel.querySelector('.cf-alert-continue');
+    cfContinueBtn.addEventListener('click', function() {
+      cfAlertPanel.hidden = true;
+    });
+
     window.addEventListener('hashchange', function() {
       // If navigation is from #root to #call panels then update UI always.
       if (document.location.hash === '#call' &&
@@ -344,7 +404,7 @@ var Calls = (function(window, document, undefined) {
     });
   }
 
-  var callWaitingItemListener = function (evt) {
+  var callWaitingItemListener = function(evt) {
     var alertPanel = document.querySelector('#call .cw-alert');
     var confirmInput =
       alertPanel.querySelector('.cw-alert-checkbox-label input');

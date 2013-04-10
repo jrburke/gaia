@@ -1,156 +1,115 @@
-'use strict';
-/*
- Centralized event handling for various
- data-actions url, email, phone in a message
-*/
+(function(exports) {
+  'use strict';
+  /*
+   Centralized event handling for various
+   data-actions url, email, phone in a message
+  */
+  var activityInProgress = false;
 
-var LinkActionHandler = {
-  handleBrowserEvent:
-  function lah_handleBrowserEvent(link) {
-    try {
-      var activity = new MozActivity({
-        name: 'view',
-        data: {
-          type: 'url',
-          url: link
-          }
-      });
-    } catch (e) {
-      console.log('WebActivities unavailable? : ' + e);
-    }
-  },
-
-  handlePhoneEvent:
-  function lah_handlePhoneEvent(phoneNumber) {
-    this.call(phoneNumber);
-  },
-
-   handleLongPressPhoneEvent:
-  function lah_handleLongPressPhoneEvent(phoneNumber) {
-    var self = this;
+  function createOptionMenuOnLongPress(param, title) {
+    var _ = navigator.mozL10n.get;
     var options = new OptionMenu({
-    'items': [
+      'items': [
       {
         name: _('createNewContact'),
         method: function optionMethod(param) {
-          self.createNewContact(param);
+          ActivityPicker.createNewContact(param);
         },
-        params: [phoneNumber]
+        params: param
       },
       {
         name: _('addToExistingContact'),
         method: function optionMethod(param) {
-          self.addToExistingContact(param);
+          ActivityPicker.addToExistingContact(param);
         },
-        params: [phoneNumber]
+        params: param
       },
       {
         name: _('cancel'),
         method: function optionMethod(param) {
-          // TODO Add functionality if needed
+        // TODO Add functionality if needed
         }
       }
-    ],
-    'title': phoneNumber
+      ],
+      'title': title
     });
     options.show();
-  },
+  };
 
-   createNewContact: function lah_createNewContact(phoneNumber) {
-    try {
-      var activity = new MozActivity({
-        name: 'new',
-        data: {
-          type: 'webcontacts/contact',
-          params: {
-            'tel': phoneNumber
+  var LinkActionHandler = {
+    handleTapEvent:
+      function lah_handleTapEvent(evt) {
+      var dataset, action, activity;
+      //Return if activity is already invoked
+      if (activityInProgress) { return; }
+      action = evt.target.dataset.action;
+      dataset = evt.target.dataset;
+      if (action) {
+        switch (action) {
+          case 'url-link':
+            activity = {
+              name: 'view',
+              data: {
+                type: 'url',
+                url: dataset.url
+              }
+            };
+            activityInProgress = true;
+            break;
+          case 'email-link':
+            activity = {
+              name: 'new',
+              data: {
+                type: 'mail',
+                URI: 'mailto:' + dataset.email
+              }
+            };
+            activityInProgress = true;
+            break;
+          case 'phone-link':
+            activity = {
+              name: 'dial',
+              data: {
+                type: 'webtelephony/number',
+                number: dataset.phonenumber
+              }
+            };
+            activityInProgress = true;
+            break;
+        }
+        if (activity && MozActivity) {
+          try {
+            new MozActivity(activity);
+          }
+          catch (e) {
+            console.log('WebActivities unavailable? : ' + e);
           }
         }
-      });
-    } catch (e) {
-      console.log('WebActivities unavailable? : ' + e);
-    }
-  },
-
-  addToExistingContact: function lah_addToExistingContact(phoneNumber, 
-    onSuccess, onFailure) {
-      try {
-        var activity = new MozActivity({
-          name: 'update',
-          data: {
-            type: 'webcontacts/contact',
-            params: {
-              'tel': phoneNumber
-            }
-          }
-        });
-        activity.onsuccess = function lah_contactUpdateSuccess() {
-          if (onSuccess && typeof onSuccess === 'function') {
-            onSuccess();
-          }
-        };
-        activity.onerror = function lah_contactUpdateFailure() {
-          if (onFailure && typeof onFailure === 'function') {
-            onFailure();
-          }
-        };
-    } catch (e) {
-        console.log('WebActivities unavailable? : ' + e);
-    }
-  },
-
-  call: function lah_call(phoneNumber) {
-    try {
-      var activity = new MozActivity({
-        name: 'dial',
-        data: {
-          type: 'webtelephony/number',
-          number: phoneNumber
+      }
+    },
+    //Invokes handleLongPressPhoneEvent for now, and
+    //in future will expand to call handleLongPressEmailEvent
+    handleLongPressEvent:
+      function lah_handleLongPressEvent(evt) {
+      var action = evt.target.dataset.action;
+      var dataset = evt.target.dataset;
+      if (action) {
+        switch (action) {
+          case 'phone-link':
+            createOptionMenuOnLongPress(
+              [{'tel': dataset.phonenumber}], dataset.phonenumber);
+            break;
+          case 'email-link':
+            createOptionMenuOnLongPress(
+              [{'email': dataset.email}], dataset.email);
+            break;
         }
-      });
-    } catch (e) {
-      console.log('WebActivities unavailable? : ' + e);
-    }
-  },
-
-  //Invokes handleBrowserEvent for now, and
-  //in future will expand to call handlePhoneEvent,
-  //handleEmailEvent.
-  handleTapEvent:
-   function lah_handleTapEvent(evt) {
-     //Return if activity is already invoked
-     if (this.activityInProgress) { return; }
-     var eventAction = evt.target.dataset.action;
-     if (eventAction) {
-      switch (eventAction) {
-        case 'url-link':
-          this.activityInProgress = true;
-          this.handleBrowserEvent(evt.target.dataset.url);
-        break;
-        case 'phone-link':
-          this.activityInProgress = true;
-          this.handlePhoneEvent(evt.target.dataset.phonenumber);
-        break;
       }
+    },
+    resetActivityInProgress:
+      function lah_resetActivityInProgress() {
+      activityInProgress = false;
     }
-  },
-
-  //Invokes handleLongPressPhoneEvent for now, and
-  //in future will expand to call handleLongPressEmailEvent
-  handleLongPressEvent:
-   function lah_handleLongPressEvent(evt) {
-     var eventAction = evt.target.dataset.action;
-     if (eventAction) {
-      switch (eventAction) {
-        case 'phone-link':
-          this.handleLongPressPhoneEvent(evt.target.dataset.phonenumber);
-        break;
-      }
-    }
-  },
-
-  resetActivityInProgress:
-   function lah_resetActivityInProgress() {
-     this.activityInProgress = false;
-  }
-};
+  };
+  exports.LinkActionHandler = LinkActionHandler;
+}(this));
