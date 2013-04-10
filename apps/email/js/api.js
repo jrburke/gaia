@@ -28,16 +28,15 @@ function MailAPI() {
 }
 
 function loadBackEnd(onload) {
-  require(['mailapi/same-frame-setup'], function () {
+
+  window.addEventListener('mailapi', function(event) {
+    console.log('got MailAPI!');
+    onload(event.mailAPI);
+  }, false);
+
+  require(['mailapi/main-frame-setup'], function () {
     // Call function set up by same-frame-setup for getting mail API.
-    if (apiLocal._fake) {
-      window.gimmeMailAPI(function (api) {
-        if (apiLocal._fake) {
-          apiLocal = api;
-        }
-        onload(MailAPI);
-      });
-    } else {
+    if (!apiLocal._fake) {
       onload(MailAPI);
     }
   });
