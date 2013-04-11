@@ -36,8 +36,10 @@ function loadBackEnd() {
   }
   window.addEventListener('mailapi', onMailAPI, false);
 
-  require(['mailapi/main-frame-setup'], function () {
-  });
+  setTimeout(function () {
+    require(['mailapi/main-frame-setup'], function () {
+    });
+  }, 1000);
 }
 
 return {
@@ -57,7 +59,7 @@ return {
     } else {
       // Create global property too, in case app comes
       // up after the event has fired.
-console.log('WE THINK WE ARE LEGIT: ' + MailAPI()._fake);
+console.log('WE THINK WE ARE LEGIT: ' + MailAPI()._fake + ': ' + (performance.now() - _xstart));
       onload(MailAPI);
     }
   }

@@ -1,4 +1,6 @@
 /*global define */
+var _xstart = performance.now();
+var _fromStart = _xstart - performance.timing.fetchStart;
 
 define([], function () {
 

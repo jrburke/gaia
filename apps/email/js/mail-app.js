@@ -89,6 +89,12 @@ require.config({
 
 // localization stuff
 define('l10n', ['l10ndate', 'l10ndate'], function () {
+  //['l10ndate', 'l10ndate']
+  /*
+  return {
+    get: function (){},
+    ready: function (){}
+  };*/
   return navigator.mozL10n;
 });
 
@@ -127,6 +133,9 @@ define('mail-app', [
   'l10n'
 ],
 function (require, common, MailAPI, mozL10n) {
+
+console.log('@@@@mail-api START: ' + (performance.now() - _xstart));
+
 
 var Cards = common.Cards,
     activityCallback = null;
@@ -203,6 +212,7 @@ var App = {
     // Get the list of accounts including the unified account (if it exists)
     var acctsSlice = MailAPI().viewAccounts(false);
     acctsSlice.oncomplete = function() {
+      console.log('@@@@acctsSlice.oncomplete: ' + (performance.now() - _xstart));
       // - we have accounts, show the message view!
       if (acctsSlice.items.length && !MailAPI()._fake) {
         // For now, just use the first one; we do attempt to put unified first
@@ -272,6 +282,7 @@ var App = {
       }
       // - no accounts, show the setup page!
       else if (!Cards.hasCard(['setup-account-info', 'default'])) {
+console.log('@@@@setup-account-info start: ' + (performance.now() - _xstart));
         acctsSlice.die();
         if (activityCallback) {
           // Clear out activity callback, but do it
@@ -289,12 +300,13 @@ var App = {
         // Mostly likely when the email app is updated from one that
         // did not have the fast path cookies set up.
         Cards.removeAllCards();
-
+console.log('@@@@ABOUT TO PUSHCARD: ' + (performance.now() - _xstart));
         Cards.pushCard(
           'setup-account-info', 'default', 'immediate',
           {
             allowBack: false
           });
+console.log('@@@@PUSHCARD FINISHED: ' + (performance.now() - _xstart));
         appRendered();
       }
 
@@ -376,6 +388,8 @@ function doInit() {
         App.showMessageViewOrSetup();
       }
     } else {
+console.log('@@@@Doing an init: ' + (performance.now() - _xstart));
+
       inited = true;
       common.populateTemplateNodes();
       Cards._init();
@@ -394,10 +408,8 @@ if (!gotLocalized) {
     window.removeEventListener('localized', localized);
     doInit();
   });
-} else {
-  console.log('got localized via readyState!');
-  doInit();
 }
+doInit();
 
 if ('mozSetMessageHandler' in window.navigator) {
   window.navigator.mozSetMessageHandler('activity',
@@ -488,4 +500,5 @@ return App;
 });
 
 // Run the app module, bring in fancy logging
+console.log('@@@@ABOUT TO REQUIRE: ' + (performance.now() - _xstart));
 require(['console-hook', 'mail-app']);
