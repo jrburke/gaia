@@ -17,6 +17,10 @@ var lazyCards = {
     setup: ['setup-cards', 'css!style/setup-cards']
 };
 
+var newKinder = {
+  'setup-account-info': true
+};
+
 function dieOnFatalError(msg) {
   console.error('FATAL:', msg);
   throw new Error(msg);
@@ -30,7 +34,7 @@ var fldNodes = {},
 
 function processTemplNodes(prefix, nodes) {
   var holder = document.getElementById('templ-' + prefix),
-      node = holder.firstElementChild,
+      node = holder && holder.firstElementChild,
       reInvariant = new RegExp('^' + prefix + '-');
 
   nodes = nodes || {};
@@ -379,11 +383,12 @@ Cards = {
     }
   },
 
-  defineCardWithDefaultMode: function(name, defaultMode, constructor) {
+  defineCardWithDefaultMode: function(name, defaultMode, constructor, templateNode) {
     var cardDef = {
       name: name,
       modes: {},
-      constructor: constructor
+      constructor: constructor,
+      templateNode: templateNode
     };
     cardDef.modes['default'] = defaultMode;
     this.defineCard(cardDef);
@@ -428,12 +433,16 @@ Cards = {
     var cardDef = this._cardDefs[type];
     var typePrefix = type.split('-')[0];
 
-    if (!cardDef && lazyCards[typePrefix]) {
+    if (!cardDef && lazyCards[typePrefix] && newKinder[type]) {
       var cbArgs = Array.slice(arguments);
-      this.eatEventsUntilNextCard();
-      require(lazyCards[typePrefix], function() {
+      var cb = function() {
         this.pushCard.apply(this, cbArgs);
-      }.bind(this));
+      }.bind(this);
+      this.eatEventsUntilNextCard();
+      if (newKinder[type])
+        require(['cards/' + type], cb);
+      else
+        require(lazyCards[typePrefix], cb);
       return;
     } else if (!cardDef)
       throw new Error('No such card def type: ' + type);
@@ -442,7 +451,7 @@ Cards = {
     if (!modeDef)
       throw new Error('No such card mode: ' + mode);
 
-    var domNode = this._templateNodes[type].cloneNode(true);
+    var domNode = (cardDef.templateNode || this._templateNodes[type]).cloneNode(true);
 
     var cardImpl = new cardDef.constructor(domNode, mode, args);
     var cardInst = {
@@ -1249,7 +1258,6 @@ exports.prettyFileSize = prettyFileSize;
 exports.batchAddClass = batchAddClass;
 exports.bindContainerClickAndHold = bindContainerClickAndHold;
 exports.bindContainerHandler = bindContainerHandler;
-exports.prettyDate = prettyDate;
 exports.appendMatchItemTo = appendMatchItemTo;
 exports.bindContainerHandler = bindContainerHandler;
 exports.dieOnFatalError = dieOnFatalError;

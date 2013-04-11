@@ -11,163 +11,17 @@ define([
   'mail-app',
   'api!',
   'iframe-shims',
+  'cards/setup-l10n-map',
   'l10n'
 ],
-function (require, common, App, MailAPI, iframeShims, mozL10n) {
+function (require, common, App, MailAPI, iframeShims, SETUP_ERROR_L10N_ID_MAP,
+          mozL10n) {
 'use strict';
 
 var Cards = common.Cards,
     ConfirmDialog = common.ConfirmDialog,
     FormNavigation = common.FormNavigation,
     tngNodes = common.tngNodes;
-/**
- * Map error codes to their l10n string id.  This exists because we have
- * revised some of the strings and so a direct transformation is no longer
- * sufficient.  If an error code does not exist in this map, it gets mapped
- * to the "unknown" value's l10n string id.
- */
-var SETUP_ERROR_L10N_ID_MAP = {
-  'offline': 'setup-error-offline',
-  'bad-user-or-pass': 'setup-error-bad-user-or-pass2',
-  'not-authorized': 'setup-error-not-authorized',
-  'unknown': 'setup-error-unknown2',
-  'needs-app-pass': 'setup-error-needs-app-pass',
-  'imap-disabled': 'setup-error-imap-disabled',
-  'bad-security': 'setup-error-bad-security',
-  'unresponsive-server': 'setup-error-unresponsive-server',
-  'server-problem': 'setup-error-server-problem',
-  'no-config-info': 'setup-error-no-config-info',
-  'server-maintenance': 'setup-error-server-maintenance'
-};
-
-/**
- * Enter basic account info card (name, e-mail address, password) to try and
- * autoconfigure an account.
- */
-function SetupAccountInfoCard(domNode, mode, args) {
-  this.domNode = domNode;
-
-  // The back button should only be enabled if there is at least one other
-  // account already in existence.
-  if (args.allowBack) {
-    var backButton = domNode.getElementsByClassName('sup-back-btn')[0];
-    backButton.addEventListener('click', this.onBack.bind(this), false);
-    backButton.classList.remove('collapsed');
-  }
-
-  this.nextButton = domNode.getElementsByClassName('sup-info-next-btn')[0];
-  this.nextButton.addEventListener('click', this.onNext.bind(this), false);
-
-  this.formNode = domNode.getElementsByClassName('sup-account-form')[0];
-
-  this.nameNode = this.domNode.getElementsByClassName('sup-info-name')[0];
-  this.emailNode = this.domNode.getElementsByClassName('sup-info-email')[0];
-  this.passwordNode =
-    this.domNode.getElementsByClassName('sup-info-password')[0];
-
-  // Add input event handler to prevent user submit empty name or password.
-  this.emailNode.addEventListener('input', this.onInfoInput.bind(this));
-  this.nameNode.addEventListener('input', this.onInfoInput.bind(this));
-  this.passwordNode.addEventListener('input', this.onInfoInput.bind(this));
-
-  var manualConfig = domNode.getElementsByClassName('sup-manual-config-btn')[0];
-  manualConfig.addEventListener('click', this.onClickManualConfig.bind(this),
-                                false);
-
-  new FormNavigation({
-    formElem: domNode.getElementsByTagName('form')[0],
-    onLast: this.onNext.bind(this)
-  });
-}
-
-SetupAccountInfoCard.prototype = {
-  onBack: function(event) {
-    // If we are the only card, we need to remove ourselves and tell the app
-    // to do initial card pushing.  This would happen if the app was started
-    // without any accounts.
-    if (Cards._cardStack.length === 1) {
-      Cards.removeAllCards();
-      App.showMessageViewOrSetup();
-    }
-    // Otherwise we were triggered from the settings UI and we can just pop
-    // our way back to that UI.
-    else {
-      Cards.removeCardAndSuccessors(this.domNode, 'animate', 1);
-    }
-  },
-  onNext: function(event) {
-    var nameNode = this.domNode.getElementsByClassName('sup-info-name')[0],
-        emailNode = this.domNode.getElementsByClassName('sup-info-email')[0],
-        passwordNode =
-          this.domNode.getElementsByClassName('sup-info-password')[0];
-
-    // The progress card is the dude that actually tries to create the account.
-    Cards.pushCard(
-      'setup-progress', 'default', 'animate',
-      {
-        displayName: this.nameNode.value,
-        emailAddress: this.emailNode.value,
-        password: this.passwordNode.value,
-        callingCard: this
-      },
-      'right');
-  },
-
-  onInfoInput: function(event) {
-    this.nextButton.disabled = !this.formNode.checkValidity();
-  },
-
-  onClickManualConfig: function() {
-    Cards.pushCard(
-      'setup-manual-config', 'default', 'animate',
-      {
-        displayName: this.nameNode.value,
-        emailAddress: this.emailNode.value,
-        password: this.passwordNode.value
-      },
-      'right');
-  },
-
-  // note: this method is also reused by the manual config card
-  showError: function(errName, errDetails) {
-    this.domNode.getElementsByClassName('sup-error-region')[0]
-        .classList.remove('collapsed');
-    var errorMessageNode =
-      this.domNode.getElementsByClassName('sup-error-message')[0];
-    var errorCodeNode =
-      this.domNode.getElementsByClassName('sup-error-code')[0];
-
-    // Attempt to get a user-friendly string for the error we got. If we can't
-    // find a match, just show the "unknown" error string.
-    var errorStr = mozL10n.get(
-      SETUP_ERROR_L10N_ID_MAP.hasOwnProperty(errName) ?
-        SETUP_ERROR_L10N_ID_MAP[errName] :
-        SETUP_ERROR_L10N_ID_MAP['unknown'],
-      errDetails);
-    errorMessageNode.textContent = errorStr;
-
-    // Expose the error code to the UI.  Additionally, if there was a status,
-    // expose that too.
-    var errorCodeStr = errName;
-    if (errDetails && errDetails.status)
-      errorCodeStr += '(' + errDetails.status + ')';
-    errorCodeNode.textContent = errorCodeStr;
-
-    // Make sure we are scrolled to the top of the scroll region so that the
-    // error message is visible.
-    this.domNode.getElementsByClassName('scrollregion-below-header')[0]
-      .scrollTop = 0;
-  },
-
-  die: function() {
-  }
-};
-Cards.defineCardWithDefaultMode(
-    'setup-account-info',
-    { tray: false },
-    SetupAccountInfoCard
-);
-
 /**
  * Asks the user to manually configure their account.
  */

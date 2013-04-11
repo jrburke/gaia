@@ -92,6 +92,25 @@ define('l10n', ['l10ndate', 'l10ndate'], function () {
   return navigator.mozL10n;
 });
 
+define('l10der', function (mozL10n) {
+  var value;
+  return {
+    load: function (id, require, onload, config) {
+      if (config.isBuild || value)
+        return onload(value);
+
+      require(['l10n'], function (mozL10n) {
+        mozL10n.ready(function () {
+          if (!value)
+            value = mozL10n;
+
+          onload(mozL10n);
+        });
+      });
+    }
+  };
+});
+
 // q shim for rdcommon/log, just enough for it to
 // work. Just uses defer, promise, resolve and reject.
 define('q', ['prim'], function (prim) {
@@ -105,12 +124,7 @@ define('mail-app', [
   'require',
   'mail-common',
   'api!fake',
-  'l10n',
-
-  // Some default cards to load, do not need local var
-  // refs for these.
-  'message-cards',
-  'folder-cards'
+  'l10n'
 ],
 function (require, common, MailAPI, mozL10n) {
 
@@ -178,6 +192,14 @@ var App = {
    * start the setup process if we have no accounts.
    */
   showMessageViewOrSetup: function(showLatest) {
+
+    function appRendered() {
+      //Mmmmm, delicious hack.
+      var now = window.location.hash || '#';
+      window.location.replace('#x-moz-perf-user-ready');
+      window.location.replace(now);
+    }
+
     // Get the list of accounts including the unified account (if it exists)
     var acctsSlice = MailAPI().viewAccounts(false);
     acctsSlice.oncomplete = function() {
@@ -233,6 +255,8 @@ var App = {
             // Place to left of message list
             'left');
 
+          appRendered();
+
           if (activityCallback) {
             activityCallback();
             activityCallback = null;
@@ -271,13 +295,14 @@ var App = {
           {
             allowBack: false
           });
+        appRendered();
       }
 
       if (MailAPI()._fake) {
         require(['api!real'], function (api) {
           if (gotLocalized)
             doInit();
-
+/*
           require(['css!style/value_selector',
                    'css!style/compose-cards',
                    'css!style/setup-cards',
@@ -286,6 +311,7 @@ var App = {
                    'setup-cards',
                    'compose-cards'
           ]);
+*/
         });
       }
     };
