@@ -54,12 +54,13 @@ return {
     // If no accounts, load a fake shim that allows
     // bootstrapping to "Enter account" screen faster.
     if (apiLocal._fake && (id === 'real' || apiLocal.hasAccounts)) {
+console.log('??? API: loading back end: ' + MailAPI()._fake + ': ' + (performance.now() - _xstart));
       loadBackEnd(onload);
       onload(MailAPI);
     } else {
       // Create global property too, in case app comes
       // up after the event has fired.
-console.log('WE THINK WE ARE LEGIT: ' + MailAPI()._fake + ': ' + (performance.now() - _xstart));
+console.log('??? API: going non-back-end: ' + MailAPI()._fake + ': ' + (performance.now() - _xstart));
       onload(MailAPI);
     }
   }

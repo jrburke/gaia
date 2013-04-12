@@ -5,14 +5,20 @@ define(function (mozL10n) {
       if (config.isBuild || value)
         return onload(value);
 
-      require(['l10n'], function (mozL10n) {
-        mozL10n.ready(function () {
-          if (!value)
-            value = mozL10n;
+console.log('@@@@l10der calling l10n: ' + (performance.now() - _xstart));
 
-          onload(mozL10n);
-        });
-      });
+      //require(['l10n'], function (mozL10n) {
+console.log('@@@@l10der got l10n: ' + (performance.now() - _xstart));
+
+        //mozL10n.ready(function () {
+          if (!value)
+            value = navigator.mozL10n;
+
+          onload(navigator.mozL10n);
+console.log('@@@@l10der onload called above: ' + (performance.now() - _xstart));
+
+        //});
+      //});
     }
   };
 });

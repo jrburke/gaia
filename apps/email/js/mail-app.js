@@ -88,15 +88,17 @@ require.config({
   definePrim: 'prim'
 });
 
-// localization stuff
-define('l10n', ['l10ndate', 'l10ndate'], function () {
-  //['l10ndate', 'l10ndate']
-  /*
-  return {
+navigator.mozL10n = {
     get: function (){},
-    ready: function (){}
-  };*/
+    ready: function (fn){ fn(); },
+    translate: function () { return ''; }
+  };
+
+// localization stuff
+define('l10n', function () {
+  //['l10ndate', 'l10ndate']
   return navigator.mozL10n;
+  //return navigator.mozL10n;
 });
 
 // q shim for rdcommon/log, just enough for it to
