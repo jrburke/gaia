@@ -481,7 +481,7 @@ var requirejs, require, define;
         }
 
         function makeRequire(relName, topLevel) {
-            var req = function (deps, callback, errback, alt) {
+            var req = function (deps, callback, errback, alt, sync) {
                 var name, cfg;
 
                 if (topLevel) {
@@ -523,14 +523,17 @@ var requirejs, require, define;
                 //Support require(['a'])
                 callback = callback || function () {};
 
-                //Simulate async callback;
-                prim.nextTick(function () {
-                    //Grab any modules that were defined after a
-                    //require call.
-                    takeQueue();
+                if (sync) {
                     main(undef, deps || [], callback, errback, relName);
-                });
-
+                } else {
+                    //Simulate async callback;
+                    prim.nextTick(function () {
+                        //Grab any modules that were defined after a
+                        //require call.
+                        takeQueue();
+                        main(undef, deps || [], callback, errback, relName);
+                    });
+                }
                 return req;
             };
 
@@ -638,8 +641,9 @@ var requirejs, require, define;
         }
 
         function defineModule(d) {
-            var name = d.map.id,
-                ret = d.factory.apply(defined[name], d.values);
+            var name = d.map.id;
+//console.log('>>>START defined: ' + name + ': ' + (performance.now() - _xstart));
+            var ret = d.factory.apply(defined[name], d.values);
 
             if (name) {
                 //If setting exports via "module" is in play,
@@ -653,6 +657,7 @@ var requirejs, require, define;
                     ret = defined[name];
                 }
             }
+//console.log('>>>FINISH defined: ' + name + ': ' + (performance.now() - _xstart));
             resolve(name, d, ret);
         }
 

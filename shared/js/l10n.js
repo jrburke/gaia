@@ -276,6 +276,24 @@
     clear();
     gLanguage = lang;
 
+    // Check for locale modules
+    var langModules = document.documentElement
+                      .getAttribute('data-locale-modules');
+    if (langModules) {
+      var defLocale = document.documentElement
+                      .getAttribute('data-locale-default');
+      langModules = langModules.split(',');
+      var target = langModules.indexOf(lang) !== -1 ? lang : null;
+      if (!target)
+        target = langModules.indexOf(defLocale) !== -1 ? defLocale : null;
+      consoleLog('have locale module, early way out: ' + target);
+      require(['jslocales/' + target], function (data) {
+        gL10nData = data;
+        callback();
+      });
+      return;
+    }
+
     // check all <link type="application/l10n" href="..." /> nodes
     // and load the resource files
     var langLinks = getL10nResourceLinks();

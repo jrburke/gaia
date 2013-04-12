@@ -27,6 +27,7 @@
 require.config({
   baseUrl: 'js',
   paths: {
+    jslocales: '../jslocales',
     l10nbase: '../../../shared/js/l10n',
     l10ndate: '../../../shared/js/l10n_date',
     style: '../style',
@@ -96,25 +97,6 @@ define('l10n', ['l10ndate', 'l10ndate'], function () {
     ready: function (){}
   };*/
   return navigator.mozL10n;
-});
-
-define('l10der', function (mozL10n) {
-  var value;
-  return {
-    load: function (id, require, onload, config) {
-      if (config.isBuild || value)
-        return onload(value);
-
-      require(['l10n'], function (mozL10n) {
-        mozL10n.ready(function () {
-          if (!value)
-            value = mozL10n;
-
-          onload(mozL10n);
-        });
-      });
-    }
-  };
 });
 
 // q shim for rdcommon/log, just enough for it to
@@ -501,4 +483,4 @@ return App;
 
 // Run the app module, bring in fancy logging
 console.log('@@@@ABOUT TO REQUIRE: ' + (performance.now() - _xstart));
-require(['console-hook', 'mail-app']);
+require(['console-hook', 'mail-app'], null, null, null, true);

@@ -1,5 +1,5 @@
 /**
- * @license r.js 2.1.4+ Copyright (c) 2010-2012, The Dojo Foundation All Rights Reserved.
+ * @license r.js 2.1.5 Copyright (c) 2010-2012, The Dojo Foundation All Rights Reserved.
  * Available via the MIT or new BSD license.
  * see: http://github.com/jrburke/requirejs for details
  */
@@ -20,7 +20,7 @@ var requirejs, require, define, xpcUtil;
 (function (console, args, readFileFunc) {
     var fileName, env, fs, vm, path, exec, rhinoContext, dir, nodeRequire,
         nodeDefine, exists, reqMain, loadedOptimizedLib, existsForNode, Cc, Ci,
-        version = '2.1.4+',
+        version = '2.1.5',
         jsSuffixRegExp = /\.js$/,
         commandOption = '',
         useLibLoaded = {},
@@ -232,7 +232,7 @@ var requirejs, require, define, xpcUtil;
     }
 
     /** vim: et:ts=4:sw=4:sts=4
- * @license RequireJS 2.1.4 Copyright (c) 2010-2012, The Dojo Foundation All Rights Reserved.
+ * @license RequireJS 2.1.5 Copyright (c) 2010-2012, The Dojo Foundation All Rights Reserved.
  * Available via the MIT or new BSD license.
  * see: http://github.com/jrburke/requirejs for details
  */
@@ -245,7 +245,7 @@ var requirejs, require, define, xpcUtil;
 (function (global) {
     var req, s, head, baseElement, dataMain, src,
         interactiveScript, currentlyAddingScript, mainScript, subPath,
-        version = '2.1.4',
+        version = '2.1.5',
         commentRegExp = /(\/\*([\s\S]*?)\*\/|([^:]|^)\/\/(.*)$)/mg,
         cjsRequireRegExp = /[^.]\s*require\s*\(\s*["']([^'"\s]+)["']\s*\)/g,
         jsSuffixRegExp = /\.js$/,
@@ -424,15 +424,21 @@ var requirejs, require, define, xpcUtil;
         var inCheckLoaded, Module, context, handlers,
             checkLoadedTimeoutId,
             config = {
+                //Defaults. Do not set a default for map
+                //config to speed up normalize(), which
+                //will run faster if there is no default.
                 waitSeconds: 7,
                 baseUrl: './',
                 paths: {},
                 pkgs: {},
                 shim: {},
-                map: {},
                 config: {}
             },
             registry = {},
+            //registry of just enabled modules, to speed
+            //cycle breaking code when lots of modules
+            //are registered, but not activated.
+            enabledRegistry = {},
             undefEvents = {},
             defQueue = [],
             defined = {},
@@ -528,7 +534,7 @@ var requirejs, require, define, xpcUtil;
             }
 
             //Apply map config if available.
-            if (applyMap && (baseParts || starMap) && map) {
+            if (applyMap && map && (baseParts || starMap)) {
                 nameParts = name.split('/');
 
                 for (i = nameParts.length; i > 0; i -= 1) {
@@ -809,6 +815,7 @@ var requirejs, require, define, xpcUtil;
         function cleanRegistry(id) {
             //Clean up machinery used for waiting modules.
             delete registry[id];
+            delete enabledRegistry[id];
         }
 
         function breakCycle(mod, traced, processed) {
@@ -857,7 +864,7 @@ var requirejs, require, define, xpcUtil;
             inCheckLoaded = true;
 
             //Figure out the state of all the modules.
-            eachProp(registry, function (mod) {
+            eachProp(enabledRegistry, function (mod) {
                 map = mod.map;
                 modId = map.id;
 
@@ -1038,7 +1045,7 @@ var requirejs, require, define, xpcUtil;
             },
 
             /**
-             * Checks is the module is ready to define itself, and if so,
+             * Checks if the module is ready to define itself, and if so,
              * define it.
              */
             check: function () {
@@ -1116,7 +1123,7 @@ var requirejs, require, define, xpcUtil;
                         }
 
                         //Clean up
-                        delete registry[id];
+                        cleanRegistry(id);
 
                         this.defined = true;
                     }
@@ -1282,6 +1289,7 @@ var requirejs, require, define, xpcUtil;
             },
 
             enable: function () {
+                enabledRegistry[this.map.id] = this;
                 this.enabled = true;
 
                 //Set flag mentioning that the module is enabling,
@@ -1441,6 +1449,7 @@ var requirejs, require, define, xpcUtil;
             Module: Module,
             makeModuleMap: makeModuleMap,
             nextTick: req.nextTick,
+            onError: onError,
 
             /**
              * Set a configuration for the context.
@@ -1467,6 +1476,9 @@ var requirejs, require, define, xpcUtil;
                 eachProp(cfg, function (value, prop) {
                     if (objs[prop]) {
                         if (prop === 'map') {
+                            if (!config.map) {
+                                config.map = {};
+                            }
                             mixin(config[prop], value, true, true);
                         } else {
                             mixin(config[prop], value, true);
@@ -1578,7 +1590,7 @@ var requirejs, require, define, xpcUtil;
                         //Synchronous access to one module. If require.get is
                         //available (as in the Node adapter), prefer that.
                         if (req.get) {
-                            return req.get(context, deps, relMap);
+                            return req.get(context, deps, relMap, localRequire);
                         }
 
                         //Normalize module name, if it contains . or ..
@@ -1629,7 +1641,7 @@ var requirejs, require, define, xpcUtil;
                      * plain URLs like nameToUrl.
                      */
                     toUrl: function (moduleNamePlusExt) {
-                        var ext, url,
+                        var ext,
                             index = moduleNamePlusExt.lastIndexOf('.'),
                             segment = moduleNamePlusExt.split('/')[0],
                             isRelative = segment === '.' || segment === '..';
@@ -1641,9 +1653,8 @@ var requirejs, require, define, xpcUtil;
                             moduleNamePlusExt = moduleNamePlusExt.substring(0, index);
                         }
 
-                        url = context.nameToUrl(normalize(moduleNamePlusExt,
-                                                relMap && relMap.id, true), ext || '.fake');
-                        return ext ? url : url.substring(0, url.length - 5);
+                        return context.nameToUrl(normalize(moduleNamePlusExt,
+                                                relMap && relMap.id, true), ext,  true);
                     },
 
                     defined: function (id) {
@@ -1762,7 +1773,7 @@ var requirejs, require, define, xpcUtil;
              * it is assumed to have already been normalized. This is an
              * internal API, not a public one. Use toUrl for the public API.
              */
-            nameToUrl: function (moduleName, ext) {
+            nameToUrl: function (moduleName, ext, skipExt) {
                 var paths, pkgs, pkg, pkgPath, syms, i, parentModule, url,
                     parentPath;
 
@@ -1811,7 +1822,7 @@ var requirejs, require, define, xpcUtil;
 
                     //Join the path parts together, then figure out if baseUrl is needed.
                     url = syms.join('/');
-                    url += (ext || (/\?/.test(url) ? '' : '.js'));
+                    url += (ext || (/\?/.test(url) || skipExt ? '' : '.js'));
                     url = (url.charAt(0) === '/' || url.match(/^[\w\+\.\-]+:/) ? '' : config.baseUrl) + url;
                 }
 
@@ -2050,7 +2061,7 @@ var requirejs, require, define, xpcUtil;
                 node.attachEvent('onreadystatechange', context.onScriptLoad);
                 //It would be great to add an error handler here to catch
                 //404s in IE9+. However, onreadystatechange will fire before
-                //the error handler, so that does not help. If addEvenListener
+                //the error handler, so that does not help. If addEventListener
                 //is used, then IE will fire error before load, but we cannot
                 //use that pathway given the connect.microsoft.com issue
                 //mentioned above about not doing the 'script execute,
@@ -2079,16 +2090,24 @@ var requirejs, require, define, xpcUtil;
 
             return node;
         } else if (isWebWorker) {
-            //In a web worker, use importScripts. This is not a very
-            //efficient use of importScripts, importScripts will block until
-            //its script is downloaded and evaluated. However, if web workers
-            //are in play, the expectation that a build has been done so that
-            //only one script needs to be loaded anyway. This may need to be
-            //reevaluated if other use cases become common.
-            importScripts(url);
+            try {
+                //In a web worker, use importScripts. This is not a very
+                //efficient use of importScripts, importScripts will block until
+                //its script is downloaded and evaluated. However, if web workers
+                //are in play, the expectation that a build has been done so that
+                //only one script needs to be loaded anyway. This may need to be
+                //reevaluated if other use cases become common.
+                importScripts(url);
 
-            //Account for anonymous modules
-            context.completeLoad(moduleName);
+                //Account for anonymous modules
+                context.completeLoad(moduleName);
+            } catch (e) {
+                context.onError(makeError('importscripts',
+                                'importScripts failed for ' +
+                                    moduleName + ' at ' + url,
+                                e,
+                                [moduleName]));
+            }
         }
     };
 
@@ -2332,13 +2351,13 @@ var requirejs, require, define, xpcUtil;
     }
 
     //Supply an implementation that allows synchronous get of a module.
-    req.get = function (context, moduleName, relModuleMap) {
+    req.get = function (context, moduleName, relModuleMap, localRequire) {
         if (moduleName === "require" || moduleName === "exports" || moduleName === "module") {
             req.onError(new Error("Explicit require of " + moduleName + " is not allowed."));
         }
 
         var ret, oldTick,
-            moduleMap = context.makeModuleMap(moduleName, relModuleMap);
+            moduleMap = context.makeModuleMap(moduleName, relModuleMap, false, true);
 
         //Normalize module name, if it contains . or ..
         moduleName = moduleMap.id;
@@ -2355,24 +2374,26 @@ var requirejs, require, define, xpcUtil;
                         //A plugin, call requirejs to handle it. Now that
                         //nextTick is syncTick, the require will complete
                         //synchronously.
-                        context.require([moduleMap.originalName]);
+                        localRequire([moduleMap.originalName]);
 
                         //Now that plugin is loaded, can regenerate the moduleMap
                         //to get the final, normalized ID.
-                        moduleMap = context.makeModuleMap(moduleMap.originalName, relModuleMap);
-
-                        //The above calls are sync, so can do the next thing safely.
-                        ret = context.defined[moduleMap.id];
+                        moduleMap = context.makeModuleMap(moduleMap.originalName, relModuleMap, false, true);
+                        moduleName = moduleMap.id;
                     } else {
                         //Try to dynamically fetch it.
                         req.load(context, moduleName, moduleMap.url);
 
                         //Enable the module
                         context.enable(moduleMap, relModuleMap);
-
-                        //The above calls are sync, so can do the next thing safely.
-                        ret = context.defined[moduleName];
                     }
+
+                    //Break any cycles by requiring it normally, but this will
+                    //finish synchronously
+                    require([moduleName]);
+
+                    //The above calls are sync, so can do the next thing safely.
+                    ret = context.defined[moduleName];
                 } finally {
                     context.nextTick = oldTick;
                 }
@@ -20814,6 +20835,12 @@ define('transform', [ './esprima', './parse', 'logger', 'lang'], function (espri
                         return;
                     }
 
+                    if (prev && prev.type === 'Keyword' &&
+                            prev.value === 'function') {
+                        //A declaration of a define function. Skip it.
+                        return;
+                    }
+
                     next2 = tokens[i + 2];
                     if (!next2) {
                         return;
@@ -22904,10 +22931,6 @@ define('build', function (require) {
             config = build.createConfig(cmdConfig);
             paths = config.paths;
 
-            if (config.logLevel) {
-                logger.logLevel(config.logLevel);
-            }
-
             //Remove the previous build dir, in case it contains source transforms,
             //like the ones done with onBuildRead and onBuildWrite.
             if (config.dir && !config.keepBuildDir && file.exists(config.dir)) {
@@ -23097,12 +23120,11 @@ define('build', function (require) {
                             //get the nested dependencies for it via a matching entry
                             //in the module.excludeLayers array.
                             module.exclude.forEach(function (excludeModule, i) {
-                                var excludeLayer = module.excludeLayers[i].layer, map = excludeLayer.buildPathMap, prop;
-                                for (prop in map) {
-                                    if (hasProp(map, prop)) {
-                                        build.removeModulePath(prop, map[prop], module.layer);
-                                    }
-                                }
+                                var excludeLayer = module.excludeLayers[i].layer,
+                                    map = excludeLayer.buildFileToModule;
+                                excludeLayer.buildFilePaths.forEach(function(filePath){
+                                    build.removeModulePath(map[filePath], filePath, module.layer);
+                                });
                             });
                         }
                         if (module.excludeShallow) {
@@ -23510,6 +23532,12 @@ define('build', function (require) {
                 }
             }
         }
+
+        //Set up log level since it can affect if errors are thrown
+        //or caught and passed to errbacks while doing config setup.
+        if (lang.hasProp(target, 'logLevel')) {
+            logger.logLevel(target.logLevel);
+        }
     }
 
     /**
@@ -23559,6 +23587,12 @@ define('build', function (require) {
 
         lang.mixin(config, buildBaseConfig);
         lang.mixin(config, cfg, true);
+
+        //Set up log level early since it can affect if errors are thrown
+        //or caught and passed to errbacks, even while constructing config.
+        if (lang.hasProp(config, 'logLevel')) {
+            logger.logLevel(config.logLevel);
+        }
 
         if (config.buildFile) {
             //A build file exists, load it to get more config.
@@ -23696,6 +23730,11 @@ define('build', function (require) {
                             ' Use "out" if you are targeting a single file for' +
                             ' for optimization, and "dir" if you want the appDir' +
                             ' or baseUrl directories optimized.');
+        }
+        if (config.dir && config.appDir && config.dir === config.appDir) {
+            throw new Error('"dir" and "appDir" set to the same directory.' +
+                            ' This could result in the deletion of appDir.' +
+                            ' Stopping.');
         }
 
         if (config.insertRequire && !lang.isArray(config.insertRequire)) {
@@ -24403,6 +24442,15 @@ define('build', function (require) {
     } else if (env === 'browser') {
         //Only option is to use the API.
         setBaseUrl(location.href);
+        createRjsApi();
+        return;
+    } else if ((env === 'rhino' || env === 'xpconnect') &&
+            //User sets up requirejsAsLib variable to indicate it is loaded
+            //via load() to be used as a library.
+            typeof requirejsAsLib !== 'undefined' && requirejsAsLib) {
+        //This script is loaded via rhino's load() method, expose the
+        //API and get out.
+        setBaseUrl(fileName);
         createRjsApi();
         return;
     }

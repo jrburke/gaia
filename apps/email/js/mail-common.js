@@ -3,8 +3,9 @@
  **/
 /*jshint browser: true */
 /*global define, console, hookupInputAreaResetButtons */
-define(['require', 'exports' , 'value_selector', 'l10n', 'input_areas'],
-function (require, exports, ValueSelector, mozL10n) {
+define(['require', 'exports' , 'tmpl!cards/toaster.html', 'value_selector',
+        'l10n', 'input_areas'],
+function (require, exports, toasterNode, ValueSelector, mozL10n) {
 
 var Cards, Toaster;
 
@@ -300,6 +301,8 @@ Cards = {
     this._containerNode = document.getElementById('cardContainer');
     this._cardsNode = document.getElementById('cards');
     this._templateNodes = processTemplNodes('card');
+
+    this._containerNode.appendChild(toasterNode);
 
     this._containerNode.addEventListener('click',
                                          this._onMaybeIntercept.bind(this),

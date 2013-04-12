@@ -38,6 +38,15 @@ const JS_AGGREGATION_BLACKLIST = [
 ];
 
 /**
+ * whitelist by app name for storing optimized l10n bundles
+ * as JSON files in the app dir instead of inlining them all
+ * in the HTML file.
+ */
+const L10N_SEPARATE_JSON_WHITELIST = [
+  'email'
+];
+
+/**
  * Helpers
  */
 
@@ -219,7 +228,9 @@ function optimize_aggregateJsResources(doc, webapp, htmlFile) {
   scripts.forEach(commentScript);
 }
 
-function optimize_embedl10nResources(doc, dictionary) {
+function optimize_embedl10nResources(doc, dictionary, dirName, dir) {
+dump('IN optimize_embedl10nResources: ' + dirName + '\n');
+
   // remove all external l10n resource nodes
   var resources = doc.querySelectorAll('link[type="application/l10n"]');
   for (let i = 0; i < resources.length; i++) {
@@ -227,11 +238,34 @@ function optimize_embedl10nResources(doc, dictionary) {
     resources[i].outerHTML = '<!-- ' + res + ' -->';
   }
 
-  // put the current dictionary in an inline JSON script
-  let script = doc.createElement('script');
-  script.type = 'application/l10n';
-  script.innerHTML = '\n  ' + JSON.stringify(dictionary) + '\n';
-  doc.documentElement.appendChild(script);
+  if (L10N_SEPARATE_JSON_WHITELIST.indexOf(dirName) === -1) {
+    // put the current dictionary in an inline JSON script
+    let script = doc.createElement('script');
+    script.type = 'application/l10n';
+    script.innerHTML = '\n  ' + JSON.stringify(dictionary) + '\n';
+    doc.documentElement.appendChild(script);
+  } else {
+    dump('optimize_embedl10nResources: using locale modules\n');
+    var locales = [];
+    var localeDir = dir.clone();
+    localeDir.append('jslocales');
+
+    ensureFolderExists(localeDir);
+
+    // Write out bundles as .js files
+    Object.keys(dictionary.locales).forEach(function (locale) {
+      locales.push(locale);
+      var file = localeDir.clone();
+      file.append(locale + '.js');
+      writeContent(file,
+                 'define(' + JSON.stringify(dictionary.locales[locale]) + ');');
+    });
+
+    // Update HTML to have list of locales
+    doc.documentElement.setAttribute('data-locale-modules', locales.join(','));
+    doc.documentElement.setAttribute('data-locale-default',
+                                     dictionary.default_locale);
+  }
 }
 
 function optimize_serializeHTMLDocument(doc, file) {
@@ -325,7 +359,10 @@ function optimize_compile(webapp, file) {
       // save localized document
       let newPath = file.path + '.' + GAIA_DEFAULT_LOCALE;
       let newFile = new FileUtils.File(newPath);
-      optimize_embedl10nResources(win.document, dictionary);
+      optimize_embedl10nResources(win.document,
+                                  dictionary,
+                                  webapp.sourceDirectoryName,
+                                  webapp.sourceDirectoryFile);
 
       if (GAIA_OPTIMIZE == 1 &&
           JS_AGGREGATION_BLACKLIST.indexOf(webapp.sourceDirectoryName) === -1) {

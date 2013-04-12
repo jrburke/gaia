@@ -4,6 +4,6 @@
   "out": "../../apps/email/js/mail-app-built.js",
 
   "name": "mail-app",
-  "include": ["css"],
+  "include": ["css", "tmpl"],
   "optimize": "none"
 }
