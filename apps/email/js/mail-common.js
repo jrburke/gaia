@@ -479,6 +479,13 @@ var Cards = {
 
       this._showCard(cardIndex, showMethod, 'forward');
     }
+
+    // Send deliciously hacky "appRendered" event
+    if (!Cards._firstCard) {
+      Cards._firstCard = true;
+      var now = window.location.hash || '#';
+      window.location.replace('#x-moz-perf-user-ready');
+    }
   },
 
   _findCardUsingTypeAndMode: function(type, mode) {
