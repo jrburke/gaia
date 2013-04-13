@@ -270,6 +270,7 @@ var requirejs, require, define;
 
     function newContext(contextName) {
         var req, main, makeMap, callDep, handlers, loadTimeId, load, context,
+            inSyncRequire, check,
             defined = {},
             waiting = {},
             config = {
@@ -524,7 +525,10 @@ var requirejs, require, define;
                 callback = callback || function () {};
 
                 if (sync) {
+                    inSyncRequire = true;
                     main(undef, deps || [], callback, errback, relName);
+                    inSyncRequire = false;
+                    check();
                 } else {
                     //Simulate async callback;
                     prim.nextTick(function () {
@@ -1015,8 +1019,14 @@ var requirejs, require, define;
             processed[id] = true;
         }
 
-        function check() {
+        check = function () {
             loadTimeId = 0;
+
+            // Do not bother with breaking cycles while in a sync require call,
+            // it will call check at the end.
+            if (inSyncRequire) {
+                return;
+            }
 
             var err,
                 reqDefs = [],
@@ -1065,7 +1075,7 @@ var requirejs, require, define;
                     loadTimeId = prim.nextTick(check);
                 }
             }
-        }
+        };
 
         //Used to break out of the promise try/catch chains.
         function delayedError(e) {

@@ -8,7 +8,6 @@
     "end": "console.log('@@@@@@@TOP: ' + _xstart);console.log('@@@@@@@@BOTTOM: ' + (performance.now() - _xstart));"
   },
 */
-  "name": "mail-app",
-  "include": ["css", "tmpl", "text", "value_selector", "folder_depth_classes"],
+  "include": ["css", "tmpl", "text", "value_selector", "folder_depth_classes", "mail-app"],
   "optimize": "none"
 }

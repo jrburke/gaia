@@ -88,28 +88,6 @@ require.config({
   definePrim: 'prim'
 });
 
-/*
-navigator.mozL10n = {
-    get: function (){},
-    ready: function (fn){ fn(); },
-    translate: function () { return ''; }
-  };
-*/
-
-// localization stuff
-define('l10n', ['l10nbase', 'l10ndate'], function () {
-  //['l10nbase', 'l10ndate']
-  return navigator.mozL10n;
-});
-
-// q shim for rdcommon/log, just enough for it to
-// work. Just uses defer, promise, resolve and reject.
-define('q', ['prim'], function (prim) {
-  return {
-    defer: prim
-  };
-});
-
 // Named module, so it is the same before and after build.
 define('mail-app', [
   'require',
