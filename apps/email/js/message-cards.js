@@ -8,7 +8,7 @@
 define([
   'require',
   'mail-common',
-  'api!',
+  'api',
   'iframe-shims',
   'l10n'
 ],

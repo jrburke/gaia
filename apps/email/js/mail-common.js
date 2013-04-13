@@ -3,11 +3,10 @@
  **/
 /*jshint browser: true */
 /*global define, console, hookupInputAreaResetButtons */
-define(['require', 'exports' , 'value_selector',
-        'l10n', 'input_areas'],
-function (require, exports, ValueSelector, mozL10n) {
+define(['require', 'exports', 'input_areas'],
+function (require, exports /*input_area has no export */) {
 
-var Cards, Toaster;
+var Cards, Toaster, mozL10n, ValueSelector;
 
 // Dependcy handling for Cards
 // We match the first section of each card type to the key
@@ -34,6 +33,8 @@ var fldNodes = {},
     tngNodes = {};
 
 function processTemplNodes(prefix, nodes) {
+  return {};
+
   var holder = document.getElementById('templ-' + prefix),
       node = holder && holder.firstElementChild,
       reInvariant = new RegExp('^' + prefix + '-');
@@ -61,6 +62,7 @@ function processTemplNodes(prefix, nodes) {
   return nodes;
 }
 function populateTemplateNodes() {
+  return;
   processTemplNodes('fld', fldNodes);
   processTemplNodes('msg', msgNodes);
   processTemplNodes('cmp', cmpNodes);
@@ -302,8 +304,6 @@ Cards = {
     this._cardsNode = document.getElementById('cards');
     this._templateNodes = processTemplNodes('card');
 
-    //this._containerNode.appendChild(toasterNode);
-
     this._containerNode.addEventListener('click',
                                          this._onMaybeIntercept.bind(this),
                                          true);
@@ -442,10 +442,27 @@ Cards = {
         this.pushCard.apply(this, cbArgs);
       }.bind(this);
       this.eatEventsUntilNextCard();
-      if (newKinder[type])
-        require(['cards/' + type], cb);
-      else
+      if (newKinder[type]) {
+        var reqs = ['cards/' + type];
+        if (!this._lazyInited) {
+          reqs = reqs.concat(['tmpl!./cards/toaster.html',
+                              'l10n',
+                              'value_selector']);
+        }
+
+        require(reqs, function (card, toasterNode, l10n, vs) {
+          if (!this._lazyInited) {
+console.log('@@@@Cards._lazyInit finished: ' + (performance.now() - _xstart));
+            this._containerNode.appendChild(toasterNode);
+            mozL10n - l10n;
+            ValueSelector = vs;
+            this._lazyInited = true;
+          }
+          cb();
+        }.bind(this));
+      } else {
         require(lazyCards[typePrefix], cb);
+      }
       return;
     } else if (!cardDef)
       throw new Error('No such card def type: ' + type);
@@ -499,6 +516,14 @@ Cards = {
       domNode.clientWidth;
 
       this._showCard(cardIndex, showMethod, 'forward');
+    }
+
+console.log('@@@@Cards._showCard call finished: ' + (performance.now() - _xstart));
+    // Send deliciously hacky "appRendered" event
+    if (!Cards._firstCard) {
+      Cards._firstCard = true;
+      var now = window.location.hash || '#';
+      window.location.replace('#x-moz-perf-user-ready');
     }
   },
 

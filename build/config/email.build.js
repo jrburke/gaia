@@ -3,7 +3,12 @@
   "mainConfigFile": "../../apps/email/js/mail-app.js",
   "out": "../../apps/email/js/mail-app-built.js",
 
+  "wrap": {
+    "start": "var _xstart = performance.now(); var _fromStart = _xstart - performance.timing.fetchStart;",
+    "end": "console.log('@@@@@@@TOP: ' + _xstart);console.log('@@@@@@@@BOTTOM: ' + (performance.now() - _xstart));"
+  },
+
   "name": "mail-app",
-  "include": ["css", "tmpl"],
+  "include": ["css", "tmpl", "text", "value_selector", "folder_depth_classes"],
   "optimize": "none"
 }

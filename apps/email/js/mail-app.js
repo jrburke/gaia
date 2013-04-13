@@ -88,17 +88,18 @@ require.config({
   definePrim: 'prim'
 });
 
+/*
 navigator.mozL10n = {
     get: function (){},
     ready: function (fn){ fn(); },
     translate: function () { return ''; }
   };
+*/
 
 // localization stuff
-define('l10n', function () {
-  //['l10ndate', 'l10ndate']
+define('l10n', ['l10nbase', 'l10ndate'], function () {
+  //['l10nbase', 'l10ndate']
   return navigator.mozL10n;
-  //return navigator.mozL10n;
 });
 
 // q shim for rdcommon/log, just enough for it to
@@ -113,10 +114,9 @@ define('q', ['prim'], function (prim) {
 define('mail-app', [
   'require',
   'mail-common',
-  'api!fake',
-  'l10n'
+  'api'
 ],
-function (require, common, MailAPI, mozL10n) {
+function (require, common, MailAPI) {
 
 console.log('@@@@mail-api START: ' + (performance.now() - _xstart));
 
@@ -153,29 +153,6 @@ var App = {
             break;
         }
       };
-
-      MailAPI().useLocalizedStrings({
-        wrote: mozL10n.get('reply-quoting-wrote'),
-        originalMessage: mozL10n.get('forward-original-message'),
-        forwardHeaderLabels: {
-          subject: mozL10n.get('forward-header-subject'),
-          date: mozL10n.get('forward-header-date'),
-          from: mozL10n.get('forward-header-from'),
-          replyTo: mozL10n.get('forward-header-reply-to'),
-          to: mozL10n.get('forward-header-to'),
-          cc: mozL10n.get('forward-header-cc')
-        },
-        folderNames: {
-          inbox: mozL10n.get('folder-inbox'),
-          sent: mozL10n.get('folder-sent'),
-          drafts: mozL10n.get('folder-drafts'),
-          trash: mozL10n.get('folder-trash'),
-          queue: mozL10n.get('folder-queue'),
-          junk: mozL10n.get('folder-junk'),
-          archives: mozL10n.get('folder-archives'),
-          localdrafts: mozL10n.get('folder-localdrafts')
-        }
-      });
     }
     this.initialized = true;
   },
@@ -185,14 +162,6 @@ var App = {
    * start the setup process if we have no accounts.
    */
   showMessageViewOrSetup: function(showLatest) {
-
-    function appRendered() {
-      //Mmmmm, delicious hack.
-      var now = window.location.hash || '#';
-      window.location.replace('#x-moz-perf-user-ready');
-      window.location.replace(now);
-    }
-
     // Get the list of accounts including the unified account (if it exists)
     var acctsSlice = MailAPI().viewAccounts(false);
     acctsSlice.oncomplete = function() {
@@ -249,8 +218,6 @@ var App = {
             // Place to left of message list
             'left');
 
-          appRendered();
-
           if (activityCallback) {
             activityCallback();
             activityCallback = null;
@@ -291,13 +258,11 @@ console.log('@@@@ABOUT TO PUSHCARD: ' + (performance.now() - _xstart));
             allowBack: false
           });
 console.log('@@@@PUSHCARD FINISHED: ' + (performance.now() - _xstart));
-        appRendered();
       }
 
       if (MailAPI()._fake) {
         require(['api!real'], function (api) {
-          if (gotLocalized)
-            doInit();
+          doInit();
 /*
           require(['css!style/value_selector',
                    'css!style/compose-cards',
@@ -311,6 +276,14 @@ console.log('@@@@PUSHCARD FINISHED: ' + (performance.now() - _xstart));
         });
       }
     };
+
+    // If fake API, kick the oncomplete manually, synchronously here, instead
+    // of waiting for the event loop to get back to us, since the browser
+    // likely has some things that may take some time in the event loop before
+    // getting back to us.
+    if (MailAPI()._fake) {
+      acctsSlice.oncomplete();
+    }
   }
 };
 
@@ -356,9 +329,8 @@ var queryURI = function _queryURI(uri) {
 
 };
 
-var gotLocalized = (mozL10n.readyState === 'interactive' ||
-                   mozL10n.readyState === 'complete'),
-    inited = false;
+
+var inited = false;
 
 function doInit() {
   try {
@@ -385,14 +357,6 @@ console.log('@@@@Doing an init: ' + (performance.now() - _xstart));
   }
 }
 
-if (!gotLocalized) {
-  window.addEventListener('localized', function localized() {
-    console.log('got localized!');
-    gotLocalized = true;
-    window.removeEventListener('localized', localized);
-    doInit();
-  });
-}
 doInit();
 
 if ('mozSetMessageHandler' in window.navigator) {

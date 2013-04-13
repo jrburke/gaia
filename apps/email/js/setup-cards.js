@@ -9,7 +9,7 @@ define([
   'require',
   'mail-common',
   'mail-app',
-  'api!',
+  'api',
   'iframe-shims',
   'cards/setup-l10n-map',
   'l10n'

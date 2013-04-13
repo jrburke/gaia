@@ -4,7 +4,7 @@
 
 /*jshint browser: true */
 /*global alert, define */
-define(['folder_depth_classes', 'mail-common', 'api!', 'l10n'],
+define(['folder_depth_classes', 'mail-common', 'api', 'l10n'],
 function (FOLDER_DEPTH_CLASSES, common, MailAPI, mozL10n) {
 
 var bindContainerHandler = common.bindContainerHandler,

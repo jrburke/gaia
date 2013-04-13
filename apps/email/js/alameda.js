@@ -642,7 +642,7 @@ var requirejs, require, define;
 
         function defineModule(d) {
             var name = d.map.id;
-console.log('>>>START defined: ' + name + ': ' + (performance.now() - _xstart));
+//console.log('>>>START defined: ' + name + ': ' + (performance.now() - _xstart));
             var ret = d.factory.apply(defined[name], d.values);
 
             if (name) {
@@ -657,7 +657,7 @@ console.log('>>>START defined: ' + name + ': ' + (performance.now() - _xstart));
                     ret = defined[name];
                 }
             }
-console.log('>>>FINISH defined: ' + name + ': ' + (performance.now() - _xstart));
+//console.log('>>>FINISH defined: ' + name + ': ' + (performance.now() - _xstart));
             resolve(name, d, ret);
         }
 

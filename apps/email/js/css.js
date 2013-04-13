@@ -14,6 +14,3 @@ define({
     onload();
   }
 });
-
-console.log('@@@@@@@TOP: ' + _xstart);
-console.log('@@@@@@@@BOTTOM: ' + (performance.now() - _xstart));

@@ -13,57 +13,60 @@ var apiLocal = {
       items: [],
       die: function () {}
     };
-
-    setTimeout(function () {
-        if (acctSlice.oncomplete) {
-          acctSlice.oncomplete();
-        }
-    }, 0);
     return acctSlice;
   }
 };
+
+apiLocal.hasAccounts = (document.cookie || '')
+                       .indexOf('mailHasAccounts') !== -1;
 
 function MailAPI() {
   return apiLocal;
 }
 
-function loadBackEnd() {
+MailAPI.load = function (id, require, onload, config) {
+  if (config.isBuild || !apiLocal._fake)
+    return onload(apiLocal);
 
   function onMailAPI(event) {
     window.removeEventListener('mailapi', onMailAPI, false);
     console.log('got MailAPI FOR REALZ!');
-    apiLocal = event.mailAPI;
+    require(['l10n'], function (mozL10n) {
+      apiLocal = event.mailAPI;
+      apiLocal.useLocalizedStrings({
+        wrote: mozL10n.get('reply-quoting-wrote'),
+        originalMessage: mozL10n.get('forward-original-message'),
+        forwardHeaderLabels: {
+          subject: mozL10n.get('forward-header-subject'),
+          date: mozL10n.get('forward-header-date'),
+          from: mozL10n.get('forward-header-from'),
+          replyTo: mozL10n.get('forward-header-reply-to'),
+          to: mozL10n.get('forward-header-to'),
+          cc: mozL10n.get('forward-header-cc')
+        },
+        folderNames: {
+          inbox: mozL10n.get('folder-inbox'),
+          sent: mozL10n.get('folder-sent'),
+          drafts: mozL10n.get('folder-drafts'),
+          trash: mozL10n.get('folder-trash'),
+          queue: mozL10n.get('folder-queue'),
+          junk: mozL10n.get('folder-junk'),
+          archives: mozL10n.get('folder-archives'),
+          localdrafts: mozL10n.get('folder-localdrafts')
+        }
+      });
+      onload(apiLocal);
+    });
   }
   window.addEventListener('mailapi', onMailAPI, false);
 
   setTimeout(function () {
     require(['mailapi/main-frame-setup'], function () {
     });
-  }, 1000);
-}
-
-return {
-  load: function (id, require, onload, config) {
-    if (config.isBuild)
-      return onload();
-
-    apiLocal.hasAccounts = (document.cookie || '')
-                              .indexOf('mailHasAccounts') !== -1;
-
-    // Trigger module resolution for backend to start.
-    // If no accounts, load a fake shim that allows
-    // bootstrapping to "Enter account" screen faster.
-    if (apiLocal._fake && (id === 'real' || apiLocal.hasAccounts)) {
-console.log('??? API: loading back end: ' + MailAPI()._fake + ': ' + (performance.now() - _xstart));
-      loadBackEnd(onload);
-      onload(MailAPI);
-    } else {
-      // Create global property too, in case app comes
-      // up after the event has fired.
-console.log('??? API: going non-back-end: ' + MailAPI()._fake + ': ' + (performance.now() - _xstart));
-      onload(MailAPI);
-    }
-  }
+  }, 3000);
 };
+
+
+return MailAPI;
 
 });
