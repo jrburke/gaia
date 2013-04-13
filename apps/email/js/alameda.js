@@ -1,5 +1,5 @@
 /**
- * alameda 0.0.4+ Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
+ * alameda 0.0.5 Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
  * Available via the MIT or new BSD license.
  * see: http://github.com/requirejs/alameda for details
  */
@@ -93,7 +93,7 @@ var requirejs, require, define;
      * - removed UMD registration
      */
     /**
-     * prim 0.0.2 Copyright (c) 2012-2013, The Dojo Foundation All Rights Reserved.
+     * prim 0.0.3 Copyright (c) 2012-2013, The Dojo Foundation All Rights Reserved.
      * Available via the MIT or new BSD license.
      * see: http://github.com/requirejs/prim for details
      */
@@ -270,7 +270,6 @@ var requirejs, require, define;
 
     function newContext(contextName) {
         var req, main, makeMap, callDep, handlers, loadTimeId, load, context,
-            inSyncRequire, check,
             defined = {},
             waiting = {},
             config = {
@@ -482,7 +481,7 @@ var requirejs, require, define;
         }
 
         function makeRequire(relName, topLevel) {
-            var req = function (deps, callback, errback, alt, sync) {
+            var req = function (deps, callback, errback, alt) {
                 var name, cfg;
 
                 if (topLevel) {
@@ -524,20 +523,14 @@ var requirejs, require, define;
                 //Support require(['a'])
                 callback = callback || function () {};
 
-                if (sync) {
-                    inSyncRequire = true;
+                //Simulate async callback;
+                prim.nextTick(function () {
+                    //Grab any modules that were defined after a
+                    //require call.
+                    takeQueue();
                     main(undef, deps || [], callback, errback, relName);
-                    inSyncRequire = false;
-                    check();
-                } else {
-                    //Simulate async callback;
-                    prim.nextTick(function () {
-                        //Grab any modules that were defined after a
-                        //require call.
-                        takeQueue();
-                        main(undef, deps || [], callback, errback, relName);
-                    });
-                }
+                });
+
                 return req;
             };
 
@@ -645,9 +638,8 @@ var requirejs, require, define;
         }
 
         function defineModule(d) {
-            var name = d.map.id;
-//console.log('>>>START defined: ' + name + ': ' + (performance.now() - _xstart));
-            var ret = d.factory.apply(defined[name], d.values);
+            var name = d.map.id,
+                ret = d.factory.apply(defined[name], d.values);
 
             if (name) {
                 //If setting exports via "module" is in play,
@@ -661,7 +653,6 @@ var requirejs, require, define;
                     ret = defined[name];
                 }
             }
-//console.log('>>>FINISH defined: ' + name + ': ' + (performance.now() - _xstart));
             resolve(name, d, ret);
         }
 
@@ -1019,14 +1010,8 @@ var requirejs, require, define;
             processed[id] = true;
         }
 
-        check = function () {
+        function check() {
             loadTimeId = 0;
-
-            // Do not bother with breaking cycles while in a sync require call,
-            // it will call check at the end.
-            if (inSyncRequire) {
-                return;
-            }
 
             var err,
                 reqDefs = [],
@@ -1075,7 +1060,7 @@ var requirejs, require, define;
                     loadTimeId = prim.nextTick(check);
                 }
             }
-        };
+        }
 
         //Used to break out of the promise try/catch chains.
         function delayedError(e) {
