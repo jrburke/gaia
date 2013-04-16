@@ -9,7 +9,6 @@
   },
 */
   "include": ["css", "tmpl", "text", "value_selector", "folder_depth_classes",
-              "mail-app", "cards/message-list", "cards/folder-picker",
-              "cards/setup-account-info"],
+              "cards/setup-account-info", "mail-app"],
   "optimize": "none"
 }
