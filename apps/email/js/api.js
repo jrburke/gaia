@@ -60,7 +60,9 @@ MailAPI.load = function (id, require, onload, config) {
   }
   window.addEventListener('mailapi', onMailAPI, false);
 
-  require(['mailapi/main-frame-setup']);
+  setTimeout(function () {
+    require(['mailapi/main-frame-setup']);
+  }, 3000);
 };
 
 
