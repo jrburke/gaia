@@ -8,64 +8,9 @@ function (require, exports /*input_area has no export */) {
 
 var Cards, Toaster, mozL10n, ValueSelector;
 
-// Dependcy handling for Cards
-// We match the first section of each card type to the key
-// E.g., setup-progress, would load the 'setup' lazyCards.setup
-var lazyCards = {
-    compose: ['compose-cards', 'css!style/compose-cards']
-};
-
-var newKinder = {
-  'setup-account-info': true
-};
-
 function dieOnFatalError(msg) {
   console.error('FATAL:', msg);
   throw new Error(msg);
-}
-
-var fldNodes = {},
-    msgNodes = {},
-    cmpNodes = {},
-    supNodes = {},
-    tngNodes = {};
-
-function processTemplNodes(prefix, nodes) {
-  return {};
-
-  var holder = document.getElementById('templ-' + prefix),
-      node = holder && holder.firstElementChild,
-      reInvariant = new RegExp('^' + prefix + '-');
-
-  nodes = nodes || {};
-
-  while (node) {
-    var classes = node.classList, found = false;
-    for (var i = 0; i < classes.length; i++) {
-      if (reInvariant.test(classes[i])) {
-        var name = classes[i].substring(prefix.length + 1);
-        nodes[name] = node;
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
-      console.warn('Bad template node for prefix "' + prefix +
-                   '" for node with classes:', classes);
-    }
-
-    node = node.nextElementSibling;
-  }
-
-  return nodes;
-}
-function populateTemplateNodes() {
-  return;
-  processTemplNodes('fld', fldNodes);
-  processTemplNodes('msg', msgNodes);
-  processTemplNodes('cmp', cmpNodes);
-  processTemplNodes('sup', supNodes);
-  processTemplNodes('tng', tngNodes);
 }
 
 function addClass(domNode, name) {
@@ -300,8 +245,6 @@ Cards = {
     this._rootNode = document.body;
     this._containerNode = document.getElementById('cardContainer');
     this._cardsNode = document.getElementById('cards');
-    this._templateNodes = processTemplNodes('card');
-
     this._containerNode.addEventListener('click',
                                          this._onMaybeIntercept.bind(this),
                                          true);
@@ -434,33 +377,30 @@ Cards = {
     var cardDef = this._cardDefs[type];
     var typePrefix = type.split('-')[0];
 
-    if (!cardDef && lazyCards[typePrefix] && newKinder[type]) {
+    if (!cardDef) {
       var cbArgs = Array.slice(arguments);
       var cb = function() {
         this.pushCard.apply(this, cbArgs);
       }.bind(this);
       this.eatEventsUntilNextCard();
-      if (newKinder[type]) {
-        var reqs = ['cards/' + type];
-        if (!this._lazyInited) {
-          reqs = reqs.concat(['tmpl!./cards/toaster.html',
-                              'l10n',
-                              'value_selector']);
-        }
 
-        require(reqs, function (card, toasterNode, l10n, vs) {
-          if (!this._lazyInited) {
-//console.log('@@@@Cards._lazyInit finished: ' + (performance.now() - _xstart));
-            this._containerNode.appendChild(toasterNode);
-            mozL10n - l10n;
-            ValueSelector = vs;
-            this._lazyInited = true;
-          }
-          cb();
-        }.bind(this));
-      } else {
-        require(lazyCards[typePrefix], cb);
+      var reqs = ['cards/' + type];
+      if (!this._lazyInited) {
+        reqs = reqs.concat(['tmpl!./cards/toaster.html',
+                            'l10n',
+                            'value_selector']);
       }
+
+      require(reqs, function (card, toasterNode, l10n, vs) {
+        if (!this._lazyInited) {
+//console.log('@@@@Cards._lazyInit finished: ' + (performance.now() - _xstart));
+          this._containerNode.appendChild(toasterNode);
+          mozL10n - l10n;
+          ValueSelector = vs;
+          this._lazyInited = true;
+        }
+        cb();
+      }.bind(this));
       return;
     } else if (!cardDef)
       throw new Error('No such card def type: ' + type);
@@ -1271,14 +1211,29 @@ FormNavigation.prototype = {
   }
 };
 
+/**
+ * Format the message subject appropriately.  This means ensuring that if the
+ * subject is empty, we use a placeholder string instead.
+ *
+ * @param {DOMElement} subjectNode the DOM node for the message's subject.
+ * @param {Object} message the message object.
+ */
+function displaySubject(subjectNode, message) {
+  var subject = message.subject && message.subject.trim();
+  if (subject) {
+    subjectNode.textContent = subject;
+    subjectNode.classList.remove('msg-no-subject');
+  }
+  else {
+    subjectNode.textContent = mozL10n.get('message-no-subject');
+    subjectNode.classList.add('msg-no-subject');
+  }
+}
+
 exports.Cards = Cards;
 exports.Toaster = Toaster;
 exports.ConfirmDialog = ConfirmDialog;
 exports.FormNavigation = FormNavigation;
-exports.msgNodes = msgNodes;
-exports.cmpNodes = cmpNodes;
-exports.fldNodes = fldNodes;
-exports.tngNodes = tngNodes;
 exports.prettyDate = prettyDate;
 exports.prettyFileSize = prettyFileSize;
 exports.batchAddClass = batchAddClass;
@@ -1287,5 +1242,5 @@ exports.bindContainerHandler = bindContainerHandler;
 exports.appendMatchItemTo = appendMatchItemTo;
 exports.bindContainerHandler = bindContainerHandler;
 exports.dieOnFatalError = dieOnFatalError;
-exports.populateTemplateNodes = populateTemplateNodes;
+exports.displaySubject = displaySubject;
 });

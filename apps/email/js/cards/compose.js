@@ -8,16 +8,23 @@
 /*global define, console, MozActivity, alert */
 define([
   'require',
+  'tmpl!./compose.html',
+  'tmpl!./cmp/attachment-item.html',
+  'tmpl!./cmp/contact-menu.html',
+  'tmpl!./cmp/draft-menu.html',
+  'tmpl!./cmp/peep-bubble.html',
+  'tmpl!./cmp/send-failed-confirm.html',
+  'tmpl!./cmp/sending-container.html',
   'mail-common',
   'iframe-shims',
   'l10n'
 ],
-function (require, common, iframeShims, mozL10n) {
+function (require, templateNode, cmpAttachmentItemNode, cmpContactMenuNode,
+          cmpDraftMenuNode, cmpPeepBubbleNode, cmpSendFailedConfirmNode,
+          cmpSendingContainerNode, common, iframeShims, mozL10n) {
 
-var cmpNodes = common.cmpNodes,
-    prettyFileSize = common.prettyFileSize,
-    Cards = common.Cards,
-    ConfirmDialog = common.ConfirmDialog;
+var prettyFileSize = common.prettyFileSize,
+    Cards = common.Cards;
 
 /**
  * Composer card; wants an initialized message composition object when it is
@@ -211,7 +218,7 @@ ComposeCard.prototype = {
   },
 
   createBubbleNode: function(name, address) {
-    var bubble = cmpNodes['peep-bubble'].cloneNode(true);
+    var bubble = cmpPeepBubbleNode.cloneNode(true);
     bubble.classList.add('msg-peep-bubble');
     bubble.setAttribute('data-address', address);
     bubble.setAttribute('data-name', name);
@@ -345,7 +352,7 @@ ComposeCard.prototype = {
     var target = evt.target;
     // Popup the context menu if clicked target is peer bubble.
     if (target.classList.contains('cmp-peep-bubble')) {
-      var contents = cmpNodes['contact-menu'].cloneNode(true);
+      var contents = cmpContactMenuNode.cloneNode(true);
       var email = target.querySelector('.cmp-peep-address').textContent;
       contents.getElementsByTagName('header')[0].textContent = email;
       document.body.appendChild(contents);
@@ -394,7 +401,7 @@ ComposeCard.prototype = {
       // Clean the container before we insert the new attachments
       attachmentsContainer.innerHTML = '';
 
-      var attTemplate = cmpNodes['attachment-item'],
+      var attTemplate = cmpAttachmentItemNode,
           filenameTemplate =
             attTemplate.getElementsByClassName('cmp-attachment-filename')[0],
           filesizeTemplate =
@@ -480,7 +487,7 @@ ComposeCard.prototype = {
       return;
     }
 
-    var menu = cmpNodes['draft-menu'].cloneNode(true);
+    var menu = cmpDraftMenuNode.cloneNode(true);
     document.body.appendChild(menu);
     var formSubmit = (function(evt) {
       document.body.removeChild(menu);
@@ -518,7 +525,7 @@ ComposeCard.prototype = {
     var self = this;
     var activity = this.activity;
     var domNode = this.domNode;
-    var sendingTemplate = cmpNodes['sending-container'];
+    var sendingTemplate = cmpSendingContainerNode;
     domNode.appendChild(sendingTemplate);
 
     this.composer.finishCompositionSendMessage(
@@ -620,6 +627,6 @@ ComposeCard.prototype = {
     this.composer = null;
   }
 };
-Cards.defineCardWithDefaultMode('compose', {}, ComposeCard);
+Cards.defineCardWithDefaultMode('compose', {}, ComposeCard, templateNode);
 
 });

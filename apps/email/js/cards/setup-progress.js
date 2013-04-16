@@ -1,6 +1,6 @@
 /*global define*/
 define([
-  'tmpl!./setup-progess.html',
+  'tmpl!./setup-progress.html',
   'mail-common',
   'api',
   'css!style/setup-cards'

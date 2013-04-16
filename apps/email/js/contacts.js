@@ -2,7 +2,7 @@
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 
 'use strict';
-
+define([], function () {
 var ContactDataManager = {
   contactData: {},
 
@@ -26,3 +26,7 @@ var ContactDataManager = {
     };
   }
 };
+
+return ContactDataManager;
+
+});
