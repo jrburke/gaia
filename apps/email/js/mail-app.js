@@ -8,6 +8,8 @@ var MailAPI = null;
 var App = {
   initialized: false,
 
+  isFirstCard: true,
+
   loader: LazyLoader,
 
   /**
@@ -173,6 +175,12 @@ var App = {
         // Mostly likely when the email app is updated from one that
         // did not have the fast path cookies set up.
         Cards.removeAllCards();
+
+
+        if (App.isFirstCard) {
+          App.isFirstCard = false;
+          Cards.sendAppRendered = true;
+        }
 
         Cards.pushCard(
           'setup-account-info', 'default', 'immediate',

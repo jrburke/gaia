@@ -481,9 +481,8 @@ var Cards = {
     }
 
     // Send deliciously hacky "appRendered" event
-    if (!Cards._firstCard) {
-      Cards._firstCard = true;
-      var now = window.location.hash || '#';
+    if (Cards.sendAppRendered) {
+      Cards.sendAppRendered = false;
       window.location.replace('#x-moz-perf-user-ready');
     }
   },

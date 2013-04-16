@@ -49,6 +49,8 @@ function displaySubject(subjectNode, message) {
   }
 }
 
+var isFirstLoad = true;
+
 /**
  * List messages for listing the contents of folders ('nonsearch' mode) and
  * searches ('search' mode).  Multi-editing is just a state of the card.
@@ -850,6 +852,12 @@ MessageListCard.prototype = {
       starNode.classList.add('msg-header-star-starred');
     else
       starNode.classList.remove('msg-header-star-starred');
+
+    // Send hacky appRendered if this is the first time.
+    if (isFirstLoad) {
+      isFirstLoad = false;
+      window.location.replace('#x-moz-perf-user-ready');
+    }
   },
 
   updateMatchedMessageDom: function(firstTime, matchedHeader) {
