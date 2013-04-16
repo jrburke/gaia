@@ -241,16 +241,6 @@ var App = {
       if (MailAPI()._fake) {
         require(['api!real'], function (api) {
           doInit();
-/*
-          require(['css!style/value_selector',
-                   'css!style/compose-cards',
-                   'css!style/setup-cards',
-                   'value_selector',
-                   'iframe-shims',
-                   'setup-cards',
-                   'compose-cards'
-          ]);
-*/
         });
       }
     };

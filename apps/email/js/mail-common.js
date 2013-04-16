@@ -12,9 +12,7 @@ var Cards, Toaster, mozL10n, ValueSelector;
 // We match the first section of each card type to the key
 // E.g., setup-progress, would load the 'setup' lazyCards.setup
 var lazyCards = {
-    compose: ['compose-cards', 'css!style/compose-cards'],
-    settings: ['setup-cards', 'css!style/setup-cards'],
-    setup: ['setup-cards', 'css!style/setup-cards']
+    compose: ['compose-cards', 'css!style/compose-cards']
 };
 
 var newKinder = {
