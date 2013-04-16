@@ -12,7 +12,8 @@ define([
   'iframe-shims',
   'contacts',
   'l10n',
-  'css!style/message-cards'
+  'css!style/message-cards',
+  'css!style/compose-cards'
 ], function (templateNode, msgDeleteConfirmNode, msgContactMenuNode,
              msgBrowseConfirmNode, msgPeepBubbleNode, msgAttachmentItemNode,
              common, require, MailAPI, iframeShims, ContactDataManager,
@@ -112,6 +113,7 @@ MessageReaderCard.prototype = {
   postInsert: function() {
     // iframes need to be linked into the DOM tree before their contentDocument
     // can be instantiated.
+console.log('calling body shims-c');
     this.buildBodyDom(this.domNode);
 
     var self = this;
@@ -123,6 +125,7 @@ MessageReaderCard.prototype = {
 
       // if the body reps are downloaded show the message immediately.
       if (body.bodyRepsDownloaded) {
+console.log('calling body shims1');
         self.buildBodyDom();
       }
 
@@ -135,6 +138,7 @@ MessageReaderCard.prototype = {
     switch (evt.changeType) {
       case 'bodyReps':
         if (this.body.bodyRepsDownloaded) {
+console.log('calling body shims2');
           this.buildBodyDom();
         }
         break;
@@ -598,6 +602,10 @@ MessageReaderCard.prototype = {
   buildBodyDom: function() {
     var body = this.body;
     var domNode = this.domNode;
+
+    //??? JRB: groupload refactor: this added, but should not be needed?
+    if (!body)
+      return;
 
     var rootBodyNode = domNode.getElementsByClassName('msg-body-container')[0],
         reps = body.bodyReps,
