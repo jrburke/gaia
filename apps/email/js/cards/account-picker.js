@@ -129,7 +129,8 @@ Cards.defineCard({
       tray: false
     }
   },
-  constructor: AccountPickerCard
+  constructor: AccountPickerCard,
+  templateNode: templateNode
 });
 
 });

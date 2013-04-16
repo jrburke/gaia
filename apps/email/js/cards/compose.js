@@ -17,7 +17,8 @@ define([
   'tmpl!./cmp/sending-container.html',
   'mail-common',
   'iframe-shims',
-  'l10n'
+  'l10n',
+  'css!style/compose-cards'
 ],
 function (require, templateNode, cmpAttachmentItemNode, cmpContactMenuNode,
           cmpDraftMenuNode, cmpPeepBubbleNode, cmpSendFailedConfirmNode,

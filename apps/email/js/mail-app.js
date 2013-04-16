@@ -100,6 +100,7 @@ function (require, common, MailAPI) {
 
 
 var Cards = common.Cards,
+    isFirstCard = true,
     activityCallback = null;
 
 var App = {
@@ -229,6 +230,10 @@ var App = {
         // Mostly likely when the email app is updated from one that
         // did not have the fast path cookies set up.
         Cards.removeAllCards();
+
+        if (isFirstCard) {
+          Cards.sendAppRendered = true;
+        }
 //console.log('@@@@ABOUT TO PUSHCARD: ' + (performance.now() - _xstart));
         Cards.pushCard(
           'setup-account-info', 'default', 'immediate',
@@ -237,6 +242,8 @@ var App = {
           });
 //console.log('@@@@PUSHCARD FINISHED: ' + (performance.now() - _xstart));
       }
+
+      isFirstCard = false;
 
       if (MailAPI()._fake) {
         require(['api!real'], function (api) {
@@ -315,7 +322,6 @@ function doInit() {
 //console.log('@@@@Doing an init: ' + (performance.now() - _xstart));
 
       inited = true;
-      common.populateTemplateNodes();
       Cards._init();
       App._init();
       App.showMessageViewOrSetup();

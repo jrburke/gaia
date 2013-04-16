@@ -124,7 +124,6 @@ MessageReaderCard.prototype = {
       // if the body reps are downloaded show the message immediately.
       if (body.bodyRepsDownloaded) {
         self.buildBodyDom();
-        });
       }
 
       // XXX trigger spinner

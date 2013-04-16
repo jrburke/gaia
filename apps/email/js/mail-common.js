@@ -193,10 +193,6 @@ Cards = {
    * is visible.
    */
   _cardsNode: null,
-  /**
-   * DOM template nodes for the cards.
-   */
-  _templateNodes: null,
 
   /**
    * The DOM nodes that should be removed from their parent when our current
@@ -395,7 +391,7 @@ Cards = {
         if (!this._lazyInited) {
 //console.log('@@@@Cards._lazyInit finished: ' + (performance.now() - _xstart));
           this._containerNode.appendChild(toasterNode);
-          mozL10n - l10n;
+          mozL10n = l10n;
           ValueSelector = vs;
           this._lazyInited = true;
         }
@@ -409,7 +405,9 @@ Cards = {
     if (!modeDef)
       throw new Error('No such card mode: ' + mode);
 
-    var domNode = (cardDef.templateNode || this._templateNodes[type]).cloneNode(true);
+console.log('pushCard for type: ' + type);
+
+    var domNode = cardDef.templateNode.cloneNode(true);
 
     var cardImpl = new cardDef.constructor(domNode, mode, args);
     var cardInst = {
@@ -458,9 +456,8 @@ Cards = {
 
 //console.log('@@@@Cards._showCard call finished: ' + (performance.now() - _xstart));
     // Send deliciously hacky "appRendered" event
-    if (!Cards._firstCard) {
-      Cards._firstCard = true;
-      var now = window.location.hash || '#';
+    if (Cards.sendAppRendered) {
+      Cards.sendAppRendered = false;
       window.location.replace('#x-moz-perf-user-ready');
     }
   },
