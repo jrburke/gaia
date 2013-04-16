@@ -95,7 +95,7 @@ ifneq ($(GAIA_OUTOFTREE_APP_SRCDIRS),)
 endif
 
 GAIA_LOCALES_PATH?=locales
-LOCALES_FILE?=shared$(SEP)resources$(SEP)languages.json
+LOCALES_FILE?=shared/resources/languages.json
 GAIA_LOCALE_SRCDIRS=shared $(GAIA_APP_SRCDIRS)
 GAIA_DEFAULT_LOCALE?=en-US
 GAIA_INLINE_LOCALES?=1
@@ -224,8 +224,8 @@ ifneq ($(LOCALE_BASEDIR),)
 		--source '$(LOCALE_BASEDIR)' \
 		$$targets;
 	@echo "Done"
-ifneq ($(LOCALES_FILE),shared$(SEP)resources$(SEP)languages.json)
-	cp '$(LOCALES_FILE)' shared$(SEP)resources$(SEP)languages.json
+ifneq ($(LOCALES_FILE),shared/resources/languages.json)
+	cp '$(LOCALES_FILE)' shared/resources/languages.json
 endif
 endif
 

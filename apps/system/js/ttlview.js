@@ -82,6 +82,6 @@ var TTLView = {
 };
 
 SettingsListener.observe('debug.ttl.enabled', false, function(value) {
-  !!value ? TTLView.show().bind(TTLView) : TTLView.hide().bind(TTLView);
+  !!value ? TTLView.show() : TTLView.hide();
 });
 
