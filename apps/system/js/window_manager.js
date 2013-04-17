@@ -683,6 +683,12 @@ var WindowManager = (function() {
   // Meta method for get the screenshot from the app frame,
   // and save it to database.
   function saveAppScreenshot(frame, callback) {
+    // Skip for email app
+    if (frame.src.indexOf('/email.gaiamobile.org') !== -1) {
+      if (callback)
+        return callback();
+    }
+
     getAppScreenshotFromFrame(frame, function gotScreenshot(screenshot) {
       if (callback)
         callback(screenshot);
