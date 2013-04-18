@@ -50,7 +50,7 @@ function run() {
   });
 }
 run();
-
+/*
 function runSerial() {
   // Try fastTick
   var start = performance.now();
@@ -73,3 +73,4 @@ function runSerial() {
   }, 4);
 }
 runSerial();
+*/
