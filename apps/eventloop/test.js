@@ -22,12 +22,35 @@ function fastTick(fn) {
   window.postMessage(messageName, "*");
 };
 
+function timeSink() {
+  // Hacky way to insert a signal in the
+  // perf capture to indicate where to start
+  // inspecting the delay in the loop
+  for (var i = 0; i < 1000000; i++) {
+
+  }
+}
+
+function timeSink2() {
+  // Hacky way to insert a signal in the
+  // perf capture to indicate where to start
+  // inspecting the delay in the loop
+  for (var i = 0; i < 1000000; i++) {
+
+  }
+}
+
 function run() {
-  // Try fastTick
+
+  // First create a marker for the perf capture.
+  timeSink();
+
   var start = performance.now();
+  // Try fastTick
   fastTick(function () {
     console.log('FAST TICK DONE IN: ' + (performance.now() - start));
 
+timeSink2();
     // setTimeout on default granularity, should be 4ms?
     start = performance.now();
     setTimeout(function () {
