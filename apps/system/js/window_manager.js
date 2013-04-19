@@ -1053,6 +1053,19 @@ var WindowManager = (function() {
         });
         iframe.dispatchEvent(evt);
       }, true);
+
+      iframe.addEventListener('mozbrowserlocationchange', function onLoc(e) {
+        if (e.detail.indexOf('#x-moz-perf-user-ready') !== -1) {
+          iframe.removeEventListener('mozbrowserlocationchange', onLoc, true);
+
+          var evt = document.createEvent('CustomEvent');
+          evt.initCustomEvent('appuserready', true, false, {
+            time: parseInt(Date.now() - iframe.dataset.start),
+            type: 'app'
+          });
+          iframe.dispatchEvent(evt);
+        }
+      }, true);
     }
 
     // Case 1: the app is already displayed
