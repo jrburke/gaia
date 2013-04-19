@@ -28,7 +28,6 @@ var MimeMapper,
     displaySubject = common.displaySubject,
     prettyDate = common.prettyDate,
     prettyFileSize = common.prettyFileSize;
-
 var CONTENT_TYPES_TO_CLASS_NAMES = [
     null,
     'msg-body-content',
@@ -113,8 +112,7 @@ MessageReaderCard.prototype = {
   postInsert: function() {
     // iframes need to be linked into the DOM tree before their contentDocument
     // can be instantiated.
-console.log('calling body shims-c');
-    this.buildBodyDom(this.domNode);
+    this.buildHeaderDom(this.domNode);
 
     var self = this;
     this.header.getBody({ downloadBodyReps: true }, function(body) {
@@ -125,7 +123,6 @@ console.log('calling body shims-c');
 
       // if the body reps are downloaded show the message immediately.
       if (body.bodyRepsDownloaded) {
-console.log('calling body shims1');
         self.buildBodyDom();
       }
 
@@ -138,7 +135,6 @@ console.log('calling body shims1');
     switch (evt.changeType) {
       case 'bodyReps':
         if (this.body.bodyRepsDownloaded) {
-console.log('calling body shims2');
           this.buildBodyDom();
         }
         break;
@@ -490,7 +486,7 @@ console.log('calling body shims2');
   },
 
   onHyperlinkClick: function(event, linkNode, linkUrl, linkText) {
-    var dialog = msgBrowseConfirmNode.cloneNode(true);
+    var dialog = msgNodes['browse-confirm'].cloneNode(true);
     var content = dialog.getElementsByTagName('p')[0];
     content.textContent = mozL10n.get('browse-to-url-prompt', { url: linkUrl });
     ConfirmDialog.show(dialog,
@@ -603,10 +599,6 @@ console.log('calling body shims2');
     var body = this.body;
     var domNode = this.domNode;
 
-    //??? JRB: groupload refactor: this added, but should not be needed?
-    if (!body)
-      return;
-
     var rootBodyNode = domNode.getElementsByClassName('msg-body-container')[0],
         reps = body.bodyReps,
         hasExternalImages = false,
@@ -614,8 +606,9 @@ console.log('calling body shims2');
                              body.embeddedImagesDownloaded;
 
     iframeShims.bindSanitizedClickHandler(rootBodyNode,
-                              this.onHyperlinkClick.bind(this),
-                              rootBodyNode);
+                                          this.onHyperlinkClick.bind(this),
+                                          rootBodyNode,
+                                          null);
 
     for (var iRep = 0; iRep < reps.length; iRep++) {
       var rep = reps[iRep];

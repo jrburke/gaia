@@ -50,6 +50,33 @@ var MINIMUM_ITEMS_FOR_SCROLL_CALC = 10;
 var MAXIMUM_MS_BETWEEN_SNIPPET_REQUEST = 6000;
 
 /**
+<<<<<<< HEAD:apps/email/js/cards/message-list.js
+=======
+ * Fetch up to 4kb while scrolling
+ */
+var MAXIMUM_BYTES_PER_MESSAGE_DURING_SCROLL = 4 * 1024;
+
+/**
+ * Format the message subject appropriately.  This means ensuring that if the
+ * subject is empty, we use a placeholder string instead.
+ *
+ * @param {DOMElement} subjectNode the DOM node for the message's subject.
+ * @param {Object} message the message object.
+ */
+function displaySubject(subjectNode, message) {
+  var subject = message.subject && message.subject.trim();
+  if (subject) {
+    subjectNode.textContent = subject;
+    subjectNode.classList.remove('msg-no-subject');
+  }
+  else {
+    subjectNode.textContent = mozL10n.get('message-no-subject');
+    subjectNode.classList.add('msg-no-subject');
+  }
+}
+
+/**
+>>>>>>> master:apps/email/js/message-cards.js
  * List messages for listing the contents of folders ('nonsearch' mode) and
  * searches ('search' mode).  Multi-editing is just a state of the card.
  *
@@ -673,10 +700,14 @@ MessageListCard.prototype = {
       return;
 
     var clearSnippets = this._clearSnippetRequest.bind(this);
+    var options = {
+      // this is per message
+      maximumBytesToFetch: MAXIMUM_BYTES_PER_MESSAGE_DURING_SCROLL
+    };
 
     if (len < MINIMUM_ITEMS_FOR_SCROLL_CALC) {
       this._pendingSnippetRequest();
-      this.messagesSlice.maybeRequestSnippets(0, 9, clearSnippets);
+      this.messagesSlice.maybeRequestBodies(0, 9, options, clearSnippets);
       return;
     }
 
@@ -714,9 +745,10 @@ MessageListCard.prototype = {
 
 
     this._pendingSnippetRequest();
-    this.messagesSlice.maybeRequestSnippets(
+    this.messagesSlice.maybeRequestBodies(
       startOffset,
       startOffset + this._snippetsPerScrollTick,
+      options,
       clearSnippets
     );
 

@@ -323,7 +323,7 @@ function createAndInsertIframeForContent(htmlStr, scrollContainer,
   // Using tap gesture event for URL link handling.
   if (clickHandler) {
     viewport.removeEventListener('click', clickHandler);
-    bindSanitizedClickHandler(viewport, clickHandler, null);
+    bindSanitizedClickHandler(viewport, clickHandler, null, iframe);
   }
   // If mail is not newsletter mode, ignore zoom/dbtap event handling.
   if (!newsletterMode || interactiveMode !== 'interactive') {
@@ -382,8 +382,8 @@ function createAndInsertIframeForContent(htmlStr, scrollContainer,
   return iframeShims;
 }
 
-function bindSanitizedClickHandler(target, clickHandler, topNode) {
-  var iframe = target.childNodes[0], eventType, node;
+function bindSanitizedClickHandler(target, clickHandler, topNode, iframe) {
+  var eventType, node;
   // Variables that only valid for HTML type mail.
   var root, title, header, titleHeight, headerHeight, iframeDoc;
   // Tap gesture event for HTML type mail and click event for plain text mail
