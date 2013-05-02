@@ -1,19 +1,21 @@
 define(['l10n'], function (mozL10n) {
-  return {
+  var tmpl = {
     pluginBuilder: './tmpl-builder',
 
-    load: function (id, require, onload, config) {
-      require(['text!' + id], function (text) {
-        if (config.isBuild) {
-          return onload();
-        }
-
+    toDom: function (text) {
         var temp = document.createElement('div');
         temp.innerHTML = text;
         var node = temp.children[0];
         mozL10n.translate(node);
-        onload(node);
+        return node;
+    },
+
+    load: function (id, require, onload, config) {
+      require(['text!' + id], function (text) {
+        onload(tmpl.toDom(text));
       });
     }
   };
+
+  return tmpl;
 });

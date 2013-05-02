@@ -8,7 +8,7 @@
     "end": "console.log('@@@@@@@TOP: ' + _xstart);console.log('@@@@@@@@BOTTOM: ' + (performance.now() - _xstart));"
   },
 */
-  "include": ["css", "tmpl", "text", "value_selector", "folder_depth_classes",
-              "cards/setup-account-info", "mail-app"],
+  "include": ["l10nbase", "l10ndate", "css", "tmpl", "text", "value_selector",
+              "folder_depth_classes", "mail-app"],
   "optimize": "none"
 }

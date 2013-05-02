@@ -9,9 +9,6 @@
  */
 
 (function(window) {
-
-//  var _start = window.performance ? window.performance.now() : 0;
-
   var gL10nData = {};
   var gTextProp = 'textContent';
   var gLanguage = '';
@@ -42,11 +39,11 @@
    *   gDEBUG == 2: display all console messages
    */
 
-  var gDEBUG = 0;
+  var gDEBUG = 1;
 
   function consoleLog(message) {
-    if (gDEBUG >= 2 && typeof console !== 'undefined') {
-      console.log('[l10n] ' + message + ': ' + (window.performance.now() - _start));
+    if (gDEBUG >= 2) {
+      console.log('[l10n] ' + message);
     }
   };
 
@@ -269,40 +266,12 @@
     }, failureCallback, gAsyncResourceLoading);
   };
 
-  function getModuleLocale(lang) {
-    var langModules = document.documentElement
-                      .getAttribute('data-locale-modules');
-    var target;
-
-    if (langModules) {
-      var defLocale = document.documentElement
-                      .getAttribute('data-locale-default');
-      langModules = langModules.split(',');
-      target = langModules.indexOf(lang) !== -1 ? lang : null;
-      if (!target)
-        target = langModules.indexOf(defLocale) !== -1 ? defLocale : null;
-    }
-
-    return target;
-  }
-
   // load and parse all resources for the specified locale
   function loadLocale(lang, callback) {
     callback = callback || function _callback() {};
 
     clear();
     gLanguage = lang;
-
-    // Check for locale modules
-    var moduleLocale = getModuleLocale(lang);
-    if (moduleLocale) {
-      consoleLog('have locale module, early way out: ' + moduleLocale);
-      require(['jslocales/' + moduleLocale], function (data) {
-        gL10nData = data;
-        callback();
-      });
-      return;
-    }
 
     // check all <link type="application/l10n" href="..." /> nodes
     // and load the resource files
@@ -978,21 +947,11 @@
 
   // the B2G build system doesn't expose any `document'...
   if (typeof(document) !== 'undefined') {
-    var startModuleLocale = getModuleLocale(navigator.language);
-    if (startModuleLocale) {
-      consoleLog('have start locale module: ' + startModuleLocale);
-      define(['jslocales/' + startModuleLocale], function (data) {
-        consoleLog('start locale loaded: ' + startModuleLocale);
-        gL10nData = data;
-        return navigator.mozL10n;
-      });
+    if (document.readyState === 'complete' ||
+      document.readyState === 'interactive') {
+      window.setTimeout(l10nStartup);
     } else {
-      if (document.readyState === 'complete' ||
-        document.readyState === 'interactive') {
-        window.setTimeout(l10nStartup);
-      } else {
-        document.addEventListener('DOMContentLoaded', l10nStartup);
-      }
+      document.addEventListener('DOMContentLoaded', l10nStartup);
     }
   }
 

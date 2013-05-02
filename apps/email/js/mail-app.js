@@ -33,7 +33,8 @@ require.config({
     style: '../style',
     shared: '../../../shared',
 
-    'mailapi/main-frame-setup': 'ext/mailapi/main-frame-setup'
+    'mailapi/main-frame-setup': 'ext/mailapi/main-frame-setup',
+    'mailapi/main-frame-backend': 'ext/mailapi/main-frame-backend'
   },
   map: {
     '*': {
@@ -49,12 +50,18 @@ require.config({
 define('mail-app', [
   'require',
   'mail-common',
-  'api'
+  'api',
+  'l10n',
+  // Preload some cards, but do not worry about creating
+  // local variables for them.
+  'cards/message-list',
+  'cards/folder-picker',
+  'cards/setup-account-info'
 ],
-function (require, common, MailAPI) {
+function (require, common, MailAPI, mozL10n) {
 
 var Cards = common.Cards,
-    isFirstCard = true,
+    insertedMessageList = false,
     activityCallback = null;
 
 var App = {
@@ -139,9 +146,8 @@ var App = {
 
           // Find out if a blank message-list card was already inserted, and
           // if so, then just reuse it.
-          var hasMessageListCard = Cards.hasCard(['message-list', 'nonsearch']);
-
-          if (hasMessageListCard) {
+          if (insertedMessageList ||
+              Cards.hasCard(['message-list', 'nonsearch'])) {
             // Just update existing card
             Cards.tellCard(
               ['message-list', 'nonsearch'],
@@ -210,8 +216,6 @@ var App = {
             });
         }
       }
-
-      isFirstCard = false;
     };
 
     acctsSlice.oncachereset = function() {
@@ -220,9 +224,9 @@ var App = {
       App.showMessageViewOrSetup();
     };
 
-    if (MailAPI._fake && MailAPI.hasAccounts) {
+    if (MailAPI.hasAccounts) {
       // Insert a fake card while loading finishes.
-      Cards.assertNoCards();
+      insertedMessageList = true;
       Cards.pushCard(
         'message-list', 'nonsearch', 'immediate',
         { folder: null }
@@ -273,30 +277,13 @@ var queryURI = function _queryURI(uri) {
 
 };
 
-
-var gotLocalized = (mozL10n.readyState === 'interactive') ||
-                   (mozL10n.readyState === 'complete');
-
-function doInit() {
-  try {
-    Cards._init();
-    App._init();
-    App.showMessageViewOrSetup();
-  }
-  catch (ex) {
-    console.error('Problem initializing', ex, '\n', ex.stack);
-  }
+try {
+  Cards._init();
+  App._init();
+  App.showMessageViewOrSetup();
 }
-
-if (!gotLocalized) {
-  window.addEventListener('localized', function localized() {
-    console.log('got localized!');
-    gotLocalized = true;
-    window.removeEventListener('localized', localized);
-    doInit();
-  });
-} else {
-  doInit();
+catch (ex) {
+  console.error('Problem initializing', ex, '\n', ex.stack);
 }
 
 if ('mozSetMessageHandler' in window.navigator) {
@@ -388,4 +375,4 @@ return App;
 });
 
 // Run the app module, bring in fancy logging
-require(['console-hook', 'mail-app'], null, null, null, true);
+require(['console-hook', 'mail-app']);

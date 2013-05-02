@@ -4,6 +4,12 @@ define(function () {
   return {
     load: function (id, require, onload, config) {
       require(['text!' + id], onload);
+    },
+
+    write: function (pluginName, moduleName, write, config) {
+      write.asModule(pluginName + "!" + moduleName,
+            "define(['text!" + moduleName + "', 'tmpl'], " +
+            "function (text, tmpl) { return tmpl.toDom(text); });\n");
     }
   };
 });

@@ -3,10 +3,11 @@
  **/
 /*jshint browser: true */
 /*global define, console, hookupInputAreaResetButtons */
-define(['require', 'exports', 'input_areas'],
-function (require, exports /*input_area has no export */) {
+define(['require', 'exports', 'api', 'l10n', 'tmpl!./cards/toaster.html',
+        'value_selector', 'input_areas'],
+function (require, exports, MailAPI, mozL10n, toasterNode, ValueSelector) {
 
-var Cards, Toaster, mozL10n, ValueSelector;
+var Cards, Toaster;
 
 function dieOnFatalError(msg) {
   console.error('FATAL:', msg);
@@ -241,6 +242,9 @@ Cards = {
     this._rootNode = document.body;
     this._containerNode = document.getElementById('cardContainer');
     this._cardsNode = document.getElementById('cards');
+
+    this._containerNode.appendChild(toasterNode);
+
     this._containerNode.addEventListener('click',
                                          this._onMaybeIntercept.bind(this),
                                          true);
@@ -375,26 +379,9 @@ Cards = {
 
     if (!cardDef) {
       var cbArgs = Array.slice(arguments);
-      var cb = function() {
-        this.pushCard.apply(this, cbArgs);
-      }.bind(this);
       this.eatEventsUntilNextCard();
-
-      var reqs = ['cards/' + type];
-      if (!this._lazyInited) {
-        reqs = reqs.concat(['tmpl!./cards/toaster.html',
-                            'l10n',
-                            'value_selector']);
-      }
-
-      require(reqs, function (card, toasterNode, l10n, vs) {
-        if (!this._lazyInited) {
-          this._containerNode.appendChild(toasterNode);
-          mozL10n = l10n;
-          ValueSelector = vs;
-          this._lazyInited = true;
-        }
-        cb();
+      require(['cards/' + type], function() {
+        this.pushCard.apply(this, cbArgs);
       }.bind(this));
       return;
     } else if (!cardDef)
@@ -453,11 +440,17 @@ console.log('pushCard for type: ' + type);
       this._showCard(cardIndex, showMethod, 'forward');
     }
 
+    if (!Cards.startedBackend) {
+      Cards.startedBackend = true;
+      MailAPI.startBackend();
+    }
+/*
     // Send deliciously hacky "appRendered" event
     if (Cards.sendAppRendered) {
       Cards.sendAppRendered = false;
       window.location.replace('#x-moz-perf-user-ready');
     }
+*/
   },
 
   _findCardUsingTypeAndMode: function(type, mode) {
