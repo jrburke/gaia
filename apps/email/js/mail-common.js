@@ -389,7 +389,6 @@ Cards = {
 
       require(reqs, function (card, toasterNode, l10n, vs) {
         if (!this._lazyInited) {
-//console.log('@@@@Cards._lazyInit finished: ' + (performance.now() - _xstart));
           this._containerNode.appendChild(toasterNode);
           mozL10n = l10n;
           ValueSelector = vs;
@@ -454,7 +453,6 @@ console.log('pushCard for type: ' + type);
       this._showCard(cardIndex, showMethod, 'forward');
     }
 
-//console.log('@@@@Cards._showCard call finished: ' + (performance.now() - _xstart));
     // Send deliciously hacky "appRendered" event
     if (Cards.sendAppRendered) {
       Cards.sendAppRendered = false;

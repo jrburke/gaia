@@ -79,7 +79,7 @@ suite('Fill tag options', function() {
     realFbLoader = window.fbLoader;
     window.fbLoader = MockFbLoader;
     realFb = window.fb;
-    window.fb = MockFb;
+    window.fb = Mockfb;
     realPerformanceTestingHelper = window.PerformanceTestingHelper;
     window.PerformanceTestingHelper = MockPerformanceTestingHelper;
     document.body.innerHTML = ContactListDom + MockSelectionDom;
@@ -106,8 +106,8 @@ suite('Fill tag options', function() {
         customTag;
     var testTagOptions = {
       'test-type' : [
-        {value: 'value1'},
-        {value: 'value2'}
+        {type: 'value1', value: 'value1'},
+        {type: 'value2', value: 'value2'}
       ]
     };
 

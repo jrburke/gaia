@@ -114,14 +114,12 @@ var WindowManager = (function() {
       return false;
 
     var manifest = app.manifest;
-    if (manifest.entry_points && manifest.type == 'certified') {
-      var entryPoint = manifest.entry_points[origin.split('/')[3]];
-      if (entryPoint)
-          return entryPoint.fullscreen;
-      return false;
-    } else {
-      return manifest.fullscreen;
+    if ('entry_points' in manifest && manifest.entry_points &&
+        manifest.type == 'certified') {
+       manifest = manifest.entry_points[origin.split('/')[3]];
     }
+
+    return 'fullscreen' in manifest ? manifest.fullscreen : false;
   }
 
   // Make the specified app the displayed app.
@@ -2168,6 +2166,14 @@ var WindowManager = (function() {
     setDisplayedApp: setDisplayedApp,
     getCurrentDisplayedApp: function() {
       return runningApps[displayedApp];
+    },
+    getOrientationForApp: function(origin) {
+      var app = runningApps[origin];
+
+      if (!app || !app.manifest)
+        return;
+
+      return app.manifest.orientation;
     },
     toggleHomescreen: toggleHomescreen,
     retrieveHomescreen: retrieveHomescreen,

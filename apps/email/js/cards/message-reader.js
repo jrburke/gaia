@@ -272,7 +272,7 @@ MessageReaderCard.prototype = {
         // and easily undone, so we don't show them as toaster actions.
         case 'msg-contact-menu-new':
           var composer =
-            MailAPI().beginMessageComposition(this.header, null, null,
+            MailAPI.beginMessageComposition(this.header, null, null,
             function composerReady() {
               composer.to = [{
                 address: target.dataset.address,
@@ -521,7 +521,7 @@ MessageReaderCard.prototype = {
       if (cname)
         node.setAttribute('class', cname);
 
-      var subnodes = MailAPI().utils.linkifyPlain(rep[i + 1], document);
+      var subnodes = MailAPI.utils.linkifyPlain(rep[i + 1], document);
       for (var iNode = 0; iNode < subnodes.length; iNode++) {
         node.appendChild(subnodes[iNode]);
       }
@@ -623,7 +623,7 @@ MessageReaderCard.prototype = {
         var iframe = iframeShim.iframe;
         var bodyNode = iframe.contentDocument.body;
         this.iframeResizeHandler = iframeShim.resizeHandler;
-        MailAPI().utils.linkifyHTML(iframe.contentDocument);
+        MailAPI.utils.linkifyHTML(iframe.contentDocument);
         this.htmlBodyNodes.push(bodyNode);
 
         if (body.checkForExternalImages(bodyNode))

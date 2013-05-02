@@ -15,7 +15,7 @@ var Cards = common.Cards;
 function SettingsMainCard(domNode, mode, args) {
   this.domNode = domNode;
 
-  this.acctsSlice = MailAPI().viewAccounts(false);
+  this.acctsSlice = MailAPI.viewAccounts(false);
   this.acctsSlice.onsplice = this.onAccountsSplice.bind(this);
 
   domNode.getElementsByClassName('tng-close-btn')[0]
@@ -23,8 +23,8 @@ function SettingsMainCard(domNode, mode, args) {
 
   var checkIntervalNode =
     domNode.getElementsByClassName('tng-main-check-interval')[0];
-console.log('  CONFIG CURRENTLY:', JSON.stringify(MailAPI().config));//HACK
-  checkIntervalNode.value = MailAPI().config.syncCheckIntervalEnum;
+console.log('  CONFIG CURRENTLY:', JSON.stringify(MailAPI.config));//HACK
+  checkIntervalNode.value = MailAPI.config.syncCheckIntervalEnum;
   checkIntervalNode.addEventListener(
     'change', this.onChangeSyncInterval.bind(this), false);
 
@@ -84,7 +84,7 @@ SettingsMainCard.prototype = {
 
   onChangeSyncInterval: function(event) {
     console.log('sync interval changed to', event.target.value);
-    MailAPI().modifyConfig({
+    MailAPI.modifyConfig({
       syncCheckIntervalEnum: event.target.value });
   },
 

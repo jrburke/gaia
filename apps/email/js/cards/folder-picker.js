@@ -81,7 +81,7 @@ FolderPickerCard.prototype = {
       Cards.eatEventsUntilNextCard();
 
       // load the folders for the account
-      this.foldersSlice = MailAPI().viewFolders('account', account);
+      this.foldersSlice = MailAPI.viewFolders('account', account);
       this.foldersSlice.onsplice = this.onFoldersSplice.bind(this);
       this.foldersSlice.onchange = this.onFoldersChange.bind(this);
       // This will cause the splice handler to select the inbox for us; we do

@@ -46,11 +46,11 @@ SettingsDebugCard.prototype = {
   },
 
   dumpLog: function(target) {
-    MailAPI().debugSupport('dumpLog', target);
+    MailAPI.debugSupport('dumpLog', target);
   },
 
   cycleLogging: function(doChange, changeValue) {
-    var value = MailAPI().config.debugLogging;
+    var value = MailAPI.config.debugLogging;
     if (doChange) {
       if (changeValue === true)
         value = !value;
@@ -62,7 +62,7 @@ SettingsDebugCard.prototype = {
       // (ignore dangerous button if not enabled)
       else
         return;
-      MailAPI().debugSupport('setLogging', value);
+      MailAPI.debugSupport('setLogging', value);
     }
     var label, dangerLabel;
     if (value === true) {
