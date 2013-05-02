@@ -165,7 +165,7 @@ var Recents = {
     // Setting up the SimplePhoneMatcher
     var conn = window.navigator.mozMobileConnection;
     if (conn && conn.voice && conn.voice.network) {
-      SimplePhoneMatcher.mcc = conn.voice.network.mcc.toString();
+      SimplePhoneMatcher.mcc = conn.voice.network.mcc;
     }
 
     LazyL10n.get(function localized(_) {
@@ -707,7 +707,7 @@ var Recents = {
         logItem.classList.remove('hasPhoto');
       }
       var phoneNumberAdditionalInfo = Utils.getPhoneNumberAdditionalInfo(
-        matchingTel, contact);
+        matchingTel, contact, phoneNumber);
       phoneNumberAdditionalInfoNode.textContent = phoneNumberAdditionalInfo;
       logItem.classList.add('isContact');
       logItem.dataset['contactId'] = contact.id;

@@ -194,11 +194,11 @@ const Keyboards = {
       o: 'óºöòôōœøɵ',
       u: 'üúùûū',
       s: '$ßš',
-      l: '£',
+      l: '£ l·l',
       n: 'ń',
       y: '¥',
       r: 'R$ ',
-      '.': ',¿?¡!;:',
+      '.': ',¿?¡!;:·',
       ':)': ':) :D :( ;D :* :/'
 //      '.com': '.es .org .eu' XXX: commented to avoid overflows for the demo
     },
@@ -235,7 +235,8 @@ const Keyboards = {
         '6': '6º 6ª',
         '7': '7º 7ª',
         '8': '8º 8ª',
-        '9': '9º 9ª'
+        '9': '9º 9ª',
+        '.': '·'
       },
       keys: [
         [
@@ -606,6 +607,65 @@ const Keyboards = {
         { value: '↵', ratio: 2, keyCode: KeyEvent.DOM_VK_RETURN }
       ]
     ]
+  },
+  'sr-Latn': {
+    label: 'Serbian (Latin)',
+    menuLabel: 'srpski',
+    alt: {
+      c: 'čć',
+      d: 'đ',
+      s: 'š',
+      z: 'ž',
+      '.': ',?!;:'
+    },
+    keys: [
+      [
+        { value: 'q' }, { value: 'w' }, { value: 'e' } , { value: 'r' },
+        { value: 't' } , { value: 'y' }, { value: 'u' } , { value: 'i' },
+        { value: 'o' }, { value: 'p' }
+      ], [
+        { value: 'a' }, { value: 's' }, { value: 'd' }, { value: 'f' },
+        { value: 'g' } , { value: 'h' }, { value: 'j' }, { value: 'k' },
+        { value: 'l' }, { value: '"', hidden: ['email', 'url'] },
+        { value: ':', visible: ['url']}, { value: '_', visible: ['email']}
+      ], [
+        { value: '⇪', ratio: 1.5, keyCode: KeyEvent.DOM_VK_CAPS_LOCK },
+        { value: 'z' }, { value: 'x' }, { value: 'c' }, { value: 'v' },
+        { value: 'b' }, { value: 'n' }, { value: 'm' },
+        { value: '⌫', ratio: 1.5, keyCode: KeyEvent.DOM_VK_BACK_SPACE }
+      ], [
+        { value: '&nbsp', ratio: 8, keyCode: KeyboardEvent.DOM_VK_SPACE },
+        { value: '↵', ratio: 2, keyCode: KeyEvent.DOM_VK_RETURN }
+      ]
+    ],
+    alternateLayout: {
+      alt: {
+        '0': 'º',
+        '$': '€£¥',
+        '?': '¿',
+        '!': '¡'
+      },
+      keys: [
+        [
+          { value: '1' }, { value: '2' }, { value: '3' } , { value: '4' },
+          { value: '5' } , { value: '6' }, { value: '7' } , { value: '8' },
+          { value: '9' }, { value: '0' }
+        ], [
+          { value: '@', hidden: ['email'] }, { value: '#' }, { value: '$' },
+          { value: '%' }, { value: '&' } , { value: '*' }, { value: '-' },
+          { value: '+' }, { value: '(' }, { value: ')' },
+          { value: '_', visible: ['email'] }
+        ], [
+          { value: 'ALT', ratio: 1.5, keyCode: KeyEvent.DOM_VK_ALT },
+          { value: '!' }, { value: '\"' }, { value: "'" }, { value: ':' },
+          { value: ';' }, { value: '/' }, { value: '?' },
+          { value: '⌫', ratio: 1.5, keyCode: KeyEvent.DOM_VK_BACK_SPACE }
+        ], [
+          { value: '&nbsp', ratio: 8, keyCode: KeyboardEvent.DOM_VK_SPACE },
+          { value: '↵', ratio: 2, keyCode: KeyEvent.DOM_VK_RETURN }
+        ]
+      ]
+    }
   },
   sk: {
     label: 'Slovak',

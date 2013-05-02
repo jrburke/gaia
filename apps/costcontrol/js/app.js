@@ -84,10 +84,22 @@ var CostControlApp = (function() {
   }
 
   function showSimErrorDialog(status) {
-    var header = _('widget-' + status + '-heading');
-    var msg = _('widget-' + status + '-meta');
-    alert(header + '\n' + msg);
-    window.close();
+
+    function realShowSimError(status) {
+      var header = _('widget-' + status + '-heading');
+      var msg = _('widget-' + status + '-meta');
+      alert(header + '\n' + msg);
+      setTimeout(window.close);
+    }
+
+    if (isApplicationLocalized) {
+      realShowSimError(status);
+    } else {
+      window.addEventListener('localized', function _onlocalized() {
+        window.removeEventListener('localized', _onlocalized);
+        realShowSimError(status);
+      });
+    }
   }
 
   // XXX: See the module documentation for details about URL schema
@@ -162,7 +174,9 @@ var CostControlApp = (function() {
     });
   }
 
+  var isApplicationLocalized = false;
   window.addEventListener('localized', function _onLocalize() {
+    isApplicationLocalized = true;
     if (initialized) {
       updateUI();
     }
@@ -266,22 +280,6 @@ var CostControlApp = (function() {
       if (mode !== currentMode) {
         currentMode = mode;
 
-        if (mode === 'PREPAID') {
-          if (typeof TelephonyTab !== 'undefined') {
-            TelephonyTab.finalize();
-          }
-          if (typeof BalanceTab !== 'undefined') {
-            BalanceTab.initialize();
-          }
-        } else if (mode === 'POSTPAID') {
-          if (typeof BalanceTab !== 'undefined') {
-            BalanceTab.finalize();
-          }
-          if (typeof TelephonyTab !== 'undefined') {
-            TelephonyTab.initialize();
-          }
-        }
-
         // Stand alone mode when data usage only
         if (mode === 'DATA_USAGE_ONLY') {
           var tabs = document.getElementById('tabs');
@@ -307,6 +305,27 @@ var CostControlApp = (function() {
           }
         }
 
+        // XXX: Break initialization to allow Gecko to render the animation on
+        // time.
+        setTimeout(function continueLoading() {
+          document.getElementById('main').classList.remove('non-ready');
+
+          if (mode === 'PREPAID') {
+            if (typeof TelephonyTab !== 'undefined') {
+              TelephonyTab.finalize();
+            }
+            if (typeof BalanceTab !== 'undefined') {
+              BalanceTab.initialize();
+            }
+          } else if (mode === 'POSTPAID') {
+            if (typeof BalanceTab !== 'undefined') {
+              BalanceTab.finalize();
+            }
+            if (typeof TelephonyTab !== 'undefined') {
+              TelephonyTab.initialize();
+            }
+          }
+        });
       }
     });
   }

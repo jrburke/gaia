@@ -6,6 +6,7 @@
 require('/shared/js/lazy_loader.js');
 require('/shared/js/l10n.js');
 require('/shared/js/l10n_date.js');
+require('/shared/test/unit/load_body_html_helper.js');
 
 requireApp('sms/test/unit/mock_contact.js');
 requireApp('sms/test/unit/mock_l10n.js');
@@ -46,6 +47,7 @@ suite('SMS App Unit-Test', function() {
 
   var findByString;
   var nativeMozL10n = navigator.mozL10n;
+  var boundOnHashChange;
 
   suiteSetup(function() {
     navigator.mozL10n = MockL10n;
@@ -74,106 +76,6 @@ suite('SMS App Unit-Test', function() {
     var elements = getElementsInContainerByClass(container, className);
     assert.equal(elements.length, number);
     return elements;
-  }
-
-  function createDOM() {
-    // We clean previouos stuff at the beginning
-    window.document.body.innerHTML = '';
-
-    // Add main wrapper
-    var mainWrapper = document.createElement('article');
-    mainWrapper.id = 'main-wrapper';
-
-    // ------- Add thread-list view ---------
-    var threadList = document.createElement('section');
-    threadList.id = 'thread-list';
-
-    // Add elements inside thread-list view
-
-    // Thread-list header
-    var threadListHeader = document.createElement('header');
-    threadListHeader.innerHTML = renderThreadListHeader();
-
-    // Thread-list container
-    var threadsContainer = document.createElement('article');
-    threadsContainer.id = 'threads-container';
-
-    // Thread-list fixed-header
-    var threadsHeaderContainer = document.createElement('div');
-    threadsHeaderContainer.id = 'threads-header-container';
-
-    // threads-no-messages
-    var noMessages = document.createElement('div');
-    noMessages.id = 'threads-no-messages';
-
-    // Thread-list Edit form
-    var threadListEditForm = document.createElement('form');
-    threadListEditForm.id = 'threads-edit-form';
-    threadListEditForm.setAttribute('role', 'dialog');
-    threadListEditForm.dataset.type = 'edit';
-    threadListEditForm.innerHTML = renderThreadListEdit();
-    // Append all elemnts to thread-list view
-    threadList.appendChild(threadListHeader);
-    threadList.appendChild(threadsContainer);
-    threadList.appendChild(threadsHeaderContainer);
-    threadList.appendChild(noMessages);
-    threadList.appendChild(threadListEditForm);
-
-    // Adding to DOM the Thread-list view
-    mainWrapper.appendChild(threadList);
-
-    // --------- Add thread-messages (bubbles) view ---------
-    var threadMessages = document.createElement('section');
-    threadMessages.id = 'thread-messages';
-
-    // Thread-messages main header
-    var threadMsgHeader = document.createElement('header');
-    threadMsgHeader.innerHTML = renderThreadMsgHeader();
-
-    // Thread-messages sub-header
-    var threadMsgSubHeader = document.createElement('div');
-    threadMsgSubHeader.id = 'contact-carrier';
-
-    // Thread-messages container
-    var threadMsgContainer = document.createElement('article');
-    threadMsgContainer.id = 'messages-container';
-
-    // Thread-messages edit form
-    var threadMsgEditForm = document.createElement('form');
-    threadMsgEditForm.id = 'messages-edit-form';
-    threadMsgEditForm.innerHTML = renderThreadMsgEdit();
-
-    // Thread-messages input form
-    var threadMsgInputForm = document.createElement('form');
-    threadMsgInputForm.id = 'messages-compose-form';
-    threadMsgInputForm.innerHTML = renderThreadMsgInputBar();
-
-    threadMessages.appendChild(threadMsgHeader);
-    threadMessages.appendChild(threadMsgSubHeader);
-    threadMessages.appendChild(threadMsgContainer);
-    threadMessages.appendChild(threadMsgEditForm);
-    threadMessages.appendChild(threadMsgInputForm);
-
-    // Adding to DOM the Thread-messages view
-    mainWrapper.appendChild(threadMessages);
-
-    // --------- Loading screen ---------
-    var loadingScreen = document.createElement('article');
-    loadingScreen.id = 'loading';
-
-    // Contact template
-    var contactTmpl = document.createElement('div');
-    contactTmpl.id = 'messages-contact-tmpl';
-
-    var highlightTmpl = document.createElement('div');
-    highlightTmpl.id = 'messages-highlight-tmpl';
-
-
-    // At the end we add all elements to document
-    window.document.body.appendChild(mainWrapper);
-    window.document.body.appendChild(loadingScreen);
-    window.document.body.appendChild(contactTmpl);
-    window.document.body.appendChild(highlightTmpl);
   }
 
   // Previous setup
@@ -210,9 +112,15 @@ suite('SMS App Unit-Test', function() {
       }
     };
 
-    // Create DOM structure
-    createDOM();
+    Contacts.findByPhoneNumber = function(tel, callback) {
+      // Get the contact
+      if (tel === '1977') {
+        callback(MockContact.list());
+      }
+    };
 
+    // Create DOM structure
+    loadBodyHTML('/index.html');
     // Clear if necessary...
     if (ThreadUI.container) {
       ThreadUI.container.innerHTML = '';
@@ -221,15 +129,18 @@ suite('SMS App Unit-Test', function() {
     // ...And render
     ThreadUI.init();
     ThreadListUI.init();
+    boundOnHashChange = MessageManager.onHashChange.bind(MessageManager);
     window.addEventListener(
-      'hashchange', MessageManager.onHashChange.bind(MessageManager)
+      'hashchange', boundOnHashChange
     );
   });
 
   suiteTeardown(function() {
     Contacts.findByString = findByString;
+    // cleanup
+    window.document.body.innerHTML = '';
+    window.removeEventListener('hashchange', boundOnHashChange);
   });
-
 
   // Let's go with tests!
 
@@ -426,28 +337,6 @@ suite('SMS App Unit-Test', function() {
         assertNumOfElementsByClass(ThreadUI.container, 1, 'received');
         assertNumOfElementsByClass(ThreadUI.container, 2, 'error');
       });
-
-      test('Check input form & send button', function() {
-        ThreadUI.enableSend();
-        // At the begginning it should be disabled
-        assert.isTrue(ThreadUI.sendButton.disabled);
-        // If we type some text in a thread
-        ThreadUI.input.value = 'Hola';
-        ThreadUI.enableSend();
-        assert.isFalse(ThreadUI.sendButton.disabled);
-        // We change to 'new'
-        window.location.hash = '#new';
-        ThreadUI.enableSend();
-        // In '#new' I need the contact as well, so it should be disabled
-        assert.isTrue(ThreadUI.sendButton.disabled);
-        // Adding a contact should enable the button
-        ThreadUI.recipient.value = '123123123';
-        ThreadUI.enableSend();
-        assert.isFalse(ThreadUI.sendButton.disabled);
-        // Finally we clean the form
-        ThreadUI.cleanFields();
-        assert.isTrue(ThreadUI.sendButton.disabled);
-      });
     });
 
     suite('Thread-messages Edit mode (bubbles view)', function() {
@@ -549,6 +438,7 @@ suite('SMS App Unit-Test', function() {
           done();
         }, 1500); // only the last one is slow. What is blocking?
 
+        window.history.back = stub();
         ThreadUI.delete();
       });
 
@@ -743,6 +633,81 @@ suite('SMS App Unit-Test', function() {
     });
   });
 
+  suite('New layout', function() {
+
+    setup(function() {
+      window.location.hash = '#new';
+    });
+
+    test('Create editable recipient', function() {
+      // Create editable recipient
+      ThreadUI.appendEditableRecipient();
+      // Is the editable recipient created?
+      var editableRecipientsBefore =
+        ThreadUI.recipientsContainer.
+          querySelectorAll('span[contenteditable=true]');
+      assert.equal(editableRecipientsBefore.length, 1);
+      // Pick the recipient
+      var recipient = editableRecipientsBefore[0];
+      // Update the content
+      recipient.textContent = '+34612123123;';
+      // Launch an input
+      recipient.dispatchEvent(new CustomEvent('input'));
+      // Check if recipient now it's a box
+      var editableRecipientsAfter =
+        ThreadUI.recipientsContainer.
+          querySelectorAll('span[contenteditable=true]');
+      assert.equal(editableRecipientsAfter.length, 0);
+      // Convert again in editable recipient
+      var nonEditableRecipients =
+        ThreadUI.recipientsContainer.
+          querySelectorAll('span[contenteditable=false]');
+      assert.equal(nonEditableRecipients.length, 1);
+      // Convert in editable
+      var justCreatedRecipient = nonEditableRecipients[0];
+      justCreatedRecipient.
+        dispatchEvent(new CustomEvent('click', {'bubbles' : true}));
+      // Is editable again?
+      var recipientsEditableAgain =
+        ThreadUI.recipientsContainer.
+          querySelectorAll('span[contenteditable=true]');
+      assert.equal(recipientsEditableAgain.length, 1);
+      // Clean the content
+      recipientsEditableAgain[0].textContent = '';
+      ThreadUI.cleanRecipients();
+      var recipientsAtTheEnd =
+        ThreadUI.recipientsContainer.
+          querySelectorAll('span[contenteditable=true]');
+      assert.equal(recipientsAtTheEnd.length, 0);
+
+    });
+
+    test('Create recipient live-search', function() {
+      var contact = {
+            id: 111,
+            name: ['Alejandro'],
+            tel: [{
+              value: '0624710190',
+              type: 'Mobile'
+            }]
+          };
+      // Create editable recipient
+      ThreadUI.appendEditableRecipient(contact);
+      // Retrieve the element
+      var recipientsCreated =
+        ThreadUI.recipientsContainer.getElementsByClassName('recipient');
+      assert.equal(recipientsCreated.length, 1);
+      // Pick the recipient
+      var recipient = recipientsCreated[0];
+      assert.equal(recipient.textContent, 'Alejandro');
+    });
+
+    teardown(function() {
+      window.location.hash = '';
+      ThreadUI.recipientsContainer.textContent = '';
+    });
+  });
+
   suite('Secure User Input', function() {
     function mock(definition) {
       return function mock() {
@@ -757,19 +722,20 @@ suite('SMS App Unit-Test', function() {
       Utils.getPhoneDetails = mock(function(number, contact, handler) {
         handler({});
       });
+      var ul = document.createElement('ul');
 
-      ThreadUI.recipient.value = '+99';
+      ThreadUI.recipients.value = '+99';
       assert.doesNotThrow(function() {
         ThreadUI.renderContact({
           name: 'Spider Monkey',
           tel: [{ value: '...' }]
-        });
+        }, '+99', ul);
       });
       assert.ok(Utils.getPhoneDetails.called);
       assert.equal(Utils.getPhoneDetails.args[0], '...');
 
-      done();
       Utils.getPhoneDetails = getPhoneDetails;
+      done();
     });
 
     test('*67 [800]-555-1212', function(done) {
@@ -777,19 +743,19 @@ suite('SMS App Unit-Test', function() {
       Utils.getPhoneDetails = mock(function(number, contact, handler) {
         handler({});
       });
+      var ul = document.createElement('ul');
 
-      ThreadUI.recipient.value = '*67 [800]-555-1212';
       assert.doesNotThrow(function() {
         ThreadUI.renderContact({
           name: 'Spider Monkey',
           tel: [{ value: '...' }]
-        });
+        }, '*67 [800]-555-1212', ul);
       });
       assert.ok(Utils.getPhoneDetails.called);
       assert.equal(Utils.getPhoneDetails.args[0], '...');
 
-      done();
       Utils.getPhoneDetails = getPhoneDetails;
+      done();
     });
 
     test('\\^$*+?.', function(done) {
@@ -797,32 +763,113 @@ suite('SMS App Unit-Test', function() {
       Utils.getPhoneDetails = mock(function(number, contact, handler) {
         handler({});
       });
-
-      ThreadUI.recipient.value = '\\^$*+?.';
+      var ul = document.createElement('ul');
       assert.doesNotThrow(function() {
         ThreadUI.renderContact({
           name: 'Spider Monkey',
           tel: [{ value: '...' }]
-        });
+        }, '\\^$*+?.', ul);
       });
       assert.ok(Utils.getPhoneDetails.called);
       assert.equal(Utils.getPhoneDetails.args[0], '...');
 
-      done();
       Utils.getPhoneDetails = getPhoneDetails;
+      done();
     });
   });
 
   suite('Defensive Contact Rendering', function() {
     test('has tel number', function() {
+      var contactsUl = document.createElement('ul');
       var contact = new MockContact();
-      assert.isTrue(ThreadUI.renderContact(contact));
+      assert.isTrue(ThreadUI.renderContact(contact,
+        contact.tel[0].value, contactsUl));
     });
 
     test('no tel number', function() {
+      var contactsUl = document.createElement('ul');
       var contact = new MockContact();
       contact.tel = null;
-      assert.isFalse(ThreadUI.renderContact(contact));
+      assert.isFalse(ThreadUI.renderContact(contact, null, contactsUl));
+    });
+  });
+
+  suite('Sending SMS from new screen', function() {
+    test('Sending to contact should put in right thread', function(done) {
+      var mock = [
+          {
+            name: 'Pietje',
+            number: '0624710190'
+          }
+        ];
+      Contacts.findByString = stub(function(str, callback) {
+        callback(mock);
+      });
+      Contacts.findByPhoneNumber = stub(function(str, callback) {
+        callback(mock);
+      });
+
+      MessageManager.onHashChange = stub();
+      MessageManager.send = stub();
+
+      window.location.hash = '#new';
+      var recipient = ThreadUI.appendEditableRecipient(mock[0]);
+      ThreadUI.createRecipient(recipient);
+      // Launch an input
+      ThreadUI.input.value = 'Jo quiro';
+      ThreadUI.sendMessage();
+
+      setTimeout(function() {
+        assert.equal(Contacts.findByString.callCount, 0);
+        assert.equal(Contacts.findByPhoneNumber.callCount, 1);
+        assert.equal(MessageManager.send.callCount, 1);
+        assert.equal(MessageManager.send.calledWith[0], '0624710190');
+        assert.equal(MessageManager.send.calledWith[1], 'Jo quiro');
+
+        window.location.hash = '';
+        done();
+      }, 30);
+    });
+
+    test('Sending to short nr should not link to contact', function(done) {
+      // findByString does a substring find
+      Contacts.findByString = stub(function(str, callback) {
+        callback([
+          {
+            id: 111,
+            name: ['Pietje'],
+            tel: [{
+              value: '0624710190',
+              type: 'Mobile'
+            }]
+          }
+        ]);
+      });
+      Contacts.findByPhoneNumber = stub(function(str, callback) {
+        callback([]);
+      });
+
+      MessageManager.onHashChange = stub();
+      MessageManager.send = stub();
+
+      window.location.hash = '#new';
+      var recipient = ThreadUI.appendEditableRecipient();
+      recipient.textContent = '2471';
+      // Launch an input
+      ThreadUI.createRecipient(recipient);
+      ThreadUI.input.value = 'Short';
+      ThreadUI.sendMessage();
+
+      setTimeout(function() {
+        assert.equal(Contacts.findByString.callCount, 0);
+        assert.equal(Contacts.findByPhoneNumber.callCount, 1);
+        assert.equal(MessageManager.send.callCount, 1);
+        assert.equal(MessageManager.send.calledWith[0], '2471');
+        assert.equal(MessageManager.send.calledWith[1], 'Short');
+
+        window.location.hash = '';
+        done();
+      }, 30);
     });
   });
 });

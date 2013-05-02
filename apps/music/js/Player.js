@@ -29,6 +29,14 @@ if (acm) {
   });
 }
 
+window.addEventListener('mozvisibilitychange', function() {
+  if (document.mozHidden) {
+    PlayerView.audio.removeEventListener('timeupdate', PlayerView);
+  } else {
+    PlayerView.audio.addEventListener('timeupdate', PlayerView);
+  }
+});
+
 // View of Player
 var PlayerView = {
   get view() {
@@ -315,10 +323,14 @@ var PlayerView = {
     if (arguments.length > 0) {
       var songData = this.dataSource[targetIndex];
 
-      ModeManager.playerTitle = songData.metadata.title || unknownTitle;
-      TitleBar.changeTitleText(ModeManager.playerTitle);
+      ModeManager.playerTitle = songData.metadata.title;
+      ModeManager.updateTitle();
       this.artist.textContent = songData.metadata.artist || unknownArtist;
+      this.artist.dataset.l10nId =
+        songData.metadata.artist ? '' : unknownArtistL10nId;
       this.album.textContent = songData.metadata.album || unknownAlbum;
+      this.album.dataset.l10nId =
+        songData.metadata.album ? '' : unknownAlbumL10nId;
       this.currentIndex = targetIndex;
 
       // backgroundIndex is from the index of sublistView
@@ -351,8 +363,11 @@ var PlayerView = {
         var titleBar = document.getElementById('title-text');
 
         titleBar.textContent = metadata.title || unknownTitle;
+        titleBar.dataset.l10nId = metadata.title ? '' : unknownTitleL10nId;
         this.artist.textContent = metadata.artist || unknownArtist;
+        this.artist.dataset.l10nId = metadata.artist ? '' : unknownArtistL10nId;
         this.album.textContent = metadata.album || unknownAlbum;
+        this.album.dataset.l10nId = metadata.album ? '' : unknownAlbumL10nId;
 
         // Add the blob from the dataSource to the fileinfo
         // because we want use the cover image which embedded in that blob
@@ -600,10 +615,14 @@ var PlayerView = {
           this.showInfo();
 
           var songData = this.dataSource[this.currentIndex];
-          songData.metadata.rated = parseInt(target.dataset.rating);
+          var targetRating = parseInt(target.dataset.rating);
+          var newRating = (targetRating === songData.metadata.rated) ?
+            targetRating - 1 : targetRating;
 
-          musicdb.updateMetadata(songData.name, songData.metadata,
-            this.setRatings.bind(this, parseInt(target.dataset.rating)));
+          songData.metadata.rated = newRating;
+
+          musicdb.updateMetadata(songData.name, songData.metadata);
+          this.setRatings(newRating);
         }
 
         break;

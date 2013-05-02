@@ -41,6 +41,7 @@ var subject,
     mockContact,
     fbButtons,
     linkButtons;
+var SCALE_RATIO = 1;
 
 suite('Render contact', function() {
 
@@ -74,9 +75,9 @@ suite('Render contact', function() {
     });
 
     realContacts = window.Contacts;
-    window.Contacts = MockContactsApp;
+    window.Contacts = MockContacts;
     realFb = window.fb;
-    window.fb = MockFb;
+    window.fb = Mockfb;
     window.Contacts.extServices = MockExtFb;
     dom = document.createElement('section');
     dom.id = 'view-contact-details';

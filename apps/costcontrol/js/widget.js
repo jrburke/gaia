@@ -169,7 +169,7 @@
     rightPanel.setAttribute('aria-hidden', true);
 
     var className = 'widget-' + status;
-    document.getElementById('fte-icon').textContent = 'icon ' + className;
+    document.getElementById('fte-icon').classList.add(className);
     fte.querySelector('p:first-child').textContent = _(className + '-heading');
     fte.querySelector('p:last-child').textContent = _(className + '-meta');
   }
@@ -368,7 +368,7 @@
     // Timestamp
     var meta = views.balance.querySelector('.meta');
     if (views.balance.classList.contains('updating')) {
-      meta.textContent = _('updating') + '…';
+      meta.textContent = _('updating-ellipsis');
     } else {
       meta.innerHTML = '';
       meta.appendChild(formatTimeHTML(balance.timestamp));

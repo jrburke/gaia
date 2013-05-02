@@ -16,11 +16,14 @@
     <link rel="stylesheet" type="text/css" href="shared/style/switches.css">
     <link rel="stylesheet" type="text/css" href="shared/style_unstable/lists.css">
     <link rel="stylesheet" type="text/css" href="shared/style_unstable/progress_activity.css">
-    <link rel="stylesheet" type="text/css" href="style/bb/filters/style.css">
+    <link rel="stylesheet" type="text/css" href="shared/style_unstable/tabs.css">
 
     <!-- App and Views -->
     <link rel="stylesheet" type="text/css" href="style/app.css">
     <link rel="stylesheet" type="text/css" href="style/views/datausage.css">
+    <link rel="stylesheet" type="text/css" href="style/views/topup.css">
+    <link rel="stylesheet" type="text/css" href="style/views/balance.css">
+    <link rel="stylesheet" type="text/css" href="style/views/telephony.css">
 
     <!-- Multiresolution support -->
     <link rel="stylesheet" type="text/css" href="shared/style/responsive.css">
@@ -45,10 +48,14 @@
     <script type="text/javascript" defer src="js/view_manager.js"></script>
     <script type="text/javascript" defer src="js/app.js"></script>
 
+    <!-- Include shared resources
+    <link rel="resource" type="image/png" href="shared/resources/branding/splash_screen_generic.png"/>
+    -->
+
   </head>
   <body role="application">
 
-    <section role="region" class="window skin-organic">
+    <section id="main" role="region" class="window skin-organic non-ready">
       <!-- XXX: The order of sections is important (tabs should be place above
 the overlays) and we should distinguish between TABS and OVERLAY VIEWS -->
       <header>
@@ -59,19 +66,19 @@ the overlays) and we should distinguish between TABS and OVERLAY VIEWS -->
       </header>
 
       <!-- Bottom filters (Telephony / Cost Control and Data Usage) -->
-      <ul id="tabs" role="tablist" class="filter" data-items="2" data-position="bottom">
-        <li id="balance-tab-filter" aria-selected="true">
-          <a role="tab" data-l10n-id="balance" href="#balance-tab">
+      <ul id="tabs" role="tablist" data-type="filter" data-items="2">
+        <li id="balance-tab-filter" role="tab">
+          <a data-l10n-id="balance" href="#balance-tab">
             Balance
           </a>
         </li>
-        <li id="telephony-tab-filter" aria-hidden="true">
-          <a role="tab" data-l10n-id="phone" href="#telephony-tab">
+        <li id="telephony-tab-filter" role="tab" aria-hidden="true">
+          <a data-l10n-id="phone" href="#telephony-tab">
             Phone
           </a>
         </li>
-        <li id="datausage-tab-filter">
-          <a role="tab" data-l10n-id="internet" href="#datausage-tab">
+        <li id="datausage-tab-filter" role="tab">
+          <a data-l10n-id="internet" href="#datausage-tab">
             Internet
           </a>
         </li>
@@ -134,8 +141,6 @@ the overlays) and we should distinguish between TABS and OVERLAY VIEWS -->
             </li>
           </ul>
           <script type="text/javascript" defer src="js/views/balance.js"></script>
-
-          <link rel="stylesheet" type="text/css" href="style/views/balance.css">
         </section>
         -->
       </section>
@@ -174,8 +179,6 @@ the overlays) and we should distinguish between TABS and OVERLAY VIEWS -->
           </li>
         </ul>
         <script type="text/javascript" defer src="js/views/telephony.js"></script>
-        <link rel="stylesheet" type="text/css" href="style/bb/filters/style.css">
-        <link rel="stylesheet" type="text/css" href="style/views/telephony.css">
       </section>
       -->
     </section>
@@ -224,8 +227,6 @@ the overlays) and we should distinguish between TABS and OVERLAY VIEWS -->
       <form>
         <input id="topup-code-input" type="number" />
       </form>
-
-      <link rel="stylesheet" type="text/css" href="style/views/topup.css">
       -->
     </section>
 
