@@ -2367,6 +2367,10 @@ MailAPI.prototype = {
    *     positive indications of some type of maintenance rather than a
    *     generic error string.
    *   }
+   *   @case['user-account-exists']{
+   *     If the user tries to create an account which is already configured.
+   *     Should not be created. We will show that account is already configured
+   *   }
    *   @case['unknown']{
    *     We don't know what happened; count this as our bug for not knowing.
    *   }
@@ -3954,14 +3958,9 @@ define('mailapi/worker-support/net-main',[],function() {
       if (err && typeof(err) === 'object') {
         wrappedErr = {
           name: err.name,
+          type: err.type,
           message: err.message
         };
-        // Propagate the SSL error detecting heuristic used elsewhere.  This is
-        // an XPCOM interface that we do not expect to structured clone across
-        // so well.
-        if ('isNotValidAtThisTime' in err) {
-          wrappedErr.isNotValidAtThisTime = err.isNotValidAtThisTime;
-        }
       }
       else {
         wrappedErr = err;

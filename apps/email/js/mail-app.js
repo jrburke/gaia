@@ -196,7 +196,8 @@ var App = {
     };
 
     if (MailAPI._fake && MailAPI.hasAccounts) {
-      // Insert a fake card while loading finishes.
+      // Insert a fake card while loading finishes, to give the appearance
+      // of something loading, and to shorten the time the page is white.
       Cards.assertNoCards();
       Cards.pushCard(
         'message-list', 'nonsearch', 'immediate',
