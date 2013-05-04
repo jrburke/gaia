@@ -29,8 +29,6 @@ var TTLView = {
     window.addEventListener('appwillopen', this);
     window.addEventListener('apploadtime', this);
 
-    window.addEventListener('appuserready', this);
-
     // this is to calculate the load time of inline activity
     window.addEventListener('activitywillopen', this);
     window.addEventListener('activityloadtime', this);
@@ -50,7 +48,6 @@ var TTLView = {
     switch (evt.type) {
       case 'apploadtime':
       case 'activityloadtime':
-      case 'appuserready':
         this.updateLoadtime(evt.detail.time, evt.detail.type);
         break;
 
@@ -70,10 +67,7 @@ var TTLView = {
   updateLoadtime: function tv_updateLoadtime(time, type) {
     if (!this.element)
       this.createElement();
-    if (type === 'app')
-      this.element.innerHTML += ' ' + time + ' [' + type + ']';
-    else
-      this.element.innerHTML = time + ' [' + type + ']';
+    this.element.innerHTML = time + ' [' + type + ']';
   },
 
   toggle: function tv_toggle() {

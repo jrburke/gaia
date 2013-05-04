@@ -461,13 +461,6 @@ console.log('pushCard for type: ' + type);
       Cards.startedBackend = true;
       MailAPI.startBackend();
     }
-/*
-    // Send deliciously hacky "appRendered" event
-    if (Cards.sendAppRendered) {
-      Cards.sendAppRendered = false;
-      window.location.replace('#x-moz-perf-user-ready');
-    }
-*/
   },
 
   _findCardUsingTypeAndMode: function(type, mode) {

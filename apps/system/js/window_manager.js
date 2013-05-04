@@ -678,12 +678,6 @@ var WindowManager = (function() {
   // Meta method for get the screenshot from the app frame,
   // and save it to database.
   function saveAppScreenshot(frame, callback) {
-    // Skip for email app
-    if (frame.src.indexOf('/email.gaiamobile.org') !== -1) {
-      if (callback)
-        return callback();
-    }
-
     getAppScreenshotFromFrame(frame, function gotScreenshot(screenshot) {
       if (callback)
         callback(screenshot);
@@ -1042,19 +1036,6 @@ var WindowManager = (function() {
           src: iframe.src
         });
         iframe.dispatchEvent(evt);
-      }, true);
-
-      iframe.addEventListener('mozbrowserlocationchange', function onLoc(e) {
-        if (e.detail.indexOf('#x-moz-perf-user-ready') !== -1) {
-          iframe.removeEventListener('mozbrowserlocationchange', onLoc, true);
-
-          var evt = document.createEvent('CustomEvent');
-          evt.initCustomEvent('appuserready', true, false, {
-            time: parseInt(Date.now() - iframe.dataset.start),
-            type: 'app'
-          });
-          iframe.dispatchEvent(evt);
-        }
       }, true);
     }
 

@@ -19,8 +19,7 @@ var Cards = common.Cards,
     bindContainerHandler = common.bindContainerHandler,
     appendMatchItemTo = common.appendMatchItemTo,
     displaySubject = common.displaySubject,
-    prettyDate = common.prettyDate,
-    isFirstLoad = true;
+    prettyDate = common.prettyDate;
 
 /**
  * Try and keep at least this many display heights worth of undisplayed
@@ -908,12 +907,6 @@ MessageListCard.prototype = {
       starNode.classList.add('msg-header-star-starred');
     else
       starNode.classList.remove('msg-header-star-starred');
-
-    // Send hacky appRendered if this is the first time.
-    if (isFirstLoad) {
-      isFirstLoad = false;
-      window.location.replace('#x-moz-perf-user-ready');
-    }
   },
 
   updateMatchedMessageDom: function(firstTime, matchedHeader) {
