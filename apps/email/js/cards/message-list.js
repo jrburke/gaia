@@ -7,9 +7,10 @@ define([
   'mail-app',
   'api',
   'l10n',
+  'perf_helper',
   'css!style/message-cards'
 ], function (templateNode, msgHeaderItemNode, deleteConfirmMsgNode,
-   common, App, MailAPI, mozL10n) {
+   common, App, MailAPI, mozL10n, PerformanceTestingHelper) {
 
 var Cards = common.Cards,
     Toaster = common.Toaster,
@@ -223,6 +224,14 @@ function MessageListCard(domNode, mode, args) {
     this.showFolder(args.folder);
   else
     this.showSearch(args.folder, args.phrase || '', args.filter || 'all');
+
+  // The perf event should be sent when the first splice is generated, which
+  // should be triggered by the cached data for the inbox. If the cached data
+  // is not available, the event will fire as soon as any messages are
+  // provided to us by the back-end as a result of synchronization for initial
+  // sync, or when the batch load happens if we are priming the cache because
+  // this was an upgrade.
+  this._sentPerf = false;
 }
 MessageListCard.prototype = {
   /**
@@ -848,6 +857,11 @@ MessageListCard.prototype = {
     if (prevHeight) {
       this.scrollContainer.scrollTop +=
         (this.messagesContainer.clientHeight - prevHeight);
+    }
+
+    if (!this._sentPerf) {
+      this._sentPerf = true;
+      PerformanceTestingHelper.dispatch('startup-path-done');
     }
   },
 

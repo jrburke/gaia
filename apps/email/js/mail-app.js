@@ -30,6 +30,7 @@ require.config({
     jslocales: '../jslocales',
     l10nbase: '../../../shared/js/l10n',
     l10ndate: '../../../shared/js/l10n_date',
+    perf_helper: '../../../shared/js/performance_testing_helper',
     style: '../style',
     shared: '../../../shared',
 
@@ -42,7 +43,10 @@ require.config({
     }
   },
   shim: {
-    l10ndate: ['l10nbase']
+    l10ndate: ['l10nbase'],
+    perf_helper: {
+      exports: 'PerformanceTestingHelper'
+    }
   }
 });
 
@@ -207,6 +211,9 @@ var App = {
           // Mostly likely when the email app is updated from one that
           // did not have the fast path cookies set up.
           Cards.removeAllCards();
+
+          // Ask Cards to send perf event once the next pushCard is done.
+          Cards._sendPerfWhenCardPushed = true;
 
           Cards.pushCard(
             'setup-account-info', 'default', 'immediate',

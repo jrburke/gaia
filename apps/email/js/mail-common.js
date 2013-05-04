@@ -4,8 +4,9 @@
 /*jshint browser: true */
 /*global define, console, hookupInputAreaResetButtons */
 define(['require', 'exports', 'api', 'l10n', 'tmpl!./cards/toaster.html',
-        'value_selector', 'input_areas'],
-function (require, exports, MailAPI, mozL10n, toasterNode, ValueSelector) {
+        'value_selector', 'perf_helper', 'input_areas'],
+function (require, exports, MailAPI, mozL10n, toasterNode,
+        ValueSelector, PerformanceTestingHelper) {
 
 var Cards, Toaster;
 
@@ -240,6 +241,11 @@ Cards = {
    * Set by calling `eatEventsUntilNextCard`.
    */
   _eatingEventsUntilNextCard: false,
+  /**
+   * Set to true by other objects if a perf event should be triggered when the
+   * next _pushCard finishes.
+   */
+  _sendPerfWhenCardPushed: false,
 
   /**
    * Initialize and bind ourselves to the DOM which should now be fully loaded.
@@ -461,13 +467,11 @@ console.log('pushCard for type: ' + type);
       Cards.startedBackend = true;
       MailAPI.startBackend();
     }
-/*
-    // Send deliciously hacky "appRendered" event
-    if (Cards.sendAppRendered) {
-      Cards.sendAppRendered = false;
-      window.location.replace('#x-moz-perf-user-ready');
+
+    if (Cards._sendPerfWhenCardPushed) {
+      Cards._sendPerfWhenCardPushed = false;
+      PerformanceTestingHelper.dispatch('startup-path-done');
     }
-*/
   },
 
   _findCardUsingTypeAndMode: function(type, mode) {
