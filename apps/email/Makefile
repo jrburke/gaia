@@ -13,4 +13,4 @@ XPCSHELLSDK=../../xulrunner-sdk/bin/xpcshell
 endif
 
 concatenated_scripts:
-	$(XULRUNNERSDK) $(XPCSHELLSDK) ../../build/r.js -o build/email.build.js
+	$(XULRUNNERSDK) $(XPCSHELLSDK) ../../build/r.js -o build/email.build.js logLevel=4
