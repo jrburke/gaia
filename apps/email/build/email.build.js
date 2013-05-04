@@ -1,7 +1,7 @@
 {
-  "baseUrl": "../../apps/email/js",
-  "mainConfigFile": "../../apps/email/js/mail-app.js",
-  "out": "../../apps/email/js/mail-app-built.js",
+  "baseUrl": "../js",
+  "mainConfigFile": "../js/mail-app.js",
+  "out": "../js/mail-app-built.js",
 /*
   "wrap": {
     "start": "var _xstart = performance.now(); var _fromStart = _xstart - performance.timing.fetchStart;",
