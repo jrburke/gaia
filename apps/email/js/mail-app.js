@@ -191,7 +191,6 @@ var App = {
 
         // - no accounts, show the setup page!
         if (!Cards.hasCard(['setup-account-info', 'default'])) {
-
           if (activityCallback) {
             // Clear out activity callback, but do it
             // before calling activityCallback, in
@@ -225,8 +224,11 @@ var App = {
     };
 
     if (MailAPI.hasAccounts) {
-      // Insert a fake card while loading finishes.
+      // Insert a fake card while loading finishes, to give the appearance
+      // of something loading, and to shorten the time the page is white.
       insertedMessageList = true;
+
+      Cards.assertNoCards();
       Cards.pushCard(
         'message-list', 'nonsearch', 'immediate',
         { folder: null }
