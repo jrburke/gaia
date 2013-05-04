@@ -173,6 +173,9 @@ var App = {
           // did not have the fast path cookies set up.
           Cards.removeAllCards();
 
+          // Ask Cards to send perf event once the next pushCard is done.
+          Cards._sendPerfWhenCardPushed = true;
+
           Cards.pushCard(
             'setup-account-info', 'default', 'immediate',
             {
