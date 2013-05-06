@@ -2,8 +2,7 @@
 define([
   'tmpl!./settings-account-servers.html',
   'mail-common',
-  'l10n',
-  'css!style/setup-cards'
+  'l10n'
 ], function (templateNode, common, mozL10n) {
 
 var Cards = common.Cards;

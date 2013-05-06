@@ -3,8 +3,7 @@ define([
   'tmpl!./settings-main.html',
   'tmpl!./tng/account-item.html',
   'mail-common',
-  'api',
-  'css!style/setup-cards'
+  'api'
 ], function (templateNode, tngAccountItemNode, common, MailAPI) {
 
 var Cards = common.Cards;

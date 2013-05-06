@@ -5,8 +5,7 @@ define([
   'folder_depth_classes',
   'mail-common',
   'api',
-  'l10n',
-  'css!style/folder-cards'
+  'l10n'
 ], function (templateNode, fldFolderItemNode, FOLDER_DEPTH_CLASSES,
              common, MailAPI, mozL10n) {
 

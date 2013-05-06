@@ -1,8 +1,7 @@
 /*global define*/
 define([
   'tmpl!./setup-fix-password.html',
-  'mail-common',
-  'css!style/setup-cards'
+  'mail-common'
 ], function (templateNode, common) {
 
 var Cards = common.Cards;

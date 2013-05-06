@@ -6,8 +6,7 @@ define([
   'mail-common',
   'mail-app',
   'api',
-  'l10n',
-  'css!style/message-cards'
+  'l10n'
 ], function (templateNode, msgHeaderItemNode, deleteConfirmMsgNode,
    common, App, MailAPI, mozL10n) {
 

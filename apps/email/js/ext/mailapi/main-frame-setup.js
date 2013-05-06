@@ -1751,7 +1751,7 @@ MailAPI.prototype = {
     var cache = this._recvCache;
 
     var fakeMessage;
-    if (cache) {
+    if (cache && cache.accounts) {
       if (msg.type === 'viewAccounts') {
         fakeMessage = cache.accounts;
       } else if (msg.type === 'viewFolders' &&
@@ -1773,6 +1773,8 @@ MailAPI.prototype = {
           this._recv_sliceSplice(fakeMessage, true);
         }.bind(this));
       }
+    } else {
+      this.startBackend();
     }
   },
 
@@ -3067,9 +3069,12 @@ define('mailapi/main-frame-setup',
   MailAPI._fake = true;
 
   MailAPI.startBackend = function startBackend() {
-    require(['./main-frame-backend'], function (backend) {
-      backend(MailAPI);
-    });
+    if (!this._backendStarted) {
+      this._backendStarted = true;
+      require(['./main-frame-backend'], function (backend) {
+        backend(MailAPI);
+      });
+    }
   };
 
   return MailAPI;

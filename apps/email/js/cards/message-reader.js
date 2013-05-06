@@ -11,9 +11,7 @@ define([
   'api',
   'iframe-shims',
   'contacts',
-  'l10n',
-  'css!style/message-cards',
-  'css!style/compose-cards'
+  'l10n'
 ], function (templateNode, msgDeleteConfirmNode, msgContactMenuNode,
              msgBrowseConfirmNode, msgPeepBubbleNode, msgAttachmentItemNode,
              common, require, MailAPI, iframeShims, ContactDataManager,
