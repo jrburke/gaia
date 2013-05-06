@@ -12,5 +12,10 @@ XULRUNNERSDK=../../xulrunner-sdk/bin/run-mozilla.sh
 XPCSHELLSDK=../../xulrunner-sdk/bin/xpcshell
 endif
 
-concatenated_scripts:
+concatenated_scripts: shared
 	$(XULRUNNERSDK) $(XPCSHELLSDK) ../../build/r.js -o build/email.build.js logLevel=4
+	$(XULRUNNERSDK) $(XPCSHELLSDK) ../../build/r.js -o cssIn=style/mail.css out=style/mail-built.css logLevel=4
+
+shared:
+	cp -r ../../shared ./shared
+

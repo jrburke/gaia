@@ -3,7 +3,6 @@ define([
   'tmpl!./account-picker.html',
   'tmpl!./fld/account-item.html',
   'mail-common',
-  'css!style/folder-cards'
 ], function (templateNode, fldAccountItemNode, common) {
 
 var Cards = common.Cards,

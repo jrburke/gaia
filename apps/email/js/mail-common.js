@@ -527,7 +527,7 @@ console.log('pushCard for type: ' + type);
   folderSelector: function(callback) {
     var self = this;
 
-    require(['css!style/value_selector', 'value_selector'], function() {
+    require(['value_selector'], function() {
       // XXX: Unified folders will require us to make sure we get the folder list
       //      for the account the message originates from.
       if (!self.folderPrompt) {

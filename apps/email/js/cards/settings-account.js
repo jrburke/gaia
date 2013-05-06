@@ -6,8 +6,7 @@ define([
   'mail-common',
   'mail-app',
   './setup-l10n-map',
-  'l10n',
-  'css!style/setup-cards'
+  'l10n'
 ], function (templateNode, tngAccountSettingsServerNode,
    tngAccountDeleteConfirmNode, common, App, SETUP_ERROR_L10N_ID_MAP, mozL10n) {
 

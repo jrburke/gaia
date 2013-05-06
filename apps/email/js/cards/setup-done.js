@@ -2,8 +2,7 @@
 define([
   'tmpl!./setup-done.html',
   'mail-common',
-  'mail-app',
-  'css!style/setup-cards'
+  'mail-app'
 ], function (templateNode, common, App) {
 
 var Cards = common.Cards;

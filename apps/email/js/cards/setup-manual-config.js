@@ -3,8 +3,7 @@ define([
   'tmpl!./setup-manual-config.html',
   'mail-common',
   'mail-app',
-  './setup-account-info',
-  'css!style/setup-cards'
+  './setup-account-info'
 ], function (templateNode, common, App, SetupAccountInfoCard) {
 
 var Cards = common.Cards,

@@ -2,8 +2,7 @@
 define([
   'tmpl!./setup-fix-gmail-twofactor.html',
   'mail-common',
-  './setup-fix-password',
-  'css!style/setup-cards'
+  './setup-fix-password'
 ], function (templateNode, common, SetupFixPassword) {
 
 var Cards = common.Cards;

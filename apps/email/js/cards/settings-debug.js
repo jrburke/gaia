@@ -2,8 +2,7 @@
 define([
   'tmpl!./settings-debug.html',
   'mail-common',
-  'api',
-  'css!style/setup-cards'
+  'api'
 ], function (templateNode, common, MailAPI) {
 
 var Cards = common.Cards;

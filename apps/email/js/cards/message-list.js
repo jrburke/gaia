@@ -7,8 +7,7 @@ define([
   'mail-app',
   'api',
   'l10n',
-  'perf_helper',
-  'css!style/message-cards'
+  'perf_helper'
 ], function (templateNode, msgHeaderItemNode, deleteConfirmMsgNode,
    common, App, MailAPI, mozL10n, PerformanceTestingHelper) {
 
@@ -50,33 +49,11 @@ var MINIMUM_ITEMS_FOR_SCROLL_CALC = 10;
 var MAXIMUM_MS_BETWEEN_SNIPPET_REQUEST = 6000;
 
 /**
-<<<<<<< HEAD:apps/email/js/cards/message-list.js
-=======
  * Fetch up to 4kb while scrolling
  */
 var MAXIMUM_BYTES_PER_MESSAGE_DURING_SCROLL = 4 * 1024;
 
-/**
- * Format the message subject appropriately.  This means ensuring that if the
- * subject is empty, we use a placeholder string instead.
- *
- * @param {DOMElement} subjectNode the DOM node for the message's subject.
- * @param {Object} message the message object.
- */
-function displaySubject(subjectNode, message) {
-  var subject = message.subject && message.subject.trim();
-  if (subject) {
-    subjectNode.textContent = subject;
-    subjectNode.classList.remove('msg-no-subject');
-  }
-  else {
-    subjectNode.textContent = mozL10n.get('message-no-subject');
-    subjectNode.classList.add('msg-no-subject');
-  }
-}
-
-/**
->>>>>>> master:apps/email/js/message-cards.js
+/*
  * List messages for listing the contents of folders ('nonsearch' mode) and
  * searches ('search' mode).  Multi-editing is just a state of the card.
  *

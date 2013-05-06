@@ -1,3 +1,19 @@
+@import url('../shared/style/input_areas.css');
+@import url('../shared/style/headers.css');
+@import url('../shared/style/switches.css');
+@import url('../shared/style/buttons.css');
+@import url('../shared/style/status.css');
+@import url('../shared/style/confirm.css');
+@import url('../shared/style/action_menu.css');
+@import url('../shared/style/responsive.css');
+@import url('../shared/style_unstable/progress_activity.css');
+@import url('../shared/style_unstable/tabs.css');
+
+@import url('compose-cards.css');
+@import url('folder-cards.css');
+@import url('message-cards.css');
+@import url('setup-cards.css');
+
 /* Common/framework styling */
 
 .collapsed {
