@@ -497,6 +497,11 @@ var Cards = {
 
       this._showCard(cardIndex, showMethod, 'forward');
     }
+
+    if (this._releaseLoadEvent) {
+      this._releaseLoadEvent = false;
+      //document.mozStopDelayingLoadEvent();
+    }
   },
 
   _findCardUsingTypeAndMode: function(type, mode) {

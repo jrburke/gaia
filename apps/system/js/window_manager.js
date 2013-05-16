@@ -800,13 +800,15 @@ var WindowManager = (function() {
       // time)
       var type;
       if ('unloaded' in iframe.dataset) {
-        type = 'load';
+        type = 'mozbrowserloadend';
       } else {
         iframe.dataset.start = Date.now();
         type = 'appopen';
       }
 
       app.frame.addEventListener(type, function apploaded(e) {
+        //iframe.classList.remove('superhide');
+
         e.target.removeEventListener(e.type, apploaded, true);
 
         var evt = document.createEvent('CustomEvent');
@@ -991,6 +993,8 @@ var WindowManager = (function() {
     var iframe = frame.firstChild;
     frame.id = 'appframe' + nextAppId++;
     iframe.dataset.frameType = 'window';
+
+    //iframe.classList.add('superhide');
 
     // Give a name to the frame for differentiating between main frame and
     // inline frame. With the name we can get frames of the same app using the

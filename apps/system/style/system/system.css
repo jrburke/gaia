@@ -2,6 +2,10 @@ html {
   font-size: 10px;
 }
 
+body #windows > .appWindow > iframe.superhide {
+  /* visibility: hidden; */
+}
+
 body {
   width: 100%;
   height: 100%;
