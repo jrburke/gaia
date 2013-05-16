@@ -4,6 +4,8 @@
  **/
 
 // MailAPI is a global, set up by main-frame-setup.
+//document.mozDelayLoadEvent();
+
 
 var App = {
   initialized: false,
@@ -170,6 +172,8 @@ var App = {
           // Mostly likely when the email app is updated from one that
           // did not have the fast path cookies set up.
           Cards.removeAllCards();
+
+          Cards._releaseLoadEvent = true;
 
           Cards.pushCard(
             'setup-account-info', 'default', 'immediate',

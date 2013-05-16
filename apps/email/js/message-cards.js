@@ -827,6 +827,11 @@ MessageListCard.prototype = {
       this.scrollContainer.scrollTop +=
         (this.messagesContainer.clientHeight - prevHeight);
     }
+
+    if (!this._triggeredLoad) {
+      this._triggeredLoad = true;
+      //document.mozStopDelayingLoadEvent();
+    }
   },
 
   updateMessageDom: function(firstTime, message) {
