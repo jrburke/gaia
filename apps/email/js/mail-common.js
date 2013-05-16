@@ -500,7 +500,7 @@ var Cards = {
 
     if (this._releaseLoadEvent) {
       this._releaseLoadEvent = false;
-      //document.mozStopDelayingLoadEvent();
+      document.mozStopDelayingLoadEvent();
     }
   },
 
