@@ -41,7 +41,8 @@ function timeSink2() {
 }
 
 function run() {
-  console.log('starting test by preloading console overhead...');
+  document.mozDelayLoadEvent();
+  console.log('NEW starting test by preloading console overhead...');
 
   // First create a marker for the perf capture.
   timeSink();
@@ -49,24 +50,25 @@ function run() {
   var start = performance.now();
   // Try fastTick
   fastTick(function () {
-    console.log('FAST TICK DONE IN: ' + (performance.now() - start));
+    console.log('NEW FAST TICK DONE IN: ' + (performance.now() - start));
 
 timeSink2();
     // setTimeout on default granularity, should be 4ms?
     start = performance.now();
     setTimeout(function () {
-      console.log('DEFAULT SET TIMEOUT DONE IN: ' + (performance.now() - start));
+      console.log('NEW DEFAULT SET TIMEOUT DONE IN: ' + (performance.now() - start));
 
       // setTimeout on explicit granularity of 0 (should be upshifted by
       // platform to 4ms)
       start = performance.now();
       setTimeout(function () {
-        console.log('0 SET TIMEOUT DONE IN: ' + (performance.now() - start));
+        console.log('0 NEW SET TIMEOUT DONE IN: ' + (performance.now() - start));
 
         // setTimeout on explicit granularity of 4ms
         start = performance.now();
         setTimeout(function () {
-          console.log('4ms SET TIMEOUT DONE IN: ' + (performance.now() - start));
+          console.log('4ms NEW SET TIMEOUT DONE IN: ' + (performance.now() - start));
+          document.mozStopDelayingLoadEvent();
         }, 4);
 
       }, 0);

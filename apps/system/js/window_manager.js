@@ -800,7 +800,7 @@ var WindowManager = (function() {
       // time)
       var type;
       if ('unloaded' in iframe.dataset) {
-        type = 'mozbrowserloadend';
+        type = 'load';
       } else {
         iframe.dataset.start = Date.now();
         type = 'appopen';
