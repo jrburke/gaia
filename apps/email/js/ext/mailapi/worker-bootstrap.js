@@ -1384,6 +1384,7 @@ require.config({
     // Point chew methods to the chew layer
     'mailapi/htmlchew': 'mailapi/chewlayer',
     'mailapi/quotechew': 'mailapi/chewlayer',
+    'mailapi/mailchew': 'mailapi/chewlayer',
     'mailapi/imap/imapchew': 'mailapi/chewlayer',
 
     // Imap body fetching / parsing / sync
@@ -1391,6 +1392,10 @@ require.config({
     'mailapi/imap/protocol/textparser': 'mailapi/imap/protocollayer',
     'mailapi/imap/protocol/snippetparser': 'mailapi/imap/protocollayer',
     'mailapi/imap/protocol/bodyfetcher': 'mailapi/imap/protocollayer',
+
+    // 'tls' is actually in both the SMTP probe and IMAP probe, but the SMTP
+    // probe is much smaller, so if someone requests it outright, just use that.
+    'tls': 'mailapi/smtp/probe',
 
     // The imap probe layer also contains the imap module
     'imap': 'mailapi/imap/probe',
@@ -2882,6 +2887,11 @@ function simplifyInsaneObjects(obj, dtype, curDepth) {
 var COMPARE_DEPTH = 6;
 function boundedCmpObjs(a, b, depthLeft) {
   var aAttrCount = 0, bAttrCount = 0, key, nextDepth = depthLeft - 1;
+
+  if ('toJSON' in a)
+    a = a.toJSON();
+  if ('toJSON' in b)
+    b = b.toJSON();
 
   for (key in a) {
     aAttrCount++;
@@ -4912,23 +4922,25 @@ var tupleRangeIntersectsTupleRange = exports.tupleRangeIntersectsTupleRange =
   return true;
 };
 
+var EXPECTED_BLOCK_SIZE = 8;
+
 /**
  * What is the maximum number of bytes a block should store before we split
  * it?
  */
-var MAX_BLOCK_SIZE = 96 * 1024,
+var MAX_BLOCK_SIZE = EXPECTED_BLOCK_SIZE * 1024,
 /**
  * How many bytes should we target for the small part when splitting 1:2?
  */
-      BLOCK_SPLIT_SMALL_PART = 32 * 1024,
+      BLOCK_SPLIT_SMALL_PART = (EXPECTED_BLOCK_SIZE / 3) * 1024,
 /**
  * How many bytes should we target for equal parts when splitting 1:1?
  */
-      BLOCK_SPLIT_EQUAL_PART = 48 * 1024,
+      BLOCK_SPLIT_EQUAL_PART = (EXPECTED_BLOCK_SIZE / 2) * 1024,
 /**
  * How many bytes should we target for the large part when splitting 1:2?
  */
-      BLOCK_SPLIT_LARGE_PART = 64 * 1024;
+      BLOCK_SPLIT_LARGE_PART = (EXPECTED_BLOCK_SIZE / 1.5) * 1024;
 
 /**
  * How much progress in the range [0.0, 1.0] should we report for just having
@@ -8820,7 +8832,7 @@ FolderStorage.prototype = {
         callback(null);
       }
       catch (ex) {
-        this._log.callbackErr(ex);
+        this._LOG.callbackErr(ex);
       }
       return;
     }
@@ -10215,6 +10227,81 @@ exports.undo_download = function(op, callback) {
 };
 
 
+exports.local_do_downloadBodies = function(op, callback) {
+  callback(null);
+};
+
+exports.do_downloadBodies = function(op, callback) {
+  var aggrErr;
+  this._partitionAndAccessFoldersSequentially(
+    op.messages,
+    true,
+    function perFolder(folderConn, storage, headers, namers, callWhenDone) {
+      folderConn.downloadBodies(headers, op.options, function(err) {
+        if (err && !aggrErr) {
+          aggrErr = err;
+        }
+        callWhenDone();
+      });
+    },
+    function allDone() {
+      callback(aggrErr, null, true);
+    },
+    function deadConn() {
+      aggrErr = 'aborted-retry';
+    },
+    false, // reverse?
+    'downloadBodies',
+    true // require headers
+  );
+};
+
+
+exports.do_downloadBodyReps = function(op, callback) {
+  var self = this;
+  var idxLastSlash = op.messageSuid.lastIndexOf('/'),
+      folderId = op.messageSuid.substring(0, idxLastSlash);
+
+  var folderConn, folderStorage;
+  // Once we have the connection, get the current state of the body rep.
+  var gotConn = function gotConn(_folderConn, _folderStorage) {
+    folderConn = _folderConn;
+    folderStorage = _folderStorage;
+
+    folderStorage.getMessageHeader(op.messageSuid, op.messageDate, gotHeader);
+  };
+  var deadConn = function deadConn() {
+    callback('aborted-retry');
+  };
+
+  var gotHeader = function gotHeader(header) {
+    // header may have been deleted by the time we get here...
+    if (!header)
+      return callback();
+
+    folderConn.downloadBodyReps(header, onDownloadReps);
+  };
+
+  var onDownloadReps = function onDownloadReps(err, bodyInfo) {
+    if (err) {
+      console.error('Error downloading reps', err);
+      // fail we cannot download for some reason?
+      return callback('unknown');
+    }
+
+    // success
+    callback(null, bodyInfo, true);
+  };
+
+  self._accessFolderForMutation(folderId, true, gotConn, deadConn,
+                                'downloadBodyReps');
+};
+
+exports.local_do_downloadBodyReps = function(op, callback) {
+  callback(null);
+};
+
+
 exports.local_do_saveDraft = function(op, callback) {
   var localDraftsFolder = this.account.getFirstFolderWithType('localdrafts');
   if (!localDraftsFolder) {
@@ -11362,13 +11449,16 @@ define('encoding',['require','exports','module'],function(require, exports, modu
  */
 function checkEncoding(name){
     name = (name || "").toString().trim().toLowerCase().
+        // this handles aliases with dashes and underscores too; built-in
+        // aliase are only for latin1, latin2, etc.
         replace(/^latin[\-_]?(\d+)$/, "iso-8859-$1").
-        replace(/^win(?:dows)?[\-_]?(\d+)$/, "windows-$1").
+        // win949, win-949, ms949 => windows-949
+        replace(/^(?:(?:win(?:dows)?)|ms)[\-_]?(\d+)$/, "windows-$1").
         replace(/^utf[\-_]?(\d+)$/, "utf-$1").
-        replace(/^ks_c_5601\-1987$/, "windows-949"). // maps to euc-kr
         replace(/^us_?ascii$/, "ascii"); // maps to windows-1252
     return name;
 }
+exports.checkEncoding = checkEncoding;
 
 var ENCODER_OPTIONS = { fatal: false };
 
@@ -11810,11 +11900,11 @@ MailBridge.prototype = {
     proxy.sendSplice(0, 0, wireReps, true, false);
   },
 
-  _cmd_requestSnippets: function(msg) {
+  _cmd_requestBodies: function(msg) {
     var self = this;
-    this.universe.downloadSnippets(msg.messages, function() {
+    this.universe.downloadBodies(msg.messages, msg.options, function() {
       self.__sendMessage({
-        type: 'requestSnippetsComplete',
+        type: 'requestBodiesComplete',
         handle: msg.handle,
         requestId: msg.requestId
       });
@@ -12377,8 +12467,7 @@ MailBridge.prototype = {
             to: header.to,
             cc: header.cc,
             bcc: header.bcc,
-            // we abuse guid to serve as the references list...
-            referencesStr: header.guid,
+            referencesStr: body.references,
             attachments: attachments
           });
           callWhenDone();
@@ -13297,7 +13386,6 @@ var AUTOCONFIG_TIMEOUT_MS = 30 * 1000;
 
 var Configurators = {
   'imap+smtp': './composite/configurator',
-  'fake': './fake/configurator',
   'activesync': './activesync/configurator'
 };
 
@@ -13361,6 +13449,15 @@ var autoconfigByDomain = exports._autoconfigByDomain = {
       username: '%EMAILADDRESS%',
     },
   },
+  // like slocalhost, really just exists to generate a test failure
+  'saslocalhost': {
+    type: 'activesync',
+    displayName: 'Test',
+    incoming: {
+      server: 'https://localhost:443',
+      username: '%EMAILADDRESS%',
+    },
+  },
   // Mapping for a nonexistent domain for testing a bad domain without it being
   // detected ahead of time by the autoconfiguration logic or otherwise.
   'nonesuch.nonesuch': {
@@ -13372,9 +13469,6 @@ var autoconfigByDomain = exports._autoconfigByDomain = {
     smtpPort: 465,
     smtpCrypto: true,
     usernameIsFullEmail: false,
-  },
-  'example.com': {
-    type: 'fake',
   },
 };
 
@@ -14546,6 +14640,15 @@ MailUniverse.prototype = {
       callback('offline');
       return;
     }
+    if (!userDetails.forceCreate) {
+      for (var i = 0; i < this.accounts.length; i++) {
+        if (userDetails.emailAddress ===
+            this.accounts[i].identities[0].address) {
+          callback('user-account-exists');
+          return;
+        }
+      }
+    }
 
     if (domainInfo) {
       $acctcommon.tryToManuallyCreateAccount(this, userDetails, domainInfo,
@@ -15363,7 +15466,12 @@ MailUniverse.prototype = {
     );
   },
 
-  downloadSnippets: function(messages, callback) {
+  downloadBodies: function(messages, options, callback) {
+    if (typeof(options) === 'function') {
+      callback = options;
+      options = null;
+    }
+
     var self = this;
     var pending = 0;
 
@@ -15372,20 +15480,20 @@ MailUniverse.prototype = {
         callback();
       }
     }
-
     this._partitionMessagesByAccount(messages, null).forEach(function(x) {
       pending++;
       self._queueAccountOp(
         x.account,
         {
-          type: 'downloadSnippets',
+          type: 'downloadBodies',
           longtermId: 'session', // don't persist this job.
           lifecycle: 'do',
           localStatus: null,
           serverStatus: null,
           tryCount: 0,
-          humanOp: 'downloadSnippets',
-          messages: x.messages
+          humanOp: 'downloadBodies',
+          messages: x.messages,
+          options: options
         },
         next
       );

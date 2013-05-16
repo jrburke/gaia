@@ -37,12 +37,9 @@ var SleepMenu = {
     });
 
     var settings = navigator.mozSettings;
-    SettingsListener.observe('audio.volume.notification', 7, function(value) {
-      settings.createLock().set({'ring.enabled': (value != 0)});
-    });
 
-    SettingsListener.observe('ring.enabled', true, function(value) {
-      self.isSilentModeEnabled = !value;
+    SettingsListener.observe('audio.volume.notification', 7, function(value) {
+      self.isSilentModeEnabled = (value == 0);
     });
   },
 
@@ -103,6 +100,8 @@ var SleepMenu = {
     this.elements.container.innerHTML = '';
     this.buildMenu(this.generateItems());
     this.elements.overlay.classList.add('visible');
+    // Lock orientation to portrait
+    screen.mozLockOrientation('portrait-primary');
   },
 
   buildMenu: function sm_buildMenu(items) {
@@ -116,6 +115,9 @@ var SleepMenu = {
 
   hide: function lm_hide() {
     this.elements.overlay.classList.remove('visible');
+    // Reset the orientation for the currently running app
+    var currentApp = WindowManager.getDisplayedApp();
+    WindowManager.setOrientationForApp(currentApp);
   },
 
   handleEvent: function sm_handleEvent(evt) {
@@ -175,29 +177,17 @@ var SleepMenu = {
 
       // About silent and silentOff
       // * Turn on silent mode will cause:
-      //   * Turn off ringtone no matter if ring is on or off
-      //   * for sms and incoming calls.
+      //   send a custom event 'mute' to sound manager
       // * Turn off silent mode will cause:
-      //   * Turn on ringtone no matter if ring is on or off
-      //   * for sms and incoming calls.
+      //   send a custom event 'unmute' to sound manager
       case 'silent':
-        if (!window.navigator.mozSettings)
-          return;
-
-        SettingsListener.getSettingsLock().set({
-          'ring.enabled': false
-        });
+        window.dispatchEvent(new Event('mute'));
         this.isSilentModeEnabled = true;
 
         break;
 
       case 'silentOff':
-        if (!window.navigator.mozSettings)
-          return;
-
-        SettingsListener.getSettingsLock().set({
-          'ring.enabled': true
-        });
+        window.dispatchEvent(new Event('unmute'));
         this.isSilentModeEnabled = false;
 
         break;
@@ -242,7 +232,7 @@ var SleepMenu = {
       div.appendChild(elem);
       div.className = 'step1';
 
-      if (elem.tagName == 'VIDEO' && !elem.ended) {
+      if (elem.tagName.toLowerCase() == 'video' && !elem.ended) {
         elem.onended = function() {
           elem.classList.add('hide');
           // XXX workaround of bug 831747
@@ -254,11 +244,13 @@ var SleepMenu = {
       } else {
         div.addEventListener('animationend', function() {
           elem.classList.add('hide');
-          // XXX workaround of bug 831747
-          // Unload the video. This releases the video decoding hardware
-          // so other apps can use it.
-          elem.removeAttribute('src');
-          elem.load();
+          if (elem.tagName.toLowerCase() == 'video') {
+              // XXX workaround of bug 831747
+              // Unload the video. This releases the video decoding hardware
+              // so other apps can use it.
+              elem.removeAttribute('src');
+              elem.load();
+          }
         });
       }
 
@@ -305,15 +297,13 @@ var SleepMenu = {
   _actualPowerOff: function sm_actualPowerOff(isReboot) {
     var power = navigator.mozPower;
 
-    setTimeout(function() {
-      if (isReboot) {
-        power.reboot();
-      } else {
-        power.powerOff();
-      }
-    });
     // Paint screen to black before reboot/poweroff
     ScreenManager.turnScreenOff(true);
+    if (isReboot) {
+      power.reboot();
+    } else {
+      power.powerOff();
+    }
   }
 };
 

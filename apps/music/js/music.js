@@ -10,6 +10,7 @@ var playlistTitle;
 var artistTitle;
 var albumTitle;
 var songTitle;
+var pickerTitle;
 var unknownAlbum;
 var unknownArtist;
 var unknownTitle;
@@ -19,9 +20,20 @@ var recentlyAddedTitle;
 var mostPlayedTitle;
 var leastPlayedTitle;
 
+var unknownTitleL10nId = 'unknownTitle';
+var unknownArtistL10nId = 'unknownArtist';
+var unknownAlbumL10nId = 'unknownAlbum';
+var shuffleAllTitleL10nId = 'playlists-shuffle-all';
+var highestRatedTitleL10nId = 'playlists-highest-rated';
+var recentlyAddedTitleL10nId = 'playlists-recently-added';
+var mostPlayedTitleL10nId = 'playlists-most-played';
+var leastPlayedTitleL10nId = 'playlists-least-played';
+
 // The MediaDB object that manages the filesystem and the database of metadata
 // See init()
 var musicdb;
+// Pick activity
+var pendingPick;
 
 // We get a localized event when the application is launched and when
 // the user switches languages.
@@ -36,22 +48,55 @@ window.addEventListener('localized', function onlocalized() {
   artistTitle = navigator.mozL10n.get('artists');
   albumTitle = navigator.mozL10n.get('albums');
   songTitle = navigator.mozL10n.get('songs');
-  unknownAlbum = navigator.mozL10n.get('unknownAlbum');
-  unknownArtist = navigator.mozL10n.get('unknownArtist');
-  unknownTitle = navigator.mozL10n.get('unknownTitle');
-  shuffleAllTitle = navigator.mozL10n.get('playlists-shuffle-all');
-  highestRatedTitle = navigator.mozL10n.get('playlists-highest-rated');
-  recentlyAddedTitle = navigator.mozL10n.get('playlists-recently-added');
-  mostPlayedTitle = navigator.mozL10n.get('playlists-most-played');
-  leastPlayedTitle = navigator.mozL10n.get('playlists-least-played');
-
-  // <body> children are hidden until the UI is translated
-  document.body.classList.remove('invisible');
+  pickerTitle = navigator.mozL10n.get('picker-title');
+  unknownAlbum = navigator.mozL10n.get(unknownAlbumL10nId);
+  unknownArtist = navigator.mozL10n.get(unknownArtistL10nId);
+  unknownTitle = navigator.mozL10n.get(unknownTitleL10nId);
+  shuffleAllTitle = navigator.mozL10n.get(shuffleAllTitleL10nId);
+  highestRatedTitle = navigator.mozL10n.get(highestRatedTitleL10nId);
+  recentlyAddedTitle = navigator.mozL10n.get(recentlyAddedTitleL10nId);
+  mostPlayedTitle = navigator.mozL10n.get(mostPlayedTitleL10nId);
+  leastPlayedTitle = navigator.mozL10n.get(leastPlayedTitleL10nId);
 
   // The first time we get this event we start running the application.
   // But don't re-initialize if the user switches languages while we're running.
-  if (!musicdb)
+  if (!musicdb) {
     init();
+
+    TitleBar.init();
+    TilesView.init();
+    ListView.init();
+    SubListView.init();
+    SearchView.init();
+    TabBar.init();
+
+    // If the URL contains '#pick', we will handle the pick activity
+    // or just start the Music app from Mix page
+    if (document.URL.indexOf('#pick') !== -1) {
+      navigator.mozSetMessageHandler('activity', function activityHandler(a) {
+        var activityName = a.source.name;
+
+        if (activityName === 'pick') {
+          pendingPick = a;
+        }
+      });
+
+      TabBar.option = 'title';
+      ModeManager.start(MODE_PICKER);
+    } else {
+      TabBar.option = 'mix';
+      ModeManager.start(MODE_TILES);
+
+      // The done button must be removed when we are not in picker mode
+      // because the rules of the header building blocks
+      var doneButton = document.getElementById('title-done');
+      doneButton.parentNode.removeChild(doneButton);
+    }
+  } else {
+    ModeManager.updateTitle();
+  }
+
+  TabBar.playlistArray.localize();
 });
 
 // We use this flag when switching views. We want to hide the scan progress
@@ -151,7 +196,9 @@ function init() {
   musicdb.oncreated = function(event) {
     var currentMode = ModeManager.currentMode;
     if (scanning && !displayingScanProgress &&
-        (currentMode === MODE_TILES || currentMode === MODE_LIST))
+        (currentMode === MODE_TILES ||
+         currentMode === MODE_LIST ||
+         currentMode === MODE_PICKER))
     {
       displayingScanProgress = true;
       scanProgress.classList.remove('hidden');
@@ -240,9 +287,30 @@ function showOverlay(id) {
   var title = navigator.mozL10n.get(id + '-title');
   var text = navigator.mozL10n.get(id + '-text');
 
-  document.getElementById('overlay-title').textContent = title;
-  document.getElementById('overlay-text').textContent = text;
+  var titleElement = document.getElementById('overlay-title');
+  var textElement = document.getElementById('overlay-text');
+
+  titleElement.textContent = title;
+  titleElement.dataset.l10nId = id + '-title';
+  textElement.textContent = text;
+  textElement.dataset.l10nId = id + '-text';
+
   document.getElementById('overlay').classList.remove('hidden');
+}
+
+// To display a correct overlay, we need to record the known songs from musicdb
+var knownSongs = [];
+
+function showCorrectOverlay() {
+  // If we don't know about any songs, display the 'empty' overlay.
+  // If we do know about songs and the 'empty overlay is being displayed
+  // then hide it.
+  if (knownSongs.length > 0) {
+    if (currentOverlay === 'empty')
+      showOverlay(null);
+  } else {
+    showOverlay('empty');
+  }
 }
 
 // We need handles here to cancel enumerations for
@@ -253,45 +321,73 @@ var sublistHandle = null;
 var playerHandle = null;
 
 function showCurrentView(callback) {
-  // Enumerate existing song entries in the database
-  // List them all, and sort them in ascending order by album.
-  // Use enumerateAll() here so that we get all the results we want
-  // and then pass them synchronously to the update() functions.
-  // If we do it asynchronously, then we'll get one redraw for
-  // every song.
-  if (ModeManager.currentMode === MODE_LIST) {
-    listHandle =
-      musicdb.enumerateAll('metadata.' + TabBar.option, null, 'nextunique',
-                           function(songs) {
-                             ListView.clean();
-                             songs.forEach(function(song) {
-                               ListView.update(TabBar.option, song);
-                             });
-                           });
-  }
+  // We will need getThumbnailURL()
+  // to display thumbnails in TilesView
+  // it's possibly not loaded so load it
+  LazyLoader.load('js/metadata_scripts.js', function() {
+    // If it's in picking mode we will just enumerate all the songs
+    // and don't need to enumerate data for TilesView
+    // because mix page is not needed in picker mode
+    if (pendingPick) {
+      ListView.clean();
 
-  tilesHandle = musicdb.enumerateAll('metadata.album', null, 'nextunique',
-                                     function(songs) {
-                                       // Add null to the array of songs
-                                       // this is a flag that tells update()
-                                       // to show or hide the 'empy' overlay
-                                       songs.push(null);
-                                       TilesView.clean();
+      listHandle =
+        musicdb.enumerate('metadata.' + TabBar.option, null, 'nextunique',
+                          function(song) {
+                            ListView.update(TabBar.option, song);
+                            // Push the song to knownSongs then
+                            // we can display a correct overlay
+                            knownSongs.push(song);
+                          });
 
-                                       // We will need getThumbnailURL()
-                                       // to display thumbnails in TilesView
-                                       // it's possibly not loaded so load it
-                                       LazyLoader.load('js/metadata_scripts.js',
-                                         function() {
-                                           songs.forEach(function(song) {
-                                             TilesView.update(song);
-                                           });
-                                           if (callback)
-                                             callback();
-                                         }
-                                       );
-                                    });
+      if (callback)
+        callback();
 
+      return;
+    }
+
+    // If music is not in tiles mode and showCurrentView is called
+    // that might be an user has mount/unmount his sd card
+    // and modified the songs so musicdb will be updated
+    // then we should update the list view if music app is in list mode
+    if (ModeManager.currentMode === MODE_LIST && TabBar.option !== 'playlist')
+    {
+      ListView.clean();
+
+      listHandle =
+        musicdb.enumerate('metadata.' + TabBar.option, null, 'nextunique',
+                          function(song) {
+                            ListView.update(TabBar.option, song);
+                          });
+    }
+
+    // Enumerate existing song entries in the database
+    // List them all, and sort them in ascending order by album.
+    // Use enumerateAll() here so that we get all the results we want
+    // and then pass them synchronously to the update() functions.
+    // If we do it asynchronously, then we'll get one redraw for
+    // every song.
+    // * Note that we need to update tiles view every time this happens
+    // because it's the top level page and an independent view
+    tilesHandle = musicdb.enumerateAll('metadata.album', null, 'nextunique',
+                                       function(songs) {
+                                         // Add null to the array of songs
+                                         // this is a flag that tells update()
+                                         // to show or hide the 'empty' overlay
+                                         songs.push(null);
+                                         TilesView.clean();
+
+                                         songs.forEach(function(song) {
+                                           TilesView.update(song);
+                                           // Push the song to knownSongs then
+                                           // we can display a correct overlay
+                                           knownSongs.push(song);
+                                         });
+
+                                         if (callback)
+                                            callback();
+                                      });
+  });
 }
 
 // This Application has five modes: TILES, SEARCH, LIST, SUBLIST, and PLAYER
@@ -307,11 +403,11 @@ var MODE_SUBLIST = 3;
 var MODE_PLAYER = 4;
 var MODE_SEARCH_FROM_TILES = 5;
 var MODE_SEARCH_FROM_LIST = 6;
+var MODE_PICKER = 7;
 
 var ModeManager = {
   _modeStack: [],
   playerTitle: null,
-  sublistTitle: null,
 
   get currentMode() {
     return this._modeStack[this._modeStack.length - 1];
@@ -342,6 +438,7 @@ var ModeManager = {
         title = this.playerTitle || musicTitle;
         break;
       case MODE_LIST:
+      case MODE_SUBLIST:
         switch (TabBar.option) {
           case 'playlist':
             title = playlistTitle;
@@ -356,14 +453,12 @@ var ModeManager = {
             title = songTitle;
             break;
         }
-
-        this.sublistTitle = title;
-        break;
-      case MODE_SUBLIST:
-        title = this.sublistTitle;
         break;
       case MODE_PLAYER:
-        title = this.playerTitle;
+        title = this.playerTitle || unknownTitle;
+        break;
+      case MODE_PICKER:
+        title = pickerTitle;
         break;
     }
 
@@ -394,7 +489,7 @@ var ModeManager = {
           callback();
       });
     } else {
-      if (mode === MODE_LIST)
+      if (mode === MODE_LIST || mode === MODE_PICKER)
         document.getElementById('views-list').classList.remove('hidden');
       else if (mode === MODE_SUBLIST)
         document.getElementById('views-sublist').classList.remove('hidden');
@@ -406,9 +501,15 @@ var ModeManager = {
         callback();
     }
 
+    // We have to show the done button when we are in picker mode
+    // and previewing the selecting song
+    if (pendingPick)
+      document.getElementById('title-done').hidden = (mode !== MODE_PLAYER);
+
     // Remove all mode classes before applying a new one
     var modeClasses = ['tiles-mode', 'list-mode', 'sublist-mode', 'player-mode',
-                       'search-from-tiles-mode', 'search-from-list-mode'];
+                       'search-from-tiles-mode', 'search-from-list-mode',
+                       'picker-mode'];
 
     modeClasses.forEach(function resetMode(targetClass) {
       document.body.classList.remove(targetClass);
@@ -455,6 +556,13 @@ var TitleBar = {
 
   handleEvent: function tb_handleEvent(evt) {
     var target = evt.target;
+
+    function cleanupPick() {
+      PlayerView.stop();
+      PlayerView.clean();
+      ModeManager.playerTitle = null;
+    }
+
     switch (evt.type) {
       case 'click':
         if (!target)
@@ -462,6 +570,15 @@ var TitleBar = {
 
         switch (target.id) {
           case 'title-back':
+            if (pendingPick) {
+              if (ModeManager.currentMode === MODE_PICKER) {
+                pendingPick.postError('pick cancelled');
+                return;
+              }
+
+              cleanupPick();
+            }
+
             ModeManager.pop();
 
             break;
@@ -471,6 +588,14 @@ var TitleBar = {
             if (PlayerView.dataSource.length != 0)
               ModeManager.push(MODE_PLAYER);
 
+            break;
+          case 'title-done':
+            pendingPick.postResult({
+              type: PlayerView.playingBlob.type,
+              blob: PlayerView.playingBlob
+            });
+
+            cleanupPick();
             break;
         }
 
@@ -547,17 +672,7 @@ var TilesView = {
     TabBar.setDisabled(!this.dataSource.length);
 
     if (result === null) {
-      // If we don't know about any songs, display the 'empty' overlay.
-      // If we do know about songs and the 'empty overlay is being displayed
-      // then hide it.
-      if (this.dataSource.length > 0) {
-        if (currentOverlay === 'empty')
-          showOverlay(null);
-      }
-      else {
-        showOverlay('empty');
-      }
-
+      showCorrectOverlay();
       // Display the TilesView after when finished updating the UI
       document.getElementById('views-tiles').classList.remove('hidden');
       // After the hidden class is removed, hideSearch can be effected
@@ -584,7 +699,10 @@ var TilesView = {
     var albumName = document.createElement('div');
     albumName.className = 'tile-title-album';
     artistName.textContent = result.metadata.artist || unknownArtist;
+    artistName.dataset.l10nId =
+      result.metadata.artist ? '' : unknownArtistL10nId;
     albumName.textContent = result.metadata.album || unknownAlbum;
+    albumName.dataset.l10nId = result.metadata.album ? '' : unknownAlbumL10nId;
     titleBar.appendChild(artistName);
 
     // There are 6 tiles in one group
@@ -760,7 +878,14 @@ function createListElement(option, data, index, highlight) {
     case 'playlist':
       var titleSpan = document.createElement('span');
       titleSpan.className = 'list-playlist-title';
-      titleSpan.textContent = data.metadata.title || unknownTitle;
+      if (data.metadata.l10nId) {
+        titleSpan.textContent = data.metadata.title;
+        titleSpan.dataset.l10nId = data.metadata.l10nId;
+      } else {
+        titleSpan.textContent = data.metadata.title || unknownTitle;
+        titleSpan.dataset.l10nId =
+          data.metadata.title ? '' : unknownTitleL10nId;
+      }
 
       a.dataset.keyRange = 'all';
       a.dataset.option = data.option;
@@ -793,6 +918,8 @@ function createListElement(option, data, index, highlight) {
         var artistSpan = document.createElement('span');
         artistSpan.className = 'list-single-title';
         artistSpan.textContent = data.metadata.artist || unknownArtist;
+        artistSpan.dataset.l10nId =
+          data.metadata.artist ? '' : unknownArtistL10nId;
 
         // Highlight the text when the highlight argument is passed
         // This should only happens when we are creating searched results
@@ -807,10 +934,16 @@ function createListElement(option, data, index, highlight) {
         artistSpan.className = 'list-sub-title';
         if (option === 'album') {
           albumOrTitleSpan.textContent = data.metadata.album || unknownAlbum;
+          albumOrTitleSpan.dataset.l10nId =
+            data.metadata.album ? '' : unknownAlbumL10nId;
         } else {
           albumOrTitleSpan.textContent = data.metadata.title || unknownTitle;
+          albumOrTitleSpan.dataset.l10nId =
+            data.metadata.title ? '' : unknownTitleL10nId;
         }
         artistSpan.textContent = data.metadata.artist || unknownArtist;
+        artistSpan.dataset.l10nId =
+          data.metadata.artist ? '' : unknownArtistL10nId;
 
         // Highlight the text when the highlight argument is passed
         // This should only happens when we are creating searched results
@@ -838,6 +971,7 @@ function createListElement(option, data, index, highlight) {
       var titleSpan = document.createElement('span');
       titleSpan.className = 'list-song-title';
       titleSpan.textContent = songTitle;
+      titleSpan.dataset.l10nId = data.metadata.title ? '' : unknownTitleL10nId;
 
       var lengthSpan = document.createElement('span');
       lengthSpan.className = 'list-song-length';
@@ -914,8 +1048,10 @@ var ListView = {
   },
 
   update: function lv_update(option, result) {
-    if (result === null)
+    if (result === null) {
+      showCorrectOverlay();
       return;
+    }
 
     this.dataSource.push(result);
 
@@ -1096,8 +1232,9 @@ var SubListView = {
     };
   },
 
-  setAlbumName: function slv_setAlbumName(name) {
+  setAlbumName: function slv_setAlbumName(name, l10nId) {
     this.albumName.textContent = name;
+    this.albumName.dataset.l10nId = l10nId;
   },
 
   activate: function(option, data, index, keyRange, direction, callback) {
@@ -1107,16 +1244,24 @@ var SubListView = {
     sublistHandle = musicdb.enumerateAll(targetOption, keyRange, direction,
                                          function lv_enumerateAll(dataArray) {
       var albumName;
+      var albumNameL10nId;
 
       if (option === 'artist') {
         albumName = data.metadata.artist || unknownArtist;
+        albumNameL10nId = data.metadata.artist ? '' : unknownArtistL10nId;
       } else if (option === 'album') {
         albumName = data.metadata.album || unknownAlbum;
+        albumNameL10nId = data.metadata.album ? '' : unknownAlbumL10nId;
       } else {
         albumName = data.metadata.title || unknownTitle;
+        albumNameL10nId = data.metadata.title ? '' : unknownTitleL10nId;
       }
 
-      SubListView.setAlbumName(albumName);
+      // Overrides l10nId.
+      if (data.metadata.l10nId)
+        albumNameL10nId = data.metadata.l10nId;
+
+      SubListView.setAlbumName(albumName, albumNameL10nId);
       SubListView.setAlbumDefault(index);
       SubListView.dataSource = dataArray;
 
@@ -1273,14 +1418,18 @@ var SearchView = {
       }
     }
 
-    this.searchHandles.artist = musicdb.enumerate(
-      'metadata.artist', null, 'nextunique',
-      sv_showResult.bind(this, 'artist')
-    );
-    this.searchHandles.album = musicdb.enumerate(
-      'metadata.album', null, 'nextunique',
-      sv_showResult.bind(this, 'album')
-    );
+    // Only shows the search results of tracks when it's in picker mode
+    if (!pendingPick) {
+      this.searchHandles.artist = musicdb.enumerate(
+        'metadata.artist', null, 'nextunique',
+        sv_showResult.bind(this, 'artist')
+      );
+      this.searchHandles.album = musicdb.enumerate(
+        'metadata.album', null, 'nextunique',
+        sv_showResult.bind(this, 'album')
+      );
+    }
+
     this.searchHandles.title = musicdb.enumerate(
       'metadata.title',
       sv_showResult.bind(this, 'title')
@@ -1347,6 +1496,22 @@ var SearchView = {
 
 // Tab Bar
 var TabBar = {
+  // this array is for automated playlists
+  playlistArray: [
+    {metadata: {title: shuffleAllTitle,
+      l10nId: shuffleAllTitleL10nId}, option: 'shuffleAll'},
+    {metadata: {title: highestRatedTitle,
+      l10nId: highestRatedTitleL10nId}, option: 'rated'},
+    {metadata: {title: recentlyAddedTitle,
+      l10nId: recentlyAddedTitleL10nId}, option: 'date'},
+    {metadata: {title: mostPlayedTitle,
+      l10nId: mostPlayedTitleL10nId}, option: 'played'},
+    {metadata: {title: leastPlayedTitle,
+      l10nId: leastPlayedTitleL10nId}, option: 'played'},
+    // update ListView with null result to hide the scan progress
+    null
+  ],
+
   get view() {
     delete this._view;
     return this._view = document.getElementById('tabs');
@@ -1355,6 +1520,17 @@ var TabBar = {
   init: function tab_init() {
     this.option = '';
     this.view.addEventListener('click', this);
+
+    this.playlistArray.localize = function() {
+      this.forEach(function(playList) {
+        if (playList) {
+          var metadata = playList.metadata;
+          if (metadata && metadata.l10nId) {
+            metadata.title = navigator.mozL10n.get(metadata.l10nId);
+          }
+        }
+      });
+    };
   },
 
   setDisabled: function tab_setDisabled(option) {
@@ -1389,18 +1565,7 @@ var TabBar = {
             ModeManager.start(MODE_LIST);
             ListView.clean();
 
-            // this array is for automated playlists
-            var playlistArray = [
-              {metadata: {title: shuffleAllTitle}, option: 'shuffleAll'},
-              {metadata: {title: highestRatedTitle}, option: 'rated'},
-              {metadata: {title: recentlyAddedTitle}, option: 'date'},
-              {metadata: {title: mostPlayedTitle}, option: 'played'},
-              {metadata: {title: leastPlayedTitle}, option: 'played'},
-              // update ListView with null result to hide the scan progress
-              null
-            ];
-
-            playlistArray.forEach(function(playlist) {
+            this.playlistArray.forEach(function(playlist) {
               ListView.update(this.option, playlist);
             }.bind(this));
 
@@ -1426,16 +1591,3 @@ var TabBar = {
     }
   }
 };
-
-// Application start from here after 'DOMContentLoaded' event is fired.
-// Initialize the view objects and default mode is TILES.
-window.addEventListener('DOMContentLoaded', function() {
-  TitleBar.init();
-  TilesView.init();
-  ListView.init();
-  SubListView.init();
-  SearchView.init();
-  TabBar.init();
-
-  ModeManager.start(MODE_TILES);
-});

@@ -172,12 +172,25 @@ ol.link-list li:only-child a {
   padding-right: 4rem;
 }
 
+#advanced-settings-view .account-list .error a {
+  background: transparent url('icons/accountwarning_30x30.png') no-repeat left;
+  padding-left: 3.5rem;
+}
+
 #advanced-settings-view .preset:after {
   content: ' - '
 }
 
 #advanced-settings-view .user {
   width: 50%;
+}
+
+#advanced-settings-view header.account-list-header.active {
+  display: block;
+}
+
+#advanced-settings-view header.account-list-header {
+  display: none;
 }
 
 /* create account view */

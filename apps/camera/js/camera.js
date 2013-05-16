@@ -95,6 +95,8 @@ var DCFApi = (function() {
 
 })();
 
+var screenLock = null;
+var returnToCamera = true;
 var Camera = {
   _cameras: null,
   _camera: 0,
@@ -122,7 +124,6 @@ var Camera = {
   _cameraProfile: null,
 
   _resumeViewfinderTimer: null,
-  _waitingToGenerateThumb: false,
 
   _styleSheet: document.styleSheets[0],
   _orientationRule: null,
@@ -145,8 +146,18 @@ var Camera = {
   PREVIEW_PAUSE: 500,
   FILMSTRIP_DURATION: 5000, // show filmstrip for 5s before fading
 
-  _flashModes: [],
-  _currentFlashMode: 0,
+  _flashState: {
+    camera: {
+      supported: false,
+      modes: ['off', 'auto', 'on'],
+      currentMode: 1 // default flash mode is 'auto'
+    },
+    video: {
+      supported: false,
+      modes: ['off', 'torch'],
+      currentMode: 0
+    }
+  },
 
   _config: {
     fileFormat: 'jpeg'
@@ -269,10 +280,7 @@ var Camera = {
 
     // Dont let the phone go to sleep while the camera is
     // active, user must manually close it
-    if (navigator.requestWakeLock) {
-      navigator.requestWakeLock('screen');
-    }
-
+    this.screenWakeLock();
     this.setToggleCameraStyle();
 
     // We lock the screen orientation and deal with rotating
@@ -344,6 +352,24 @@ var Camera = {
     DCFApi.init();
   },
 
+  screenTimeout: function camera_screenTimeout() {
+    if (screenLock && !returnToCamera) {
+      screenLock.unlock();
+      screenLock = null;
+    }
+  },
+  screenWakeLock: function camera_screenWakeLock() {
+    if (!screenLock && returnToCamera) {
+      screenLock = navigator.requestWakeLock('screen');
+    }
+  },
+  setReturnToCamera: function camera_setReturnToCamera() {
+    returnToCamera = true;
+  },
+  resetReturnToCamera: function camera_resetReturnToCamera() {
+    returnToCamera = false;
+  },
+
   enableButtons: function camera_enableButtons() {
     if (!this._pendingPick) {
       this.switchButton.removeAttribute('disabled');
@@ -386,6 +412,7 @@ var Camera = {
     var newMode = (this.captureMode === this.CAMERA) ? this.VIDEO : this.CAMERA;
     this.disableButtons();
     this.setCaptureMode(newMode);
+    this.updateFlashUI();
 
     function gotPreviewStream(stream) {
       this.viewfinder.mozSrcObject = stream;
@@ -413,17 +440,25 @@ var Camera = {
     this.toggleButton.setAttribute('data-mode', modeName);
   },
 
-  toggleFlash: function camera_toggleFlash() {
-    if (this._currentFlashMode === this._flashModes.length - 1) {
-      this._currentFlashMode = 0;
+  updateFlashUI: function camera_updateFlashUI() {
+    var flash = this._flashState[this.captureMode];
+    if (flash.supported) {
+      this.setFlashMode();
+      this.toggleFlashBtn.classList.remove('hidden');
     } else {
-      this._currentFlashMode = this._currentFlashMode + 1;
+      this.toggleFlashBtn.classList.add('hidden');
     }
+  },
+
+  toggleFlash: function camera_toggleFlash() {
+    var flash = this._flashState[this.captureMode];
+    flash.currentMode = (flash.currentMode + 1) % flash.modes.length;
     this.setFlashMode();
   },
 
   setFlashMode: function camera_setFlashMode() {
-    var flashModeName = this._flashModes[this._currentFlashMode];
+    var flash = this._flashState[this.captureMode];
+    var flashModeName = flash.modes[flash.currentMode];
     this.toggleFlashBtn.setAttribute('data-mode', flashModeName);
     this._cameraObj.flashMode = flashModeName;
   },
@@ -525,23 +560,22 @@ var Camera = {
   stopRecording: function camera_stopRecording() {
     this._cameraObj.stopRecording();
     this._recording = false;
+
+    // Register a listener for writing completion of current video file
+    (function(videoStorage, videofile) {
+      videoStorage.addEventListener('change', function changeHandler(e) {
+        if (e.reason === 'modified' && e.path === videofile) {
+          Filmstrip.addVideo(videofile);
+          Filmstrip.show(Camera.FILMSTRIP_DURATION);
+          // Un-register the listener itself
+          videoStorage.removeEventListener('change', changeHandler);
+        }
+      });
+    })(this._videoStorage, this._videoPath);
+
     window.clearInterval(this._videoTimer);
     this.enableButtons();
     document.body.classList.remove('capturing');
-
-    // XXX
-    // I need some way to know when the camera is done writing this file
-    // currently I'm sending this to the filmstrip which is trying to
-    // determine its rotation and fails sometimes if the file is not
-    // yet complete.  For now, I just defer for a second, but
-    // there ought to be a better way.
-    // See https://bugzilla.mozilla.org/show_bug.cgi?id=817367
-    // Maybe I'll get a device storage callback... check this.
-    var videofile = this._videoPath;
-    setTimeout(function() {
-      Filmstrip.addVideo(videofile);
-      Filmstrip.show(Camera.FILMSTRIP_DURATION);
-    }, 1000);
   },
 
   formatTimer: function camera_formatTimer(time) {
@@ -549,6 +583,10 @@ var Camera = {
     var seconds = Math.round(time % 60);
     if (minutes < 60) {
       return padLeft(minutes, 2) + ':' + padLeft(seconds, 2);
+    } else {
+      var hours = Math.floor(minutes / 60);
+      minutes = Math.round(minutes % 60);
+      return hours + ':' + padLeft(minutes, 2) + ':' + padLeft(seconds, 2);
     }
     return '';
   },
@@ -711,16 +749,33 @@ var Camera = {
       this.toggleButton.classList.add('hidden');
     }
 
-    this._flashModes = capabilities.flashModes;
-    if (this._flashModes) {
-      this.setFlashMode();
-      this.toggleFlashBtn.classList.remove('hidden');
+    // For checking flash support
+    function isSubset(subset, set) {
+      for (var i = 0; i < subset.length; i++) {
+        if (set.indexOf(subset[i]) == -1)
+          return false;
+      }
+      return true;
+    }
+
+    var flashModes = capabilities.flashModes;
+    if (flashModes) {
+      // Check camera flash support
+      var flash = this._flashState[this.CAMERA];
+      flash.supported = isSubset(flash.modes, flashModes);
+
+      // Check video flash support
+      flash = this._flashState[this.VIDEO];
+      flash.supported = isSubset(flash.modes, flashModes);
+
+      this.updateFlashUI();
     } else {
       this.toggleFlashBtn.classList.add('hidden');
     }
   },
 
   startPreview: function camera_startPreview() {
+    this.screenWakeLock();
     this.viewfinder.play();
     this.loadCameraPreview(this._camera, this.previewEnabled.bind(this));
     this._previewActive = true;
@@ -732,6 +787,7 @@ var Camera = {
   },
 
   stopPreview: function camera_stopPreview() {
+    this.screenTimeout();
     if (this._recording) {
       this.stopRecording();
     }

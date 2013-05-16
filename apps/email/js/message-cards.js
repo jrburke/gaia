@@ -31,6 +31,11 @@ var MINIMUM_ITEMS_FOR_SCROLL_CALC = 10;
 var MAXIMUM_MS_BETWEEN_SNIPPET_REQUEST = 6000;
 
 /**
+ * Fetch up to 4kb while scrolling
+ */
+var MAXIMUM_BYTES_PER_MESSAGE_DURING_SCROLL = 4 * 1024;
+
+/**
  * Format the message subject appropriately.  This means ensuring that if the
  * subject is empty, we use a placeholder string instead.
  *
@@ -542,7 +547,9 @@ MessageListCard.prototype = {
     else
       this.syncMoreNode.classList.add('collapsed');
 
-    if (this.messagesSlice.items.length === 0) {
+    // Show empty layout, unless this is a slice with fake data that
+    // will get changed soon.
+    if (this.messagesSlice.items.length === 0 && !this.messagesSlice._fake) {
       this.showEmptyLayout();
     }
     // Consider requesting more data or discarding data based on scrolling that
@@ -673,10 +680,14 @@ MessageListCard.prototype = {
       return;
 
     var clearSnippets = this._clearSnippetRequest.bind(this);
+    var options = {
+      // this is per message
+      maximumBytesToFetch: MAXIMUM_BYTES_PER_MESSAGE_DURING_SCROLL
+    };
 
     if (len < MINIMUM_ITEMS_FOR_SCROLL_CALC) {
       this._pendingSnippetRequest();
-      this.messagesSlice.maybeRequestSnippets(0, 9, clearSnippets);
+      this.messagesSlice.maybeRequestBodies(0, 9, options, clearSnippets);
       return;
     }
 
@@ -714,42 +725,67 @@ MessageListCard.prototype = {
 
 
     this._pendingSnippetRequest();
-    this.messagesSlice.maybeRequestSnippets(
+    this.messagesSlice.maybeRequestBodies(
       startOffset,
       startOffset + this._snippetsPerScrollTick,
+      options,
       clearSnippets
     );
 
   },
 
+  _fakeRemoveElements: [],
+
   onMessagesSplice: function(index, howMany, addedItems,
-                             requested, moreExpected) {
+                             requested, moreExpected, fake) {
+    // If no work to do, just skip it. This is particularly important during
+    // the fake to real transition, where an empty onMessagesSplice is sent.
+    // If this return is not done, there is a flicker in the message list
+    if (index === 0 && howMany === 0 && !addedItems.length)
+      return;
+
+    if (this._fakeRemoveElements.length) {
+      this._fakeRemoveElements.forEach(function(element) {
+        element.parentNode.removeChild(element);
+      });
+      this._fakeRemoveElements = [];
+    }
+
     var prevHeight;
     // - removed messages
     if (howMany) {
-      // Plan to fixup the scroll position if we are deleting a message that
-      // starts before the (visible) scrolled area.  (We add the container's
-      // start offset because it is as big as the occluding header bar.)
-      prevHeight = null;
-      if (this.messagesSlice.items[index].element.offsetTop <
-          this.scrollContainer.scrollTop + this.messagesContainer.offsetTop) {
-        prevHeight = this.messagesContainer.clientHeight;
-      }
+      if (fake && index === 0 && this.messagesSlice.items.length === howMany &&
+          !addedItems.length) {
+        // If this is a call to remove the fake data, hold onto it until the
+        // next splice call, to avoid flickering.
+        this._fakeRemoveElements = this.messagesSlice.items.map(
+              function(item) { return item.element; });
+      } else {
+        // Regular remove for current call.
+        // Plan to fixup the scroll position if we are deleting a message that
+        // starts before the (visible) scrolled area.  (We add the container's
+        // start offset because it is as big as the occluding header bar.)
+        var prevHeight = null;
+        if (this.messagesSlice.items[index].element.offsetTop <
+            this.scrollContainer.scrollTop + this.messagesContainer.offsetTop) {
+          prevHeight = this.messagesContainer.clientHeight;
+        }
 
-      for (var i = index + howMany - 1; i >= index; i--) {
-        var message = this.messagesSlice.items[i];
-        message.element.parentNode.removeChild(message.element);
-      }
+        for (var i = index + howMany - 1; i >= index; i--) {
+          var message = this.messagesSlice.items[i];
+          message.element.parentNode.removeChild(message.element);
+        }
 
-      // If fixup is requred, adjust.
-      if (prevHeight !== null) {
-        this.scrollContainer.scrollTop -=
-          (prevHeight - this.messagesContainer.clientHeight);
-      }
+        // If fixup is requred, adjust.
+        if (prevHeight !== null) {
+          this.scrollContainer.scrollTop -=
+            (prevHeight - this.messagesContainer.clientHeight);
+        }
 
-      // Check the message count after deletion:
-      if (this.messagesContainer.children.length === 0) {
-        this.showEmptyLayout();
+        // Check the message count after deletion:
+        if (this.messagesContainer.children.length === 0) {
+          this.showEmptyLayout();
+        }
       }
     }
 
@@ -1633,7 +1669,7 @@ MessageReaderCard.prototype = {
                              body.embeddedImagesDownloaded;
 
     bindSanitizedClickHandler(rootBodyNode, this.onHyperlinkClick.bind(this),
-                              rootBodyNode);
+                              rootBodyNode, null);
 
     for (var iRep = 0; iRep < reps.length; iRep++) {
       var rep = reps[iRep];

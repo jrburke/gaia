@@ -115,11 +115,14 @@ var Settings = {
   },
 
   loadPanel: function settings_loadPanel(panel) {
-    if (!panel)
+    if (!panel) {
       return;
+    }
+
+    this.loadPanelStylesheetsIfNeeded();
 
     // apply the HTML markup stored in the first comment node
-    for (var i = 0; i < panel.childNodes.length; i++) {
+    for (var i = 0, il = panel.childNodes.length; i < il; i++) {
       if (panel.childNodes[i].nodeType == document.COMMENT_NODE) {
         panel.innerHTML = panel.childNodes[i].nodeValue;
         break;
@@ -130,38 +133,17 @@ var Settings = {
     navigator.mozL10n.translate(panel);
 
     // activate all scripts
-    var scripts = panel.querySelectorAll('script');
-    for (var i = 0; i < scripts.length; i++) {
-      var src = scripts[i].getAttribute('src');
-      if (document.head.querySelector('script[src="' + src + '"]')) {
-        continue;
-      }
-
-      var script = document.createElement('script');
-      script.type = 'application/javascript';
-      script.src = src;
-      document.head.appendChild(script);
-    }
-
-    // activate all stylesheets
-    var stylesheets = panel.querySelectorAll('link');
-    for (var i = 0; i < stylesheets.length; i++) {
-      var href = stylesheets[i].getAttribute('href');
-      if (document.head.querySelector('link[href="' + href + '"]'))
-        continue;
-
-      var stylesheet = document.createElement('link');
-      stylesheet.type = 'text/css';
-      stylesheet.rel = 'stylesheet';
-      stylesheet.href = href;
-      document.head.appendChild(stylesheet);
-    }
+    var scripts = panel.getElementsByTagName('script');
+    var scripts_src = Array.prototype.map.call(scripts, function(script) {
+      return script.getAttribute('src');
+    });
+    LazyLoader.load(scripts_src);
 
     // activate all links
     var self = this;
     var rule = 'a[href^="http"], a[href^="tel"], [data-href]';
     var links = panel.querySelectorAll(rule);
-    for (i = 0; i < links.length; i++) {
+    for (var i = 0, il = links.length; i < il; i++) {
       var link = links[i];
       if (!link.dataset.href) {
         link.dataset.href = link.href;
@@ -404,6 +386,7 @@ var Settings = {
     var key = input.name;
 
     var settings = window.navigator.mozSettings;
+    //XXX should we check data-ignore here?
     if (!key || !settings || event.type != 'change')
       return;
 
@@ -474,6 +457,20 @@ var Settings = {
                 case 'checkbox':
                   input.checked = request.result[key] || false;
                   break;
+                case 'select-one':
+                  input.value = request.result[key] || '';
+                  // Reset the select button content: We have to sync
+                  // the content to value in db before entering dialog
+                  var parent = input.parentElement;
+                  var button = input.previousElementSibling;
+                  // link the button with the select element
+                  var index = input.selectedIndex;
+                  if (index >= 0) {
+                    var selection = input.options[index];
+                    button.textContent = selection.textContent;
+                    button.dataset.l10nId = selection.dataset.l10nId;
+                  }
+                  break;
                 default:
                   input.value = request.result[key] || '';
                   break;
@@ -520,27 +517,59 @@ var Settings = {
   },
 
   getSupportedLanguages: function settings_getLanguages(callback) {
-    var LANGUAGES = 'shared/resources/languages.json';
+    if (!callback)
+      return;
 
     if (this._languages) {
       callback(this._languages);
     } else {
+      var LANGUAGES = 'languages.json';
       var self = this;
-      var xhr = new XMLHttpRequest();
-      xhr.onreadystatechange = function loadSupportedLocales() {
-        if (xhr.readyState === 4) {
-          if (xhr.status === 0 || xhr.status === 200) {
-            self._languages = xhr.response;
-            callback(self._languages);
-          } else {
-            console.error('Failed to fetch languages.json: ', xhr.statusText);
-          }
+      this.readSharedFile(LANGUAGES, function getLanguages(data) {
+        if (data) {
+          self._languages = data;
+          callback(self._languages);
         }
-      };
-      xhr.open('GET', LANGUAGES, true); // async
-      xhr.responseType = 'json';
-      xhr.send();
+      });
     }
+  },
+
+  getSupportedKbLayouts: function settings_getSupportedKbLayouts(callback) {
+    if (!callback)
+      return;
+
+    if (this._kbLayoutList) {
+      callback(this._kbLayoutList);
+    } else {
+      var KEYBOARDS = 'keyboard_layouts.json';
+      var self = this;
+      this.readSharedFile(KEYBOARDS, function getKeyboardLayouts(data) {
+        if (data) {
+          self._kbLayoutList = data;
+          callback(self._kbLayoutList);
+        }
+      });
+    }
+  },
+
+  readSharedFile: function settings_readSharedFile(file, callback) {
+    var URI = '/shared/resources/' + file;
+    if (!callback)
+      return;
+
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function loadFile() {
+      if (xhr.readyState === 4) {
+        if (xhr.status === 0 || xhr.status === 200) {
+          callback(xhr.response);
+        } else {
+          console.error('Failed to fetch file: ' + file, xhr.statusText);
+        }
+      }
+    };
+    xhr.open('GET', URI, true); // async
+    xhr.responseType = 'json';
+    xhr.send();
   },
 
   updateLanguagePanel: function settings_updateLanguagePanel() {
@@ -554,6 +583,26 @@ var Settings = {
       panel.querySelector('#region-time').textContent =
           f.localeFormat(d, _('shortTimeFormat'));
     }
+  },
+
+  loadPanelStylesheetsIfNeeded: function settings_loadPanelStylesheetsIN() {
+    var self = this;
+    if (self._panelStylesheetsLoaded) {
+      return;
+    }
+
+    LazyLoader.load(['shared/style/action_menu.css',
+                     'shared/style/buttons.css',
+                     'shared/style/confirm.css',
+                     'shared/style/input_areas.css',
+                     'shared/style_unstable/progress_activity.css',
+                     'style/apps.css',
+                     'style/phone_lock.css',
+                     'style/simcard.css',
+                     'style/updates.css'],
+    function callback() {
+      self._panelStylesheetsLoaded = true;
+    });
   }
 };
 
@@ -562,39 +611,38 @@ window.addEventListener('load', function loadSettings() {
   window.removeEventListener('load', loadSettings);
   window.addEventListener('change', Settings);
 
+  navigator.addIdleObserver({
+    time: 3,
+    onidle: Settings.loadPanelStylesheetsIfNeeded.bind(Settings)
+  });
+
   Settings.init();
   handleRadioAndCardState();
 
-  setTimeout(function() {
-    var scripts = [
+  LazyLoader.load([
       'js/utils.js',
-      'shared/js/mouse_event_shim.js',
       'js/airplane_mode.js',
       'js/battery.js',
-      'js/app_storage.js',
-      'js/media_storage.js',
+      'shared/js/async_storage.js',
+      'js/storage.js',
       'shared/js/mobile_operator.js',
+      'shared/js/wifi_helper.js',
       'js/connectivity.js',
       'js/security_privacy.js',
       'js/icc_menu.js'
-    ];
-    scripts.forEach(function attachScripts(src) {
-      var script = document.createElement('script');
-      script.src = src;
-      document.head.appendChild(script);
-    });
-  });
+  ]);
 
   // panel lazy-loading
   function lazyLoad(panel) {
-    if (panel.children.length) // already initialized
+    if (panel.children.length) { // already initialized
       return;
+    }
 
     // load the panel and its sub-panels (dependencies)
     // (load the main panel last because it contains the scripts)
     var selector = 'section[id^="' + panel.id + '-"]';
     var subPanels = document.querySelectorAll(selector);
-    for (var i = 0; i < subPanels.length; i++) {
+    for (var i = 0, il = subPanels.length; i < il; i++) {
       Settings.loadPanel(subPanels[i]);
     }
     Settings.loadPanel(panel);
@@ -644,12 +692,6 @@ window.addEventListener('load', function loadSettings() {
           }
         });
         setTimeout(Settings.updateLanguagePanel);
-        break;
-      case 'mediaStorage':        // full media storage status + panel startup
-        MediaStorage.initUI();
-        break;
-      case 'deviceStorage':       // full device storage status
-        AppStorage.update();
         break;
       case 'battery':             // full battery status
         Battery.update();
@@ -820,7 +862,7 @@ window.addEventListener('keydown', function handleSpecialKeys(event) {
 });
 
 // startup & language switching
-window.addEventListener('localized', function showLanguages() {
+window.addEventListener('localized', function updateLocalized() {
   // set the 'lang' and 'dir' attributes to <html> when the page is translated
   document.documentElement.lang = navigator.mozL10n.language.code;
   document.documentElement.dir = navigator.mozL10n.language.direction;
@@ -831,11 +873,30 @@ window.addEventListener('localized', function showLanguages() {
         languages[navigator.mozL10n.language.code];
   });
   Settings.updateLanguagePanel();
+
+  // update the enabled keyboards list with the language associated keyboard
+  Settings.getSupportedKbLayouts(function updateEnabledKb(keyboards) {
+    var newKb = keyboards[navigator.mozL10n.language.code];
+    var settingNewKeyboard = {};
+    var settingNewKeyboardLayout = {};
+    settingNewKeyboard['keyboard.current'] = navigator.mozL10n.language.code;
+    settingNewKeyboardLayout['keyboard.layouts.' + newKb] = true;
+
+    var settings = navigator.mozSettings;
+    try {
+      var lock = settings.createLock();
+      // Enable the language specific keyboard layout group
+      lock.set(settingNewKeyboardLayout);
+      // Activate the language associated keyboard, everything.me also uses
+      // this setting to improve searches
+      lock.set(settingNewKeyboard);
+    } catch (ex) {
+      console.warn('Exception in mozSettings.createLock():', ex);
+    }
+  });
+
 });
 
 // Do initialization work that doesn't depend on the DOM, as early as
 // possible in startup.
 Settings.preInit();
-
-MouseEventShim.trackMouseMoves = false;
-

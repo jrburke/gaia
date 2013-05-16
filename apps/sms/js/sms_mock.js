@@ -10,7 +10,168 @@
 *********************************************************** */
 (function(window) {
 
-  var MockNavigatormozSms = window.MockNavigatormozSms = {};
+  var MockNavigatormozMobileMessage =
+        window.DesktopMockNavigatormozMobileMessage = {};
+
+  var outstandingRequests = 0;
+  var requests = {};
+
+  function getTestFile(filename, callback) {
+    if (!requests[filename]) {
+      requests[filename] = [];
+      var req = new XMLHttpRequest();
+      req.open('GET', filename, true);
+      req.responseType = 'blob';
+      req.onload = function() {
+        requests[filename].forEach(function(callback) {
+          callback(req.response);
+          requests[filename].data = req.response;
+        });
+        // we called em, no need to store anymore
+        requests[filename].length = 0;
+        if (--outstandingRequests === 0) {
+          doneCallbacks.forEach(function(callback) {
+            callback();
+          });
+          doneCallbacks.length = 0;
+        }
+      };
+      requests[filename].push(callback);
+      outstandingRequests++;
+      req.send();
+    } else {
+      if (requests[filename].data) {
+        callback(requests[filename].data);
+      } else {
+        requests[filename].push(callback);
+      }
+    }
+  }
+
+  var doneCallbacks = [];
+  MockNavigatormozMobileMessage._doneLoadingData = function(callback) {
+    if (!outstandingRequests) {
+      callback();
+    } else {
+      doneCallbacks.push(callback);
+    }
+  };
+
+  getTestFile('/test/unit/media/kitten-450.jpg', function(testImageBlob) {
+    messagesDb.messages.push({
+      id: messagesDb.id++,
+      threadId: 6,
+      sender: '052780',
+      type: 'mms',
+      delivery: 'received',
+      subject: 'Test MMS Image message',
+      smil: '<smil><body><par><img src="example.jpg"/>' +
+            '<text src="text1"/></par></body></smil>',
+      attachments: [{
+        location: 'text1',
+        content: new Blob(['This is an image message'], { type: 'text/plain' })
+      },{
+        location: 'example.jpg',
+        content: testImageBlob
+      }],
+      timestamp: new Date()
+    });
+    messagesDb.messages.push({
+      id: messagesDb.id++,
+      threadId: 6,
+      sender: '052780',
+      type: 'mms',
+      delivery: 'sent',
+      subject: 'Test MMS Image message',
+      smil: '<smil><body><par><text src="text1"/></par>' +
+            '<par><img src="example.jpg"/></par></body></smil>',
+      attachments: [{
+        location: 'text1',
+        content: new Blob(['sent image message'], { type: 'text/plain' })
+      },{
+        location: 'example.jpg',
+        content: testImageBlob
+      }],
+      timestamp: new Date()
+    });
+  });
+
+  getTestFile('/test/unit/media/video.ogv', function(testVideoBlob) {
+    messagesDb.messages.push({
+      id: messagesDb.id++,
+      threadId: 6,
+      sender: '052780',
+      type: 'mms',
+      delivery: 'received',
+      subject: 'Test MMS Video message',
+      smil: '<smil><body><par><video src="example.ogv"/>' +
+            '<text src="text1"/></par></body></smil>',
+      attachments: [{
+        location: 'text1',
+        content: new Blob(['This is a video message'], { type: 'text/plain' })
+      },{
+        location: 'example.ogv',
+        content: testVideoBlob
+      }],
+      timestamp: new Date()
+    });
+    messagesDb.messages.push({
+      id: messagesDb.id++,
+      threadId: 6,
+      sender: '052780',
+      type: 'mms',
+      delivery: 'sent',
+      subject: 'Test MMS Video message',
+      smil: '<smil><body><par><text src="text1"/></par>' +
+            '<par><video src="example.ogv"/></par></body></smil>',
+      attachments: [{
+        location: 'text1',
+        content: new Blob(['sent video message'], { type: 'text/plain' })
+      },{
+        location: 'example.ogv',
+        content: testVideoBlob
+      }],
+      timestamp: new Date()
+    });
+  });
+  getTestFile('/test/unit/media/audio.oga', function(testAudioBlob) {
+    messagesDb.messages.push({
+      id: messagesDb.id++,
+      threadId: 6,
+      sender: '052780',
+      type: 'mms',
+      delivery: 'received',
+      subject: 'Test MMS audio message',
+      smil: '<smil><body><par><audio src="example.ogg"/>' +
+            '<text src="text1"/></par></body></smil>',
+      attachments: [{
+        location: 'text1',
+        content: new Blob(['This is an audio message'], { type: 'text/plain' })
+      },{
+        location: 'example.ogg',
+        content: testAudioBlob
+      }],
+      timestamp: new Date()
+    });
+    messagesDb.messages.push({
+      id: messagesDb.id++,
+      threadId: 6,
+      sender: '052780',
+      type: 'mms',
+      delivery: 'sent',
+      subject: 'Test MMS audio message',
+      smil: '<smil><body><par><text src="text1"/></par>' +
+            '<par><audio src="example.ogg"/></par></body></smil>',
+      attachments: [{
+        location: 'text1',
+        content: new Blob(['sent audio message'], { type: 'text/plain' })
+      },{
+        location: 'example.ogg',
+        content: testAudioBlob
+      }],
+      timestamp: new Date()
+    });
+  });
 
   // Fake in-memory message database
   var messagesDb = {
@@ -23,6 +184,7 @@
         body: 'Alo, how are you today, my friend? :)',
         delivery: 'sent',
         read: true,
+        type: 'sms',
         timestamp: new Date(Date.now())
       },
       {
@@ -32,6 +194,7 @@
         body: 'arr :)',
         delivery: 'sent',
         read: true,
+        type: 'sms',
         timestamp: new Date(Date.now() - 8400000000)
       },
       {
@@ -40,53 +203,99 @@
         receiver: '436797',
         body: 'Sending :)',
         delivery: 'sending',
+        type: 'sms',
         timestamp: new Date(Date.now() - 172800000)
       },
       {
-        threadId: 3,
-        sender: null,
-        receiver: '197743697',
-        body: 'Nothing :)',
-        delivery: 'sent',
-        timestamp: new Date(Date.now() - 652800000)
-      },
-      {
         threadId: 4,
         sender: null,
         receiver: '197746797',
-        body: 'Error message:)',
-        delivery: 'sending',
+        body: 'This message is intended to demonstrate hyperlink creation: ' +
+          'http://mozilla.org and https://bugzilla.mozilla.org/',
         error: true,
-        timestamp: new Date(Date.now() - 822800000)
+        type: 'sms',
+        timestamp: new Date(Date.now() - 900000)
       },
       {
         threadId: 4,
         sender: null,
         receiver: '197746797',
-        body: 'Nothing :)',
-        delivery: 'sent',
-        timestamp: new Date(Date.now() - 1002800000)
+        body: 'This message is intended to demonstrate natural line ' +
+          'wrapping. (delivery: sending)',
+        delivery: 'sending',
+        type: 'sms',
+        timestamp: new Date(Date.now() - 800000)
       },
       {
         threadId: 4,
         sender: null,
         receiver: '197746797',
-        body: 'Nothing :)',
+        body: 'This message is intended to demonstrate natural line ' +
+          'wrapping. (delivery: error)',
         delivery: 'error',
-        timestamp: new Date(Date.now() - 1002800000)
+        type: 'sms',
+        timestamp: new Date(Date.now() - 700000)
+      },
+      {
+        threadId: 4,
+        sender: null,
+        receiver: '197746797',
+        body: 'This message is intended to demonstrate natural line ' +
+          'wrapping. (delivery: sent)',
+        delivery: 'sent',
+        type: 'sms',
+        timestamp: new Date(Date.now() - 600000)
+       },
+       {
+        threadId: 4,
+        sender: '197746797',
+        body: 'This message is intended to demonstrate natural line ' +
+          'wrapping. (delivery: received)',
+        delivery: 'received',
+        type: 'sms',
+        timestamp: new Date(Date.now() - 500000)
+      },
+      {
+        threadId: 4,
+        sender: null,
+        receiver: '197746797',
+        body: 'short (delivery: sending)',
+        delivery: 'sending',
+        type: 'sms',
+        timestamp: new Date(Date.now() - 400000)
+      },
+      {
+        threadId: 4,
+        sender: null,
+        receiver: '197746797',
+        body: 'short (delivery: error)',
+        delivery: 'error',
+        type: 'sms',
+        timestamp: new Date(Date.now() - 300000)
+      },
+      {
+        threadId: 4,
+        sender: null,
+        receiver: '197746797',
+        body: 'short (delivery: sent)',
+        delivery: 'sent',
+        type: 'sms',
+        timestamp: new Date(Date.now() - 200000)
       },
       {
         threadId: 4,
         sender: '197746797',
-        body: 'Recibido!',
+        body: 'short (delivery: received)',
         delivery: 'received',
-        timestamp: new Date(Date.now() - 50000000)
+        type: 'sms',
+        timestamp: new Date(Date.now() - 100000)
       }
     ],
     threads: [
       {
         id: 1,
         participants: ['1977'],
+        lastMessageType: 'sms',
         body: 'Alo, how are you today, my friend? :)',
         timestamp: new Date(Date.now()),
         unreadCount: 0
@@ -94,30 +303,33 @@
       {
         id: 2,
         participants: ['436797'],
+        lastMessageType: 'sms',
         body: 'Sending :)',
         timestamp: new Date(Date.now() - 172800000),
         unreadCount: 0
       },
       {
-        id: 3,
-        participants: ['197743697'],
-        body: 'Nothing :)',
-        timestamp: new Date(Date.now() - 652800000),
-        unreadCount: 0
-      },
-      {
         id: 4,
         participants: ['197746797'],
-        body: 'Recibido!',
-        timestamp: new Date(Date.now() - 50000000),
+        body: 'short (delivery: received)',
+        timestamp: new Date(Date.now() - 100000),
+        lastMessageType: 'sms',
         unreadCount: 0
       },
       {
         id: 5,
         participants: ['14886783487'],
+        lastMessageType: 'sms',
         body: 'Hello world!',
         timestamp: new Date(Date.now() - 60000000),
         unreadCount: 2
+      },
+      {
+        id: 6,
+        participants: ['052780'],
+        lastMessageType: 'mms',
+        timestamp: new Date(),
+        unreadCount: 0
       }
     ]
   };
@@ -135,6 +347,7 @@
       body: 'Hello world!',
       delivery: 'received',
       id: messagesDb.id++,
+      type: 'sms',
       timestamp: new Date(Date.now() - 60000000)
     });
   }
@@ -178,8 +391,9 @@
     }
   };
 
-  // mozSms API
-  MockNavigatormozSms.addEventListener = function(eventName, handler) {
+  MockNavigatormozMobileMessage.addEventListener =
+    function(eventName, handler) {
+
     var handlers = allHandlers[eventName];
     if (!handlers) {
       handlers = allHandlers[eventName] = [];
@@ -187,20 +401,47 @@
     handlers.push(handler);
   };
 
-  MockNavigatormozSms.send = function(number, text, success, error) {
+  MockNavigatormozMobileMessage.send = function(number, text, success, error) {
     var sendId = messagesDb.id++;
     var request = {
       error: null
     };
+    // In the case of a multi-recipient message, the mock will fake a response
+    // from the first recipient specified.
+    var senderNumber = Array.isArray(number) ? number[0] : number;
+
+    // TODO: Retrieve the message's thread by the thread ID.
+    // See Bug 868679 - [SMS][MMS] use the threadId as the "key" of a thread
+    // instead of a phone number in all places where it's relevant
+    var thread = messagesDb.threads.filter(function(t) {
+      return t.participants[0] === senderNumber;
+    })[0];
+    if (!thread) {
+      thread = {
+        id: messagesDb.id++,
+        participants: [].concat(number),
+        body: text,
+        timestamp: new Date(),
+        unreadCount: 0
+      };
+      messagesDb.threads.push(thread);
+    }
+    else {
+      thread.body = text;
+      thread.timestamp = new Date();
+    }
+
     var sendInfo = {
       type: 'sent',
       message: {
         sender: null,
-        receiver: number,
+        receiver: senderNumber,
         delivery: 'sending',
         body: text,
         id: sendId,
-        timestamp: new Date()
+        type: 'sms',
+        timestamp: new Date(),
+        threadId: thread.id
       }
     };
 
@@ -239,12 +480,14 @@
       var receivedInfo = {
         type: 'received',
         message: {
-          sender: number,
+          sender: senderNumber,
           receiver: null,
           delivery: 'received',
           body: 'Hi back! ' + text,
           id: messagesDb.id++,
-          timestamp: new Date()
+          type: 'sms',
+          timestamp: new Date(),
+          threadId: thread.id
         }
       };
       messagesDb.messages.push(receivedInfo.message);
@@ -262,7 +505,7 @@
   //  - error: Error information, if any (null otherwise)
   //  - onerror: Function that may be set by the suer. If set, will be invoked
   //    in the event of a failure
-  MockNavigatormozSms.getThreads = function() {
+  MockNavigatormozMobileMessage.getThreads = function() {
     var request = {
       error: null
     };
@@ -287,7 +530,7 @@
         idx += 1;
         request.continue = continueCursor;
         if (typeof request.onsuccess === 'function') {
-          request.onsuccess.call(null);
+          request.onsuccess.call(request);
         }
       }
 
@@ -297,6 +540,38 @@
     };
 
     continueCursor();
+
+    return request;
+  };
+
+  // getMessage
+  // Parameters:
+  //  - id: Number specifying the message to retrieve
+  //  Returns: request object
+  MockNavigatormozMobileMessage.getMessage = function(id) {
+    var request = {
+      error: null
+    };
+
+    setTimeout(function() {
+      if (simulation.failState()) {
+        request.error = {
+          name: 'mock getMessage error'
+        };
+        if (typeof request.onerror === 'function') {
+          request.onerror();
+        }
+        return;
+      }
+
+      request.result = messagesDb.messages.filter(function(message) {
+        return message.id === id;
+      })[0];
+
+      if (typeof request.onsuccess === 'function') {
+        request.onsuccess();
+      }
+    }, simulation.delay());
 
     return request;
   };
@@ -312,7 +587,7 @@
   //    invoked in the event of a success
   //  - onerror: Function that may be set by the suer. If set, will be invoked
   //    in the event of a failure
-  MockNavigatormozSms.getMessages = function(filter, reverse) {
+  MockNavigatormozMobileMessage.getMessages = function(filter, reverse) {
     var request = {
       error: null
     };
@@ -356,10 +631,11 @@
         }
       } else {
         request.result = msgs[idx];
+        request.done = !request.result;
         idx += 1;
         request.continue = continueCursor;
         if (typeof request.onsuccess === 'function') {
-          request.onsuccess.call(null);
+          request.onsuccess.call(request);
         }
       }
 
@@ -382,7 +658,7 @@
   //    invoked in the event of a success
   //  - onerror: Function that may be set by the suer. If set, will be invoked
   //    in the event of a failure
-  MockNavigatormozSms.delete = function(id) {
+  MockNavigatormozMobileMessage.delete = function(id) {
     var request = {
       error: null
     };
@@ -401,19 +677,35 @@
         return;
       }
 
+      request.result = false;
+
       for (idx = 0, len = msgs.length; idx < len; ++idx) {
         if (msgs[idx].id === id) {
+          request.result = true;
           msgs.splice(idx, 1);
           break;
         }
       }
 
       if (typeof request.onsuccess === 'function') {
-        request.onsuccess.call(null);
+        request.onsuccess.call(request);
       }
     }, simulation.delay());
 
     return request;
+  };
+
+  MockNavigatormozMobileMessage.getSegmentInfoForText = function(text) {
+    var length = text.length;
+    var segmentLength = 160;
+    var charsUsedInLastSegment = (length % segmentLength);
+    var segments = Math.ceil(length / segmentLength);
+    return {
+      segments: segments,
+      charsAvailableInLastSegment: charsUsedInLastSegment ?
+        segmentLength - charsUsedInLastSegment :
+        0
+    };
   };
 
 }(this));

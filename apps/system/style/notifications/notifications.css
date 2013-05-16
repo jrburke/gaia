@@ -40,6 +40,7 @@ html, body {
 }
 
 #toaster-title {
+  pointer-events: none;
   position: absolute;
   top: 0.3rem;
   color: #52b8cc;
@@ -48,6 +49,7 @@ html, body {
 }
 
 #toaster-detail {
+  pointer-events: none;
   position: absolute;
   top: 2.2rem;
   color: white;
@@ -150,18 +152,23 @@ html, body {
   position: absolute;
   right: 0;
   top: -.2rem;
+  /* 5.5rem + 19.5rem = 25rem */
+  left: 25rem;
   color: #52B6CC;
   margin: 1.3rem 1.5rem 0 0;
   padding: 0;
   display: inline;
   line-height: 1.6rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .notification > img {
   float: left;
   display: block;
-  width: 2.4rem;
-  height: 2.4rem;
+  width: 3rem;
+  height: 3rem;
   margin: 1.5rem 1rem;
   pointer-events: none;
 }

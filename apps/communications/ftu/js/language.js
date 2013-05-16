@@ -22,14 +22,21 @@ var LanguageManager = {
   changeDefaultKb: function changeDefaultKb(event) {
     if (this._kbLayoutList) {
       var lock = this.settings.createLock();
-      var oldKB = this._kbLayoutList[this._currentLanguage];
+      // Disable all other keyboard layouts to switch to the new one
+      if (this._languages) {
+        for (var lang in this._languages)
+          if (lang != event.settingValue) {
+            var oldKB = this._kbLayoutList[lang];
+            var settingOldKB = {};
+            settingOldKB['keyboard.layouts.' + oldKB] = false;
+            lock.set(settingOldKB);
+          }
+      }
+
       var newKB = this._kbLayoutList[event.settingValue];
-      var settingOldKB = {};
       var settingNewKB = {};
-      settingOldKB['keyboard.layouts.' + oldKB] = false;
       settingNewKB['keyboard.layouts.' + newKB] = true;
 
-      lock.set(settingOldKB);
       lock.set(settingNewKB);
       lock.set({'keyboard.current': event.settingValue});
       console.log('Keyboard layout changed to ' + event.settingValue);
@@ -89,14 +96,21 @@ var LanguageManager = {
     }
   },
 
-  getSupportedKbLayouts: function settings_getSupportedKbLayouts() {
-    var KEYBOARDS = 'keyboard_layouts.json';
-    var self = this;
-    this.readSharedFile(KEYBOARDS, function getKeyboardLayouts(data) {
-      if (data) {
-        self._kbLayoutList = data;
-      }
-    });
+  getSupportedKbLayouts: function settings_getSupportedKbLayouts(callback) {
+    if (this._kbLayoutList) {
+      if (callback)
+        callback(this._kbLayoutList);
+    } else {
+      var KEYBOARDS = 'keyboard_layouts.json';
+      var self = this;
+      this.readSharedFile(KEYBOARDS, function getKeyboardLayouts(data) {
+        if (data) {
+          self._kbLayoutList = data;
+          if (callback)
+            callback(self._kbLayoutList);
+        }
+      });
+    }
   },
 
   readSharedFile: function settings_readSharedFile(file, callback) {

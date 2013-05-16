@@ -51,6 +51,18 @@ var CallScreen = {
 
     this.calls.addEventListener('click',
                                 OnCallHandler.toggleCalls);
+
+    // If the phone is locked, show as an locked-style at very first.
+    if ((window.location.hash === '#locked') && !this.screen.dataset.layout) {
+      CallScreen.render('incoming-locked');
+    }
+    if (navigator.mozSettings) {
+      var req = navigator.mozSettings.createLock().get('wallpaper.image');
+      req.onsuccess = function cs_wi_onsuccess() {
+        CallScreen.setCallerContactImage(
+          req.result['wallpaper.image'], false, true);
+      };
+    }
   },
 
   setCallerContactImage: function cs_setContactImage(image_url, force, mask) {
@@ -82,6 +94,11 @@ var CallScreen = {
   toggleSpeaker: function cs_toggleSpeaker() {
     this.speakerButton.classList.toggle('speak');
     OnCallHandler.toggleSpeaker();
+  },
+
+  turnSpeakerOn: function cs_turnSpeakerOn() {
+    this.speakerButton.classList.add('speak');
+    OnCallHandler.turnSpeakerOn();
   },
 
   turnSpeakerOff: function cs_turnSpeakerOff() {
@@ -149,14 +166,17 @@ var OnCallHandler = (function onCallHandler() {
   var telephony = window.navigator.mozTelephony;
   telephony.oncallschanged = onCallsChanged;
 
+  var settings = window.navigator.mozSettings;
+
   var displayed = false;
   var closing = false;
   var animating = false;
   var ringing = false;
+  var busyNotificationLock = false;
 
   /* === Settings === */
   var activePhoneSound = null;
-  SettingsListener.observe('ring.enabled', true, function(value) {
+  SettingsListener.observe('audio.volume.notification', 7, function(value) {
     activePhoneSound = !!value;
     if (ringing && activePhoneSound) {
       ringtonePlayer.play();
@@ -177,7 +197,7 @@ var OnCallHandler = (function onCallHandler() {
   // Setting up the SimplePhoneMatcher
   var conn = window.navigator.mozMobileConnection;
   if (conn && conn.voice && conn.voice.network && conn.voice.network.mcc) {
-    SimplePhoneMatcher.mcc = conn.voice.network.mcc.toString();
+    SimplePhoneMatcher.mcc = conn.voice.network.mcc;
   }
 
   var ringtonePlayer = new Audio();
@@ -208,6 +228,8 @@ var OnCallHandler = (function onCallHandler() {
         toggleScreen();
       }
     });
+
+    postToMainWindow('ready');
   }
 
   function postToMainWindow(data) {
@@ -258,6 +280,7 @@ var OnCallHandler = (function onCallHandler() {
   }
 
   function addCall(call) {
+    busyNotificationLock = false;
     // Once we already have 1 call, we need to care about incoming
     // calls and insert new dialing calls.
     if (handledCalls.length &&
@@ -407,15 +430,18 @@ var OnCallHandler = (function onCallHandler() {
 
     CallScreen.showIncoming();
 
-    var vibrateInterval = window.setInterval(function vibrate() {
-      if ('vibrate' in navigator) {
-        navigator.vibrate([200]);
-      }
-    }, 2000);
+    // ANSI call waiting tone for a 10 sec window
+    var sequence = [[440, 440, 100],
+                    [0, 0, 100],
+                    [440, 440, 100]];
+    var toneInterval = window.setInterval(function playTone() {
+      TonePlayer.playSequence(sequence);
+    }, 10000);
+    TonePlayer.playSequence(sequence);
 
     call.addEventListener('statechange', function callStateChange() {
       call.removeEventListener('statechange', callStateChange);
-      window.clearInterval(vibrateInterval);
+      window.clearInterval(toneInterval);
     });
   }
 
@@ -441,11 +467,12 @@ var OnCallHandler = (function onCallHandler() {
   }
 
   function exitCallScreen(animate) {
-    if (closing) {
+    if (closing || busyNotificationLock) {
       return;
     }
 
     closing = true;
+
     postToMainWindow('closing');
 
     if (Swiper) {
@@ -474,7 +501,7 @@ var OnCallHandler = (function onCallHandler() {
       return;
     }
 
-    // Currently managing to kind of commands:
+    // Currently managing three kinds of commands:
     // BT: bluetooth
     // HS: headset
     // * : general cases, not specific to hardware control
@@ -504,7 +531,11 @@ var OnCallHandler = (function onCallHandler() {
         endAndAnswer();
         break;
       case 'CHLD+ATA':
-        holdAndAnswer();
+        if (telephony.calls.length === 1) {
+          holdOrResumeSingleCall();
+        } else {
+          holdAndAnswer();
+        }
         break;
       default:
         var partialCommand = message.substring(0, 3);
@@ -515,11 +546,26 @@ var OnCallHandler = (function onCallHandler() {
     }
   }
 
+  var lastHeadsetPress = 0;
+
   function handleHSCommand(message) {
-    // We will receive the message for button released,
-    // we will ignore it
-    if (message != 'headset-button-press') {
-      return;
+    /**
+     * See bug 853132: plugging / unplugging some headphones might send a
+     * 'headset-button-press' / 'headset-button-release' message
+     * => if these two events happen in the same second, it's a click;
+     * => if these two events are too distant, ignore them.
+     */
+    switch (message) {
+      case 'headset-button-press':
+        lastHeadsetPress = Date.now();
+        return;
+        break;
+      case 'headset-button-release':
+        if ((Date.now() - lastHeadsetPress) > 1000)
+          return;
+        break;
+      default:
+        return;
     }
 
     if (telephony.active) {
@@ -584,10 +630,23 @@ var OnCallHandler = (function onCallHandler() {
 
   function toggleCalls() {
     if (handledCalls.length < 2) {
+      holdOrResumeSingleCall();
       return;
     }
 
     telephony.active.hold();
+  }
+
+  function holdOrResumeSingleCall() {
+    if (handledCalls.length !== 1) {
+      return;
+    }
+
+    if (telephony.active) {
+      telephony.active.hold();
+    } else {
+      telephony.calls[0].resume();
+    }
   }
 
   function ignore() {
@@ -598,6 +657,7 @@ var OnCallHandler = (function onCallHandler() {
   }
 
   function end() {
+    busyNotificationLock = false;
     // If there is an active call we end this one
     if (telephony.active) {
       telephony.active.hangUp();
@@ -618,8 +678,22 @@ var OnCallHandler = (function onCallHandler() {
     telephony.muted = false;
   }
 
+  function turnSpeakerOn() {
+    if (!telephony.speakerEnabled) {
+      telephony.speakerEnabled = true;
+      if (settings) {
+        settings.createLock().set({'telephony.speaker.enabled': true});
+      }
+    }
+  }
+
   function turnSpeakerOff() {
-    telephony.speakerEnabled = false;
+    if (telephony.speakerEnabled) {
+      telephony.speakerEnabled = false;
+      if (settings) {
+        settings.createLock().set({'telephony.speaker.enabled': false});
+      }
+    }
   }
 
   function toggleMute() {
@@ -627,7 +701,10 @@ var OnCallHandler = (function onCallHandler() {
   }
 
   function toggleSpeaker() {
-    telephony.speakerEnabled = !telephony.speakerEnabled;
+    if (telephony.speakerEnabled)
+      turnSpeakerOff();
+    else
+      turnSpeakerOn();
   }
 
   /* === Recents management === */
@@ -637,6 +714,24 @@ var OnCallHandler = (function onCallHandler() {
       entry: entry
     };
     postToMainWindow(message);
+  }
+
+  function notifyBusyLine() {
+    busyNotificationLock = true;
+    // ANSI call waiting tone for a 3 seconds window.
+    var sequence = [[480, 620, 500],
+                    [0, 0, 500],
+                    [480, 620, 500],
+                    [0, 0, 500],
+                    [480, 620, 500],
+                    [0, 0, 500]];
+    TonePlayer.playSequence(sequence);
+    setTimeout(function busyLineStopped() {
+      if (handledCalls.length === 0) {
+        busyNotificationLock = false;
+        exitCallScreen(true);
+      }
+    }, 3000);
   }
 
   return {
@@ -652,9 +747,12 @@ var OnCallHandler = (function onCallHandler() {
     toggleMute: toggleMute,
     toggleSpeaker: toggleSpeaker,
     unmute: unmute,
+    turnSpeakerOn: turnSpeakerOn,
     turnSpeakerOff: turnSpeakerOff,
 
-    addRecentEntry: addRecentEntry
+    addRecentEntry: addRecentEntry,
+
+    notifyBusyLine: notifyBusyLine
   };
 })();
 
@@ -665,12 +763,4 @@ window.addEventListener('load', function callSetup(evt) {
   CallScreen.init();
   CallScreen.syncSpeakerEnabled();
   KeypadManager.init(true);
-
-  if (navigator.mozSettings) {
-    var req = navigator.mozSettings.createLock().get('wallpaper.image');
-    req.onsuccess = function cs_wi_onsuccess() {
-      CallScreen.setCallerContactImage(
-        req.result['wallpaper.image'], false, true);
-    };
-  }
 });

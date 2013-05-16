@@ -162,6 +162,7 @@ Calendar.LoadConfig = (function() {
         group: ['Views.EventBase'],
 
         js: [
+          'querystring',
           'utils/input_parser',
           'templates/alarm',
           'views/modify_event'
@@ -231,6 +232,7 @@ Calendar.LoadConfig = (function() {
 
         js: [
           'calc',
+          'querystring',
           'utils/ordered_map',
           'utils/overlap',
           'view',
@@ -394,6 +396,17 @@ Calendar.LoadConfig = (function() {
 
       'Presets': {
         js: ['presets']
+      },
+
+      'OAuthWindow': {
+        js: [
+          'querystring',
+          'oauth_window'
+        ]
+      },
+
+      'Notification': {
+        js: ['notification']
       }
     }
   };

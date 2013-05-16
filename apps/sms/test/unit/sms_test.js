@@ -3,23 +3,29 @@
 */
 'use strict';
 
+
 require('/shared/js/lazy_loader.js');
 require('/shared/js/l10n.js');
 require('/shared/js/l10n_date.js');
+require('/shared/js/gesture_detector.js');
 
+requireApp('system/test/unit/mock_gesture_detector.js');
 requireApp('sms/test/unit/mock_contact.js');
 requireApp('sms/test/unit/mock_l10n.js');
+requireApp('sms/test/unit/mock_navigatormoz_sms.js');
 
 requireApp('sms/js/link_helper.js');
 requireApp('sms/js/contacts.js');
 requireApp('sms/js/fixed_header.js');
 requireApp('sms/js/utils.js');
+requireApp('sms/js/compose.js');
 requireApp('sms/test/unit/utils_mockup.js');
 requireApp('sms/test/unit/messages_mockup.js');
-requireApp('sms/test/unit/sms_test_html_mockup.js');
 requireApp('sms/test/unit/thread_list_mockup.js');
 requireApp('sms/js/message_manager.js');
+requireApp('sms/js/attachment.js');
 requireApp('sms/js/thread_list_ui.js');
+requireApp('sms/js/recipients.js');
 requireApp('sms/js/thread_ui.js');
 requireApp('sms/js/waiting_screen.js');
 requireApp('sms/js/startup.js');
@@ -27,15 +33,41 @@ requireApp('sms/js/startup.js');
 
 
 suite('SMS App Unit-Test', function() {
+  function stub(additionalCode, ret) {
+    if (additionalCode && typeof additionalCode !== 'function')
+      ret = additionalCode;
+
+    var nfn = function() {
+      nfn.callCount++;
+      nfn.calledWith = [].slice.call(arguments);
+
+      if (typeof additionalCode === 'function')
+        additionalCode.apply(this, arguments);
+
+      return ret;
+    };
+    nfn.callCount = 0;
+    return nfn;
+  }
+
   var findByString;
   var nativeMozL10n = navigator.mozL10n;
+  var realMozMobileMessage;
+  var boundOnHashChange;
+  var getContactDetails;
+  var nativeMozMobileMessage = navigator.mozMobileMessage;
+  var nativeSettings = navigator.mozSettings;
+  var realGestureDetector;
 
   suiteSetup(function() {
     navigator.mozL10n = MockL10n;
+    realGestureDetector = GestureDetector;
+    GestureDetector = MockGestureDetector;
   });
 
   suiteTeardown(function() {
     navigator.mozL10n = nativeMozL10n;
+    GestureDetector = realGestureDetector;
   });
 
   // Define some useful functions for the following tests
@@ -57,106 +89,6 @@ suite('SMS App Unit-Test', function() {
     var elements = getElementsInContainerByClass(container, className);
     assert.equal(elements.length, number);
     return elements;
-  }
-
-  function createDOM() {
-    // We clean previouos stuff at the beginning
-    window.document.body.innerHTML = '';
-
-    // Add main wrapper
-    var mainWrapper = document.createElement('article');
-    mainWrapper.id = 'main-wrapper';
-
-    // ------- Add thread-list view ---------
-    var threadList = document.createElement('section');
-    threadList.id = 'thread-list';
-
-    // Add elements inside thread-list view
-
-    // Thread-list header
-    var threadListHeader = document.createElement('header');
-    threadListHeader.innerHTML = renderThreadListHeader();
-
-    // Thread-list container
-    var threadsContainer = document.createElement('article');
-    threadsContainer.id = 'threads-container';
-
-    // Thread-list fixed-header
-    var threadsHeaderContainer = document.createElement('div');
-    threadsHeaderContainer.id = 'threads-header-container';
-
-    // threads-no-messages
-    var noMessages = document.createElement('div');
-    noMessages.id = 'threads-no-messages';
-
-    // Thread-list Edit form
-    var threadListEditForm = document.createElement('form');
-    threadListEditForm.id = 'threads-edit-form';
-    threadListEditForm.setAttribute('role', 'dialog');
-    threadListEditForm.dataset.type = 'edit';
-    threadListEditForm.innerHTML = renderThreadListEdit();
-    // Append all elemnts to thread-list view
-    threadList.appendChild(threadListHeader);
-    threadList.appendChild(threadsContainer);
-    threadList.appendChild(threadsHeaderContainer);
-    threadList.appendChild(noMessages);
-    threadList.appendChild(threadListEditForm);
-
-    // Adding to DOM the Thread-list view
-    mainWrapper.appendChild(threadList);
-
-    // --------- Add thread-messages (bubbles) view ---------
-    var threadMessages = document.createElement('section');
-    threadMessages.id = 'thread-messages';
-
-    // Thread-messages main header
-    var threadMsgHeader = document.createElement('header');
-    threadMsgHeader.innerHTML = renderThreadMsgHeader();
-
-    // Thread-messages sub-header
-    var threadMsgSubHeader = document.createElement('div');
-    threadMsgSubHeader.id = 'contact-carrier';
-
-    // Thread-messages container
-    var threadMsgContainer = document.createElement('article');
-    threadMsgContainer.id = 'messages-container';
-
-    // Thread-messages edit form
-    var threadMsgEditForm = document.createElement('form');
-    threadMsgEditForm.id = 'messages-edit-form';
-    threadMsgEditForm.innerHTML = renderThreadMsgEdit();
-
-    // Thread-messages input form
-    var threadMsgInputForm = document.createElement('form');
-    threadMsgInputForm.id = 'messages-compose-form';
-    threadMsgInputForm.innerHTML = renderThreadMsgInputBar();
-
-    threadMessages.appendChild(threadMsgHeader);
-    threadMessages.appendChild(threadMsgSubHeader);
-    threadMessages.appendChild(threadMsgContainer);
-    threadMessages.appendChild(threadMsgEditForm);
-    threadMessages.appendChild(threadMsgInputForm);
-
-    // Adding to DOM the Thread-messages view
-    mainWrapper.appendChild(threadMessages);
-
-    // --------- Loading screen ---------
-    var loadingScreen = document.createElement('article');
-    loadingScreen.id = 'loading';
-
-    // Contact template
-    var contactTmpl = document.createElement('div');
-    contactTmpl.id = 'messages-contact-tmpl';
-
-    var highlightTmpl = document.createElement('div');
-    highlightTmpl.id = 'messages-highlight-tmpl';
-
-
-    // At the end we add all elements to document
-    window.document.body.appendChild(mainWrapper);
-    window.document.body.appendChild(loadingScreen);
-    window.document.body.appendChild(contactTmpl);
-    window.document.body.appendChild(highlightTmpl);
   }
 
   // Previous setup
@@ -193,9 +125,15 @@ suite('SMS App Unit-Test', function() {
       }
     };
 
-    // Create DOM structure
-    createDOM();
+    Contacts.findByPhoneNumber = function(tel, callback) {
+      // Get the contact
+      if (tel === '1977') {
+        callback(MockContact.list());
+      }
+    };
 
+    // Create DOM structure
+    loadBodyHTML('/index.html');
     // Clear if necessary...
     if (ThreadUI.container) {
       ThreadUI.container.innerHTML = '';
@@ -204,27 +142,62 @@ suite('SMS App Unit-Test', function() {
     // ...And render
     ThreadUI.init();
     ThreadListUI.init();
+    boundOnHashChange = MessageManager.onHashChange.bind(MessageManager);
     window.addEventListener(
-      'hashchange', MessageManager.onHashChange.bind(MessageManager)
+      'hashchange', boundOnHashChange
     );
+    realMozMobileMessage = ThreadUI._mozMobileMessage;
+    ThreadUI._mozMobileMessage = MockNavigatormozMobileMessage;
   });
 
   suiteTeardown(function() {
+    ThreadUI._mozMobileMessage = realMozMobileMessage;
     Contacts.findByString = findByString;
+    // cleanup
+    window.document.body.innerHTML = '';
+    window.removeEventListener('hashchange', boundOnHashChange);
   });
-
 
   // Let's go with tests!
 
   // First suite it's related to review Thread-View
   suite('Threads-list', function() {
+    var _tci;
     // Setup. We need an async. way due to threads are rendered
     // async.
     setup(function(done) {
       MessageManager.getThreads(ThreadListUI.renderThreads, done);
+      _tci = ThreadListUI.checkInputs;
     });
     // We are gonna review the HTML structure with this suite
     suite('Threads-list rendering', function() {
+
+      test('properly updates in response to an arriving message of a ' +
+        'different type', function() {
+        var container = ThreadListUI.container;
+        MessageManager.getThreads(function(threads) {
+          threads.forEach(function(thread, idx) {
+            var newMessage = {
+              threadId: thread.id,
+              sender: thread.participants[0],
+              timestamp: thread.timestamp,
+              type: thread.lastMessageType === 'mms' ? 'sms' : 'mms'
+            };
+            MessageManager.onMessageReceived({
+              message: newMessage
+            });
+          });
+        });
+        var mmsThreads = container.querySelectorAll(
+          '[data-last-message-type="mms"]'
+        );
+        var smsThreads = container.querySelectorAll(
+          '[data-last-message-type="sms"]'
+        );
+
+        assert.equal(mmsThreads.length, 3);
+        assert.equal(smsThreads.length, 1);
+      });
 
       test('Check HTML structure', function() {
         // Check the HTML structure, and if it fits with Building Blocks
@@ -238,6 +211,15 @@ suite('SMS App Unit-Test', function() {
         // We know as well that we have, in total, 5 threads
         assertNumberOfElementsInContainerByTag(container, 4, 'li');
         assertNumberOfElementsInContainerByTag(container, 4, 'a');
+
+        var mmsThreads = container.querySelectorAll(
+          '[data-last-message-type="mms"]'
+        );
+        var smsThreads = container.querySelectorAll(
+          '[data-last-message-type="sms"]'
+        );
+        assert.equal(mmsThreads.length, 1);
+        assert.equal(smsThreads.length, 3);
 
         // In our mockup we shoul group the threads following day criteria
         // In the second group, we should have 2 threads
@@ -258,7 +240,8 @@ suite('SMS App Unit-Test', function() {
         var threadWithContact = document.getElementById('thread_1');
         var contactName =
           threadWithContact.getElementsByClassName('name')[0].innerHTML;
-        assert.equal(contactName, 'Pepito Grillo');
+        assert.equal(contactName,
+                     'contact-title-text{"name":"Pepito Grillo","n":0}');
       });
     });
 
@@ -272,12 +255,12 @@ suite('SMS App Unit-Test', function() {
       });
 
       test('Select all/Deselect All buttons', function() {
+        document.getElementById('main-wrapper').classList.add('edit');
         // Retrieve all inputs
         var inputs = ThreadListUI.container.getElementsByTagName('input');
         // Activate all inputs
         for (var i = inputs.length - 1; i >= 0; i--) {
           inputs[i].checked = true;
-          ThreadListUI.clickInput(inputs[i]);
         }
 
         var checkAllButton =
@@ -291,30 +274,107 @@ suite('SMS App Unit-Test', function() {
         // Deactivate all inputs
         for (var i = inputs.length - 1; i >= 0; i--) {
           inputs[i].checked = false;
-          ThreadListUI.clickInput(inputs[i]);
         }
         ThreadListUI.checkInputs();
         assert.isFalse(checkAllButton.disabled);
         assert.isTrue(uncheckAllButton.disabled);
         // Activate only one
         inputs[0].checked = true;
-        ThreadListUI.clickInput(inputs[0]);
         ThreadListUI.checkInputs();
         assert.isFalse(checkAllButton.disabled);
         assert.isFalse(uncheckAllButton.disabled);
+      });
+
+      test('Select all while receiving new thread', function(done) {
+        document.getElementById('main-wrapper').classList.add('edit');
+        ThreadListUI.toggleCheckedAll(true);
+
+        var checkboxes =
+          ThreadListUI.container.querySelectorAll('input[type=checkbox]');
+        assert.equal(4,
+          [].slice.call(checkboxes).filter(function(i) {
+            return i.checked;
+          }).length, 'All items should be checked');
+
+        // now a new message comes in for a new thread...
+        ThreadListUI.count++;
+        ThreadListUI.appendThread({
+          participants: ['287138'],
+          body: 'Recibidas!',
+          id: 9999,
+          timestamp: new Date(),
+          type: 'sms',
+          channel: 'sms'
+        });
+
+        checkboxes =
+          ThreadListUI.container.querySelectorAll('input[type=checkbox]');
+
+        assert.equal(checkboxes.length, 5);
+        assert.equal(ThreadListUI.count, 5, '.count should be in sync');
+        assert.equal(checkboxes[4].checked, true);
+        assert.equal(checkboxes[2].checked, true);
+        // new checkbox should have been added
+        assert.equal(checkboxes[0].checked, false);
+
+        // Select all and Deselect all should both be enabled
+        assert.isFalse(document.getElementById('threads-check-all-button')
+          .hasAttribute('disabled'), 'Check all enabled');
+        assert.isFalse(document.getElementById('threads-uncheck-all-button')
+          .hasAttribute('disabled'), 'Uncheck all enabled');
+
+        done();
+      });
+
+      test('checkInputs should fire in edit mode', function(done) {
+        document.getElementById('main-wrapper').classList.add('edit');
+        ThreadListUI.checkInputs = stub();
+
+        ThreadListUI.counter++;
+        ThreadListUI.appendThread({
+          participants: ['287138'],
+          body: 'Recibidas!',
+          id: 9999,
+          timestamp: new Date(),
+          type: 'sms',
+          channel: 'sms'
+        });
+
+        assert.equal(ThreadListUI.checkInputs.callCount, 1);
+        done();
+      });
+
+      test('checkInputs should not fire in normal mode', function(done) {
+        document.getElementById('main-wrapper').classList.remove('edit');
+        ThreadListUI.checkInputs = stub();
+
+        ThreadListUI.counter++;
+        ThreadListUI.appendThread({
+          participants: ['287138'],
+          body: 'Recibidas!',
+          id: 9999,
+          timestamp: new Date(),
+          channel: 'sms'
+        });
+
+        assert.equal(ThreadListUI.checkInputs.callCount, 0);
+        done();
       });
     });
 
     teardown(function() {
       ThreadListUI.container.innerHTML = '';
+      ThreadListUI.checkInputs = _tci;
     });
   });
 
   // Suite for reviewing Thread-view ("bubbles" view)
   suite('Messages given a thread', function() {
+    var _tci;
     // Setup for getting all messages rendered before every test
     setup(function(done) {
       ThreadUI.renderMessages({}, done);
+      _tci = ThreadUI.checkInputs;
     });
 
     suite('Thread-messages rendering (bubbles view)', function() {
@@ -331,28 +391,6 @@ suite('SMS App Unit-Test', function() {
         assertNumOfElementsByClass(ThreadUI.container, 1, 'sent');
         assertNumOfElementsByClass(ThreadUI.container, 1, 'received');
         assertNumOfElementsByClass(ThreadUI.container, 2, 'error');
-      });
-
-      test('Check input form & send button', function() {
-        ThreadUI.enableSend();
-        // At the begginning it should be disabled
-        assert.isTrue(ThreadUI.sendButton.disabled);
-        // If we type some text in a thread
-        ThreadUI.input.value = 'Hola';
-        ThreadUI.enableSend();
-        assert.isFalse(ThreadUI.sendButton.disabled);
-        // We change to 'new'
-        window.location.hash = '#new';
-        ThreadUI.enableSend();
-        // In '#new' I need the contact as well, so it should be disabled
-        assert.isTrue(ThreadUI.sendButton.disabled);
-        // Adding a contact should enable the button
-        ThreadUI.recipient.value = '123123123';
-        ThreadUI.enableSend();
-        assert.isFalse(ThreadUI.sendButton.disabled);
-        // Finally we clean the form
-        ThreadUI.cleanFields();
-        assert.isTrue(ThreadUI.sendButton.disabled);
       });
     });
 
@@ -401,17 +439,113 @@ suite('SMS App Unit-Test', function() {
         assert.isFalse(checkAllButton.disabled);
         assert.isFalse(uncheckAllButton.disabled);
       });
+
+      test('Select all while receiving new message', function(done) {
+        document.getElementById('main-wrapper').classList.add('edit');
+        ThreadUI.toggleCheckedAll(true);
+
+        var checkboxes =
+          ThreadUI.container.querySelectorAll('input[type=checkbox]');
+        assert.equal(checkboxes.length,
+          [].slice.call(checkboxes).filter(function(i) {
+            return i.checked;
+          }).length, 'All items should be checked');
+
+        // now a new message comes in...
+        ThreadUI.appendMessage({
+          sender: '197746797',
+          body: 'Recibidas!',
+          delivery: 'received',
+          id: 9999,
+          timestamp: new Date(),
+          type: 'sms',
+          channel: 'sms'
+        });
+
+        // new checkbox should have been added
+        checkboxes =
+          ThreadUI.container.querySelectorAll('input[type=checkbox]');
+        assert.equal(checkboxes.length, 6);
+        assert.equal(checkboxes[2].checked, true);
+        assert.equal(checkboxes[5].checked, false);
+
+        // Select all and Deselect all should both be enabled
+        assert.isFalse(document.getElementById('messages-check-all-button')
+          .hasAttribute('disabled'), 'Check all enabled');
+        assert.isFalse(document.getElementById('messages-uncheck-all-button')
+          .hasAttribute('disabled'), 'Uncheck all enabled');
+
+        // now delete the selected messages...
+        MessageManager.deleteMessages = stub(function(list, itCb) {
+          setTimeout(itCb);
+        });
+
+        window.confirm = stub(true);
+
+        setTimeout(function() {
+          assert.equal(window.confirm.callCount, 1);
+          assert.equal(MessageManager.deleteMessages.callCount, 1);
+          assert.equal(MessageManager.deleteMessages.calledWith[0].length, 5);
+          assert.equal(ThreadUI.container.querySelectorAll('li').length, 1);
+          assert.equal(
+            ThreadUI.container.querySelector('#message-9999 p').textContent,
+            'Recibidas!');
+
+          done();
+        }, 1500); // only the last one is slow. What is blocking?
+
+        window.history.back = stub();
+        ThreadUI.delete();
+      });
+
+      test('checkInputs should fire in edit mode', function(done) {
+        document.getElementById('main-wrapper').classList.add('edit');
+        ThreadUI.checkInputs = stub();
+
+        // now a new message comes in...
+        ThreadUI.appendMessage({
+          sender: '197746797',
+          body: 'Recibidas!',
+          delivery: 'received',
+          id: 9999,
+          timestamp: new Date(),
+          channel: 'sms'
+        });
+
+        assert.equal(ThreadUI.checkInputs.callCount, 1);
+        done();
+      });
+
+      test('checkInputs should not fire in normal mode', function(done) {
+        document.getElementById('main-wrapper').classList.remove('edit');
+        ThreadUI.checkInputs = stub();
+
+        // now a new message comes in...
+        ThreadUI.appendMessage({
+          sender: '197746797',
+          body: 'Recibidas!',
+          delivery: 'received',
+          id: 9999,
+          timestamp: new Date(),
+          channel: 'sms'
+        });
+
+        assert.equal(ThreadUI.checkInputs.callCount, 0);
+        done();
+      });
     });
 
     teardown(function() {
       ThreadUI.container.innerHTML = '';
+      ThreadUI.checkInputs = _tci;
     });
   });
 
   suite('URL Links in SMS', function() {
     var Message = {
       id: '987',
-      body: 'Hello URL'
+      body: 'Hello URL',
+      type: 'sms'
     };
 
     //test
@@ -458,7 +592,8 @@ suite('SMS App Unit-Test', function() {
   suite('EmailAddress Links in SMS', function() {
     var Message = {
       id: '1234',
-      body: 'Hello n Welcome'
+      body: 'Hello n Welcome',
+      type: 'sms'
     };
 
     //test
@@ -504,7 +639,8 @@ suite('SMS App Unit-Test', function() {
   suite('Phone Links in SMS', function() {
     var Message = {
       id: '123',
-      body: 'Hello there'
+      body: 'Hello there',
+      type: 'sms'
     };
 
     //test
@@ -556,86 +692,92 @@ suite('SMS App Unit-Test', function() {
     });
   });
 
-  suite('Secure User Input', function() {
-    function mock(definition) {
-      return function mock() {
-        mock.called = true;
-        mock.args = [].slice.call(arguments);
-        definition.apply(this, mock.args);
-      };
-    }
+// TEMPORARILY DISABLING THESE TESTS SINCE THEY ARE SINGLE
+// RECIPIENT DEPENDENT.
 
-    test('+99', function(done) {
-      var getPhoneDetails = Utils.getPhoneDetails;
-      Utils.getPhoneDetails = mock(function(number, contact, handler) {
-        handler({});
-      });
+// suite('Sending SMS from new screen', function() {
+//   var contacts = null;
 
-      ThreadUI.recipient.value = '+99';
-      assert.doesNotThrow(function() {
-        ThreadUI.renderContact({
-          name: 'Spider Monkey',
-          tel: [{ value: '...' }]
-        });
-      });
-      assert.ok(Utils.getPhoneDetails.called);
-      assert.equal(Utils.getPhoneDetails.args[0], '...');
+//   setup(function() {
+//     contacts = MockContact.list();
+//   });
 
-      done();
-      Utils.getPhoneDetails = getPhoneDetails;
-    });
+//   test('Sending to contact should put in right thread', function(done) {
+//     var contact = contacts[0];
 
-    test('*67 [800]-555-1212', function(done) {
-      var getPhoneDetails = Utils.getPhoneDetails;
-      Utils.getPhoneDetails = mock(function(number, contact, handler) {
-        handler({});
-      });
+//     Contacts.findByString = stub(function(str, callback) {
+//       callback(contacts);
+//     });
+//     Contacts.findByPhoneNumber = stub(function(str, callback) {
+//       callback(contacts);
+//     });
 
-      ThreadUI.recipient.value = '*67 [800]-555-1212';
-      assert.doesNotThrow(function() {
-        ThreadUI.renderContact({
-          name: 'Spider Monkey',
-          tel: [{ value: '...' }]
-        });
-      });
-      assert.ok(Utils.getPhoneDetails.called);
-      assert.equal(Utils.getPhoneDetails.args[0], '...');
+//     MessageManager.onHashChange = stub();
+//     MessageManager.send = stub();
 
-      done();
-      Utils.getPhoneDetails = getPhoneDetails;
-    });
+//     window.location.hash = '#new';
 
-    test('\\^$*+?.', function(done) {
-      var getPhoneDetails = Utils.getPhoneDetails;
-      Utils.getPhoneDetails = mock(function(number, contact, handler) {
-        handler({});
-      });
+//     ThreadUI.recipients.push({
+//       name: contact.name,
+//       phoneNumber: contact.tel[0].value,
+//       source: 'contacts'
+//     });
 
-      ThreadUI.recipient.value = '\\^$*+?.';
-      assert.doesNotThrow(function() {
-        ThreadUI.renderContact({
-          name: 'Spider Monkey',
-          tel: [{ value: '...' }]
-        });
-      });
-      assert.ok(Utils.getPhoneDetails.called);
-      assert.equal(Utils.getPhoneDetails.args[0], '...');
+//     // Launch an input
+//     ThreadUI.input.value = 'Jo quiro';
+//     ThreadUI.sendMessage();
 
-      done();
-      Utils.getPhoneDetails = getPhoneDetails;
-    });
-  });
+//     setTimeout(function() {
+//       assert.equal(Contacts.findByString.callCount, 0);
+//       assert.equal(Contacts.findByPhoneNumber.callCount, 1);
+//       assert.equal(MessageManager.send.callCount, 1);
+//       assert.equal(MessageManager.send.calledWith[0], contact.tel[0].value);
+//       assert.equal(MessageManager.send.calledWith[1], 'Jo quiro');
 
-  suite('Defensive Contact Rendering', function() {
-    test('has tel number', function() {
-      var contact = new MockContact();
-      assert.isTrue(ThreadUI.renderContact(contact));
-    });
+//       window.location.hash = '';
+//       done();
+//     }, 30);
+//   });
+//   test('Sending to short nr should not link to contact', function(done) {
+//     // findByString does a substring find
+//     Contacts.findByString = stub(function(str, callback) {
+//       callback(contacts);
+//     });
+//     Contacts.findByPhoneNumber = stub(function(str, callback) {
+//       callback([]);
+//     });
 
-    test('no tel number', function() {
-      var contact = new MockContact();
-      contact.tel = null;
-      assert.isFalse(ThreadUI.renderContact(contact));
-    });
-  });
+//     MessageManager.onHashChange = stub();
+//     MessageManager.send = stub();
+
+//     window.location.hash = '#new';
+
+//     ThreadUI.recipients.push({
+//       phoneNumber: '2471'
+//     });
+
+//     ThreadUI.input.value = 'Short';
+//     ThreadUI.sendMessage();
+
+//     setTimeout(function() {
+//       assert.equal(Contacts.findByString.callCount, 0);
+//       assert.equal(Contacts.findByPhoneNumber.callCount, 1);
+//       assert.equal(MessageManager.send.callCount, 1);
+//       assert.equal(
+//         MessageManager.send.calledWith[0], ThreadUI.recipients[0]
+//       );
+//       assert.equal(MessageManager.send.calledWith[1], 'Short');
+
+//       window.location.hash = '';
+//       done();
+//     }, 30);
+//     assert.equal(send.callCount, 1);
+//     // Check for the first number in the recipients list
+//     assert.equal(send.calledWith[0][0], '2471');
+//     assert.equal(send.calledWith[1], 'Short');
+
+//     window.location.hash = '';
+//   });
+// });
 });
+

@@ -16,6 +16,29 @@ var Carrier = (function newCarrier(window, document, undefined) {
   var mobileConnection = getMobileConnection();
   var gCompatibleAPN = null;
 
+  var mccMncCodes = { mcc: '-1', mnc: '-1' };
+
+  // Read the mcc/mnc codes from the setting database, then trigger callback.
+  function getMccMncCodes(callback) {
+    var settings = Settings.mozSettings;
+    if (!settings) {
+      callback();
+    }
+    var transaction = settings.createLock();
+    var mccKey = 'operatorvariant.mcc';
+    var mncKey = 'operatorvariant.mnc';
+
+    var mccRequest = transaction.get(mccKey);
+    mccRequest.onsuccess = function() {
+      mccMncCodes.mcc = mccRequest.result[mccKey] || '0';
+      var mncRequest = transaction.get(mncKey);
+      mncRequest.onsuccess = function() {
+        mccMncCodes.mnc = mncRequest.result[mncKey] || '0';
+        callback();
+      };
+    };
+  }
+
   // query <apn> elements matching the mcc/mnc arguments
   function queryAPN(callback, usage) {
     if (!callback)
@@ -50,8 +73,8 @@ var Carrier = (function newCarrier(window, document, undefined) {
     xhr.onreadystatechange = function() {
       if (xhr.readyState == 4 && (xhr.status == 200 || xhr.status === 0)) {
         var apn = xhr.response;
-        var mcc = mobileConnection.iccInfo.mcc;
-        var mnc = mobileConnection.iccInfo.mnc;
+        var mcc = mccMncCodes.mcc;
+        var mnc = mccMncCodes.mnc;
         // get a list of matching APNs
         gCompatibleAPN = apn[mcc] ? (apn[mcc][mnc] || []) : [];
         callback(filter(gCompatibleAPN), usage);
@@ -213,12 +236,14 @@ var Carrier = (function newCarrier(window, document, undefined) {
     var settings = Settings.mozSettings;
 
     /*
-     * settingKey        : The key of the setting
-     * dialogID          : The ID of the warning dialog
-     * explanationItemID : The ID of the explanation item
+     * settingKey              : The key of the setting
+     * dialogID                : The ID of the warning dialog
+     * explanationItemID       : The ID of the explanation item
+     * warningDisabledCallback : Callback when the warning is disabled
      */
     var initWarnings =
-      function initWarnings(settingKey, dialogID, explanationItemID) {
+      function initWarnings(settingKey, dialogID, explanationItemID,
+        warningDisabledCallback) {
         if (settings) {
           var warningDialogEnabledKey = settingKey + '.warningDialog.enabled';
           var explanationItem = document.getElementById(explanationItemID);
@@ -243,6 +268,8 @@ var Carrier = (function newCarrier(window, document, undefined) {
             window.asyncStorage.setItem(warningDialogEnabledKey, false);
             explanationItem.hidden = false;
             setState(true);
+            if (warningDisabledCallback)
+              warningDisabledCallback();
           };
 
           var onReset = function() {
@@ -281,6 +308,8 @@ var Carrier = (function newCarrier(window, document, undefined) {
               };
             } else {
               explanationItem.hidden = false;
+              if (warningDisabledCallback)
+                warningDisabledCallback();
             }
           });
         } else {
@@ -288,21 +317,23 @@ var Carrier = (function newCarrier(window, document, undefined) {
         }
       };
 
+    var onDCWarningDisabled = function() {
+      // Turn off data roaming automatically when users turn off data connection
+      if (settings) {
+        settings.addObserver('ril.data.enabled', function(event) {
+          if (!event.settingValue) {
+            var cset = {};
+            cset['ril.data.roaming_enabled'] = false;
+            settings.createLock().set(cset);
+          }
+        });
+      }
+    };
+
     initWarnings('ril.data.enabled', 'carrier-dc-warning',
-      'dataConnection-expl');
+      'dataConnection-expl', onDCWarningDisabled);
     initWarnings('ril.data.roaming_enabled', 'carrier-dr-warning',
       'dataRoaming-expl');
-
-    // Turn off data roaming automatically when users turn off data connection
-    if (settings) {
-      settings.addObserver('ril.data.enabled', function(event) {
-        if (!event.settingValue) {
-          var cset = {};
-          cset['ril.data.roaming_enabled'] = false;
-          settings.createLock().set(cset);
-        }
-      });
-    }
   }
 
   // network operator selection: auto/manual
@@ -336,8 +367,8 @@ var Carrier = (function newCarrier(window, document, undefined) {
 
     // state
     var state = document.createElement('small');
-    // XXX do we need l10n here?
-    state.textContent = network.state;
+    state.textContent =
+      network.state ? _('state-' + network.state) : _('state-unknown');
 
     // create list item
     var li = document.createElement('li');
@@ -389,6 +420,7 @@ var Carrier = (function newCarrier(window, document, undefined) {
       req.onerror = function onsuccess() {
         messageElement.textContent = _('operator-status-connectingfailed');
         messageElement.dataset.l10nId = 'operator-status-connectingfailed';
+        updateSelectionMode(false);
       };
     }
 
@@ -451,11 +483,12 @@ var Carrier = (function newCarrier(window, document, undefined) {
       updateSelectionMode(true);
       initDataConnectionAndRoamingWarnings();
 
-      // XXX this should be done later -- not during init()
-      this.fillAPNList('data');
-      // XXX commented this line because MMS Settings is hidden
-      // this.fillAPNList('mms');
-      this.fillAPNList('supl');
+      getMccMncCodes(function() {
+        // XXX this should be done later -- not during init()
+        Carrier.fillAPNList('data');
+        Carrier.fillAPNList('mms');
+        Carrier.fillAPNList('supl');
+      });
     }
   };
 })(this, document);

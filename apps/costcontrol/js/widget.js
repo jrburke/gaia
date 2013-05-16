@@ -19,16 +19,23 @@
   function onReady() {
     var mobileConnection = window.navigator.mozMobileConnection;
     var cardState = checkCardState();
+    var iccid = mobileConnection.iccInfo.iccid;
 
     // SIM not ready
     if (cardState !== 'ready') {
       debug('SIM not ready:', mobileConnection.cardState);
       mobileConnection.oncardstatechange = onReady;
 
-    // SIM is ready
+    // SIM is ready, but ICC info is not ready yet
+    } else if (iccid === null) {
+      debug('ICC info not ready yet');
+      mobileConnection.oniccinfochange = onReady;
+
+    // All ready
     } else {
-      debug('SIM ready. ICCID:', mobileConnection.iccInfo.iccid);
+      debug('SIM ready. ICCID:', iccid);
       mobileConnection.oncardstatechange = undefined;
+      mobileConnection.oniccinfochange = undefined;
       startWidget();
     }
   };
@@ -58,12 +65,18 @@
   }
 
   function startWidget() {
+    function _onNoICCID() {
+      console.error('checkSIMChange() failed. Impossible to ensure consistent' +
+                    'data. Aborting start up.');
+      showSimError('no-sim2');
+    }
+
     checkSIMChange(function _onSIMChecked() {
       CostControl.getInstance(function _onCostControlReady(instance) {
         costcontrol = instance;
         setupWidget();
       });
-    });
+    }, _onNoICCID);
   }
 
   window.addEventListener('localized', function _onLocalize() {
@@ -169,7 +182,7 @@
     rightPanel.setAttribute('aria-hidden', true);
 
     var className = 'widget-' + status;
-    document.getElementById('fte-icon').textContent = 'icon ' + className;
+    document.getElementById('fte-icon').classList.add(className);
     fte.querySelector('p:first-child').textContent = _(className + '-heading');
     fte.querySelector('p:last-child').textContent = _(className + '-meta');
   }
@@ -368,7 +381,7 @@
     // Timestamp
     var meta = views.balance.querySelector('.meta');
     if (views.balance.classList.contains('updating')) {
-      meta.textContent = _('updating') + '…';
+      meta.textContent = _('updating-ellipsis');
     } else {
       meta.innerHTML = '';
       meta.appendChild(formatTimeHTML(balance.timestamp));

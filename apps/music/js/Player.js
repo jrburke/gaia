@@ -1,8 +1,5 @@
 'use strict';
 
-// We will use a wake lock later to prevent Music from sleeping
-var cpuLock = null;
-
 // We have three types of the playing sources
 // These are for player to know which source type is playing
 var TYPE_MIX = 'mix';
@@ -28,6 +25,14 @@ if (acm) {
     }
   });
 }
+
+window.addEventListener('mozvisibilitychange', function() {
+  if (document.mozHidden) {
+    PlayerView.audio.removeEventListener('timeupdate', PlayerView);
+  } else {
+    PlayerView.audio.addEventListener('timeupdate', PlayerView);
+  }
+});
 
 // View of Player
 var PlayerView = {
@@ -91,6 +96,7 @@ var PlayerView = {
     this.isPlaying = false;
     this.isSeeking = false;
     this.dataSource = [];
+    this.playingBlob = null;
     this.currentIndex = 0;
     this.backgroundIndex = 0;
     this.setSeekBar(0, 0, 0); // Set 0 to default seek position
@@ -122,6 +128,7 @@ var PlayerView = {
       musicdb.cancelEnumeration(playerHandle);
 
     this.dataSource = [];
+    this.playingBlob = null;
   },
 
   setSourceType: function pv_setSourceType(type) {
@@ -305,20 +312,19 @@ var PlayerView = {
   play: function pv_play(targetIndex, backgroundIndex) {
     this.isPlaying = true;
 
-    // Hold a wake lock to prevent from sleeping
-    if (!cpuLock)
-      cpuLock = navigator.requestWakeLock('cpu');
-
-
     this.showInfo();
 
     if (arguments.length > 0) {
       var songData = this.dataSource[targetIndex];
 
-      ModeManager.playerTitle = songData.metadata.title || unknownTitle;
-      TitleBar.changeTitleText(ModeManager.playerTitle);
+      ModeManager.playerTitle = songData.metadata.title;
+      ModeManager.updateTitle();
       this.artist.textContent = songData.metadata.artist || unknownArtist;
+      this.artist.dataset.l10nId =
+        songData.metadata.artist ? '' : unknownArtistL10nId;
       this.album.textContent = songData.metadata.album || unknownAlbum;
+      this.album.dataset.l10nId =
+        songData.metadata.album ? '' : unknownAlbumL10nId;
       this.currentIndex = targetIndex;
 
       // backgroundIndex is from the index of sublistView
@@ -343,6 +349,7 @@ var PlayerView = {
 
       musicdb.getFile(songData.name, function(file) {
         this.setAudioSrc(file, true);
+        this.playingBlob = file;
       }.bind(this));
     } else if (this.sourceType === TYPE_BLOB && !this.audio.src) {
       // if we reach here, that means we want to a blob
@@ -351,8 +358,11 @@ var PlayerView = {
         var titleBar = document.getElementById('title-text');
 
         titleBar.textContent = metadata.title || unknownTitle;
+        titleBar.dataset.l10nId = metadata.title ? '' : unknownTitleL10nId;
         this.artist.textContent = metadata.artist || unknownArtist;
+        this.artist.dataset.l10nId = metadata.artist ? '' : unknownArtistL10nId;
         this.album.textContent = metadata.album || unknownAlbum;
+        this.album.dataset.l10nId = metadata.album ? '' : unknownAlbumL10nId;
 
         // Add the blob from the dataSource to the fileinfo
         // because we want use the cover image which embedded in that blob
@@ -371,13 +381,6 @@ var PlayerView = {
 
   pause: function pv_pause() {
     this.isPlaying = false;
-
-    // We can go to sleep if music pauses
-    if (cpuLock) {
-      cpuLock.unlock();
-      cpuLock = null;
-    }
-
     this.audio.pause();
   },
 
@@ -600,10 +603,14 @@ var PlayerView = {
           this.showInfo();
 
           var songData = this.dataSource[this.currentIndex];
-          songData.metadata.rated = parseInt(target.dataset.rating);
+          var targetRating = parseInt(target.dataset.rating);
+          var newRating = (targetRating === songData.metadata.rated) ?
+            targetRating - 1 : targetRating;
 
-          musicdb.updateMetadata(songData.name, songData.metadata,
-            this.setRatings.bind(this, parseInt(target.dataset.rating)));
+          songData.metadata.rated = newRating;
+
+          musicdb.updateMetadata(songData.name, songData.metadata);
+          this.setRatings(newRating);
         }
 
         break;

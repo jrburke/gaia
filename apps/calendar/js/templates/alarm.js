@@ -35,7 +35,7 @@
      */
     description: function() {
 
-      var description;
+      var description = '';
       var trigger = this.arg('trigger');
       var _ = navigator.mozL10n.get;
 
@@ -45,27 +45,24 @@
 
       // Format the display text based on a zero-offset trigger
       if (this.arg('layout') == 'allday') {
-        trigger -= MORNING;
+        var options = layouts['allday'];
+        if (options.indexOf(trigger) !== -1) {
+          trigger -= MORNING;
+        }
       }
 
-      function translate(unit, name) {
-        var value = Math.abs(Math.round(trigger / unit));
-        var suffix = trigger > 0 ? 'after' : 'before';
-        var key = 'alarm-' + name + (value > 1 ? 's' : '') + '-' + suffix;
-        return _(key, {value: value});
-      }
-
-      var absTrigger = Math.abs(trigger);
-      if (absTrigger == 0)
+      if (trigger == 0) {
         description = _('alarm-at-event-' + this.arg('layout'));
-      else if (absTrigger < HOUR)
-        description = translate(MINUTE, 'minute');
-      else if (absTrigger < DAY)
-        description = translate(HOUR, 'hour');
-      else if (absTrigger < WEEK)
-        description = translate(DAY, 'day');
-      else
-        description = translate(WEEK, 'week');
+      } else {
+        var affix = trigger > 0 ? 'after' : 'before';
+        var parts = Calendar.App.dateFormat.relativeParts(trigger);
+
+        for (var i in parts) {
+          description += _(i + '-' + affix, {value: parts[i]});
+          // For now only display the first time part that we get
+          break;
+        }
+      }
 
       return description;
     },
@@ -84,6 +81,14 @@
 
       for (; i < iLen; i++) {
         selected = '';
+
+        //trigger option 'selected' by normalizing imported dates
+        if (layout == 'allday') {
+          if (options[i] == (trigger + MORNING)) {
+            trigger += MORNING;
+          }
+        }
+
         if (!selected && trigger && options[i] == trigger) {
           selected = ' selected';
           foundSelected = true;

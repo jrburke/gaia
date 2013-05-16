@@ -29,15 +29,20 @@ var AttentionScreen = {
 
   init: function as_init() {
     window.addEventListener('mozbrowseropenwindow', this.open.bind(this), true);
+
     window.addEventListener('mozbrowserclose', this.close.bind(this), true);
     window.addEventListener('mozbrowsererror', this.close.bind(this), true);
+
     window.addEventListener('keyboardchange', this.resize.bind(this), true);
     window.addEventListener('keyboardhide', this.resize.bind(this), true);
 
     this.bar.addEventListener('click', this.show.bind(this));
+
     window.addEventListener('home', this.hide.bind(this));
     window.addEventListener('holdhome', this.hide.bind(this));
     window.addEventListener('appwillopen', this.hide.bind(this));
+
+    window.addEventListener('will-unlock', this.screenUnlocked.bind(this));
   },
 
   resize: function as_resize(evt) {
@@ -45,8 +50,9 @@ var AttentionScreen = {
       if (!this.isFullyVisible())
         return;
 
+      var keyboardHeight = KeyboardManager.getHeight();
       this.attentionScreen.style.height =
-        window.innerHeight - evt.detail.height + 'px';
+        window.innerHeight - keyboardHeight + 'px';
     } else if (evt.type == 'keyboardhide') {
       // We still need to reset the height property even when the attention
       // screen is not fully visible, or it will overrides the height
@@ -270,6 +276,13 @@ var AttentionScreen = {
     if (origin === frameOrigin) {
       this.show();
     }
+  },
+
+  screenUnlocked: function as_screenUnlocked() {
+    // If the app behind the soon-to-be-unlocked lockscreen has an
+    // attention screen we should display it
+    var app = WindowManager.getCurrentDisplayedApp();
+    this.showForOrigin(app.origin);
   },
 
   getAttentionScreenOrigins: function as_getAttentionScreenOrigins() {
