@@ -522,8 +522,8 @@ var WindowManager = (function() {
     var frame = iframe.parentNode;
 
     if (iframe.dataset.unpainted) {
-      iframe.addEventListener('mozbrowserfirstpaint', function painted() {
-        iframe.removeEventListener('mozbrowserfirstpaint', painted);
+      iframe.addEventListener('mozbrowserloadend', function ssloadend() {
+        iframe.removeEventListener('mozbrowserloadend', ssloadend);
         saveScreenShotAndReplace(frame);
       });
     } else {
@@ -1029,6 +1029,8 @@ var WindowManager = (function() {
       app.frame.addEventListener(type, function apploaded(e) {
         e.target.removeEventListener(e.type, apploaded, true);
 
+        iframe.classList.remove('superhide');
+
         var evt = document.createEvent('CustomEvent');
         evt.initCustomEvent('apploadtime', true, false, {
           time: parseInt(Date.now() - iframe.dataset.start),
@@ -1147,6 +1149,8 @@ var WindowManager = (function() {
     iframe.dataset.frameOrigin = origin;
     // Save original frame URL in order to restore it on frame load error
     iframe.dataset.frameURL = url;
+
+    iframe.classList.add('superhide');
 
     // Note that we don't set the frame size here.  That will happen
     // when we display the app in setDisplayedApp()
