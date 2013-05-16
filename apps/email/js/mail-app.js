@@ -4,7 +4,7 @@
  **/
 
 // MailAPI is a global, set up by main-frame-setup.
-//document.mozDelayLoadEvent();
+document.mozDelayLoadEvent();
 
 
 var App = {
@@ -196,7 +196,7 @@ var App = {
       acctsSlice.die();
       App.showMessageViewOrSetup();
     };
-
+/*
     if (MailAPI._fake && MailAPI.hasAccounts) {
       // Insert a fake card while loading finishes, to give the appearance
       // of something loading, and to shorten the time the page is white.
@@ -206,6 +206,7 @@ var App = {
         { folder: null }
       );
     }
+*/
   }
 };
 

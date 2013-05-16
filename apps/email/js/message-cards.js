@@ -830,7 +830,7 @@ MessageListCard.prototype = {
 
     if (!this._triggeredLoad) {
       this._triggeredLoad = true;
-      //document.mozStopDelayingLoadEvent();
+      document.mozStopDelayingLoadEvent();
     }
   },
 

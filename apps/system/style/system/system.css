@@ -3,7 +3,7 @@ html {
 }
 
 body #windows > .appWindow > iframe.superhide {
-  /* visibility: hidden; */
+  visibility: hidden;
 }
 
 body {

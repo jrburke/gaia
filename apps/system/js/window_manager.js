@@ -808,7 +808,7 @@ var WindowManager = (function() {
       }
 
       app.frame.addEventListener(type, function apploaded(e) {
-        //iframe.classList.remove('superhide');
+        iframe.classList.remove('superhide');
 
         e.target.removeEventListener(e.type, apploaded, true);
 
@@ -1000,7 +1000,7 @@ var WindowManager = (function() {
     frame.id = 'appframe' + nextAppId++;
     iframe.dataset.frameType = 'window';
 
-    //iframe.classList.add('superhide');
+    iframe.classList.add('superhide');
 
     // Give a name to the frame for differentiating between main frame and
     // inline frame. With the name we can get frames of the same app using the
