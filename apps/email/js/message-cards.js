@@ -886,6 +886,11 @@ MessageListCard.prototype = {
       starNode.classList.add('msg-header-star-starred');
     else
       starNode.classList.remove('msg-header-star-starred');
+
+    if (firstTime && !this._savedHtml) {
+      this._savedHtml = true;
+      saveHtmlCookieCache();
+    }
   },
 
   updateMatchedMessageDom: function(firstTime, matchedHeader) {

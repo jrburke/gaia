@@ -5,6 +5,81 @@
 
 // MailAPI is a global, set up by main-frame-setup.
 
+
+
+/**
+ * Saves a JS object to document.cookie using JSON.stringify().
+ * This method claims all cookie keys that have pattern
+ * /cache(\d+)/
+ */
+function saveHtmlCookieCache() {
+  var html = document.getElementById('cards').innerHTML;
+
+  html = encodeURIComponent(html);
+
+  // Set to 20 years from now.
+  var expiry = Date.now() + (20 * 365 * 24 * 60 * 60 * 1000);
+  expiry = (new Date(expiry)).toUTCString();
+
+  // Split string into segments.
+  var index = 0;
+  var endPoint = 0;
+  var length = html.length;
+
+  for (var i = 0; i < length; i = endPoint, index += 1) {
+    // Max per-cookie length is around 4097 bytes for firefox.
+    // Give some space for key and allow i18n chars, which may
+    // take two bytes, end up with 2030. This page used
+    // to test cookie limits: http://browsercookielimits.x64.me/
+    endPoint = 2030 + i;
+    if (endPoint > length) {
+      endPoint = length;
+    }
+
+    document.cookie = 'htmlc' + index + '=' + html.substring(i, endPoint) +
+                      '; expires=' + expiry;
+  }
+
+  // If previous cookie was bigger, clear out the other values,
+  // to make sure they do not interfere later when reading and
+  // reassembling.
+  var maxSegment = 40;
+  for (i = index; i < maxSegment; i++) {
+    document.cookie = 'htmlc' + i + '=; expires=' + expiry;
+  }
+
+  console.log('saveHtmlCacheCookie: ' + html.length + ' in ' +
+              (index) + ' segments');
+}
+
+/**
+ * Gets HTML from document.cookie.
+ * This method assumes all cookie keys that have pattern
+ * /htmlc(\d+)/ are part of the object value. This method could
+ * throw given vagaries of cookie cookie storage and encodings.
+ * Be prepared.
+ */
+function getHtmlCookieCache() {
+  var value = document.cookie;
+  var pairRegExp = /htmlc(\d+)=([^;]+)/g;
+  var segments = [];
+  var match;
+
+  while (match = pairRegExp.exec(value)) {
+    segments[parseInt(match[1], 10)] = match[2] || '';
+  }
+
+  return decodeURIComponent(segments.join(''));
+}
+
+(function () {
+  var html = getHtmlCookieCache();
+  if (html) {
+    var node = document.getElementById('cards');
+    node.innerHTML = html;
+  }
+}());
+
 var App = {
   initialized: false,
 
@@ -105,30 +180,21 @@ var App = {
             dieOnFatalError('We have an account without an inbox!',
                 foldersSlice.items);
 
-          // Find out if a blank message-list card was already inserted, and
-          // if so, then just reuse it.
-          var hasMessageListCard = Cards.hasCard(['message-list', 'nonsearch']);
 
-          if (hasMessageListCard) {
-            // Just update existing card
-            Cards.tellCard(
-              ['message-list', 'nonsearch'],
-              { folder: inboxFolder }
-            );
-          } else {
-            // Clear out old cards, start fresh. This can happen for
-            // an incorrect fast path guess, and likely to happen for
-            // email apps that get upgraded from a version that did
-            // not have the cookie fast path.
-            Cards.removeAllCards();
+          document.getElementById('cards').innerHTML = '';
 
-            // Push the message list card
-            Cards.pushCard(
-              'message-list', 'nonsearch', 'immediate',
-              {
-                folder: inboxFolder
-              });
-          }
+          // Clear out old cards, start fresh. This can happen for
+          // an incorrect fast path guess, and likely to happen for
+          // email apps that get upgraded from a version that did
+          // not have the cookie fast path.
+          //Cards.removeAllCards();
+
+          // Push the message list card
+          Cards.pushCard(
+            'message-list', 'nonsearch', 'immediate',
+            {
+              folder: inboxFolder
+            });
 
           // Add navigation, but before the message list.
           Cards.pushCard(
@@ -169,13 +235,15 @@ var App = {
           // Could have bad state from an incorrect _fake fast path.
           // Mostly likely when the email app is updated from one that
           // did not have the fast path cookies set up.
-          Cards.removeAllCards();
+          document.getElementById('cards').innerHTML = '';
+
+          //Cards.removeAllCards();
 
           Cards.pushCard(
             'setup-account-info', 'default', 'immediate',
             {
               allowBack: false
-            });
+            }, undefined, saveHtmlCookieCache);
         }
       }
 
@@ -192,16 +260,6 @@ var App = {
       acctsSlice.die();
       App.showMessageViewOrSetup();
     };
-
-    if (MailAPI._fake && MailAPI.hasAccounts) {
-      // Insert a fake card while loading finishes, to give the appearance
-      // of something loading, and to shorten the time the page is white.
-      Cards.assertNoCards();
-      Cards.pushCard(
-        'message-list', 'nonsearch', 'immediate',
-        { folder: null }
-      );
-    }
   }
 };
 

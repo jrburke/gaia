@@ -428,7 +428,7 @@ var Cards = {
    *   }
    * ]
    */
-  pushCard: function(type, mode, showMethod, args, placement) {
+  pushCard: function(type, mode, showMethod, args, placement, callback) {
     var cardDef = this._cardDefs[type];
     var typePrefix = type.split('-')[0];
 
@@ -496,6 +496,10 @@ var Cards = {
       domNode.clientWidth;
 
       this._showCard(cardIndex, showMethod, 'forward');
+
+      if (callback) {
+        callback();
+      }
     }
   },
 

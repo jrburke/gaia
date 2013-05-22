@@ -64,77 +64,6 @@ function objCopy(obj) {
 }
 
 /**
- * Saves a JS object to document.cookie using JSON.stringify().
- * This method claims all cookie keys that have pattern
- * /cache(\d+)/
- */
-function saveCookieCache(obj) {
-  var json = JSON.stringify(obj);
-  json = encodeURIComponent(json);
-
-  // Set to 20 years from now.
-  var expiry = Date.now() + (20 * 365 * 24 * 60 * 60 * 1000);
-  expiry = (new Date(expiry)).toUTCString();
-
-  // Split string into segments.
-  var index = 0;
-  var endPoint = 0;
-  var length = json.length;
-
-  for (var i = 0; i < length; i = endPoint, index += 1) {
-    // Max per-cookie length is around 4097 bytes for firefox.
-    // Give some space for key and allow i18n chars, which may
-    // take two bytes, end up with 2030. This page used
-    // to test cookie limits: http://browsercookielimits.x64.me/
-    endPoint = 2030 + i;
-    if (endPoint > length) {
-      endPoint = length;
-    }
-
-    document.cookie = 'cache' + index + '=' + json.substring(i, endPoint) +
-                      '; expires=' + expiry;
-  }
-
-  // If previous cookie was bigger, clear out the other values,
-  // to make sure they do not interfere later when reading and
-  // reassembling.
-  var maxSegment = 20;
-  for (i = index; i < maxSegment; i++) {
-    document.cookie = 'cache' + i + '=; expires=' + expiry;
-  }
-
-  console.log('saveCacheCookie: ' + json.length + ' in ' +
-              (index) + ' segments');
-}
-
-/**
- * Gets a JS object from document.cookie using JSON.stringify().
- * This method assumes all cookie keys that have pattern
- * /cache(\d+)/ are part of the object value. This method could
- * throw given vagaries of cookie cookie storage and encodings.
- * Be prepared.
- */
-function getCookieCache() {
-  var value = document.cookie;
-  var pairRegExp = /cache(\d+)=([^;]+)/g;
-  var segments = [];
-  var match;
-
-  while (match = pairRegExp.exec(value)) {
-    segments[parseInt(match[1], 10)] = match[2] || '';
-  }
-
-  value = decodeURIComponent(segments.join(''));
-  return (value && JSON.parse(value)) || null;
-}
-
-/**
- * recvCache version number. If the DB or structure of recv messages
- * changes, then this version should be revved.
- */
-var CACHE_VERSION = 1;
-
-/**
  * The number of header wire messages to cache in the recvCache
  */
 var HEADER_CACHE_LIMIT = 8;
@@ -1711,26 +1640,6 @@ function MailAPI() {
    * }
    */
   this.onbadlogin = null;
-
-  // Read cache for select recv messages for fast startup.
-  if (typeof document !== 'undefined') {
-    var cache;
-    try {
-      this._recvCache = cache = getCookieCache();
-      if (cache && cache.version !== CACHE_VERSION)
-        cache = null;
-    } catch (e) {
-      console.log('Bad cookie cache, ignoring: ' + e);
-      document.cookie = '';
-      cache = null;
-    }
-  }
-
-  if (!cache) {
-    this._resetCache();
-  }
-
-  this._setHasAccounts();
 }
 exports.MailAPI = MailAPI;
 MailAPI.prototype = {
@@ -1743,32 +1652,6 @@ MailAPI.prototype = {
 
   utils: MailUtils,
 
-
-  _setHasAccounts: function () {
-    this.hasAccounts = this._recvCache && this._recvCache.accounts &&
-                       this._recvCache.accounts.addItems &&
-                       this._recvCache.accounts.addItems[0];
-  },
-
-  _resetCache: function () {
-    this._recvCache = {
-      version: CACHE_VERSION
-    };
-  },
-
-  /**
-   * Saves off the recvCache to persistent storage. Do it on
-   * a setTimeout to avoid blocking any critical startup code.
-   */
-  _saveCache: function () {
-    if (!this._saveCacheId) {
-      this._saveCacheId = setTimeout(function () {
-        this._saveCacheId = 0;
-        saveCookieCache(this._recvCache);
-      }.bind(this), 1000);
-    }
-  },
-
   /**
    * Send a message over/to the bridge.  The idea is that we (can) communicate
    * with the backend using only a postMessage-style JSON channel.
@@ -1779,33 +1662,6 @@ MailAPI.prototype = {
     // cached responses for fast startup.
 
     this._storedSends.push(msg);
-
-    var cache = this._recvCache;
-
-    var fakeMessage;
-    if (cache) {
-      if (msg.type === 'viewAccounts') {
-        fakeMessage = cache.accounts;
-      } else if (msg.type === 'viewFolders' &&
-        cache.accountId === msg.argument) {
-        fakeMessage = cache.folders;
-      } else if (msg.type === 'viewFolderMessages') {
-        fakeMessage = cache.headers;
-      }
-
-      if (fakeMessage) {
-        // While the handle IDs should match, allow for the cached value
-        // to be generated differently, and force the value for the handle
-        // we have now in this instance of the app.
-        fakeMessage.handle = msg.handle;
-
-        // Notify async to maintain observable behavior when messages are sent
-        // async to the back end.
-        setTimeout(function () {
-          this._recv_sliceSplice(fakeMessage, true);
-        }.bind(this));
-      }
-    }
   },
 
   /**
@@ -1952,28 +1808,6 @@ MailAPI.prototype = {
           index: 0,
           howMany: fakeLength
         }, slice, [], true);
-
-        // In an extreme edge case where cache has data but the IndexedDB
-        // has been wiped or corrupted, need to clear out the cache, as
-        // the accounts result may have addedItems: [] but the slice will
-        // have cached bad data.
-        if (slice._ns === 'accounts' && !transformedItems.length &&
-            !msg.moreExpected && msg.requested && msg.howMany === 0 &&
-            msg.index === 0 && fakeLength) {
-          this._resetCache();
-          this._setHasAccounts();
-
-          console.log('Account cache not valid, issuing slice.oncachereset');
-          if (slice.oncachereset) {
-            try {
-              slice.oncachereset();
-            }
-            catch (ex) {
-              reportClientCodeError('oncachereset notification error', ex,
-                                    '\n', ex.stack);
-            }
-          }
-        }
       } else {
         console.log('Slice cache match, ignoring sliceSplice for ' + slice._ns);
         return;
@@ -2056,76 +1890,6 @@ MailAPI.prototype = {
           reportClientCodeError('oncomplete notification error', ex,
                                 '\n', ex.stack);
         }
-      }
-    }
-
-    // Update the cache for the front end
-    if (!fake && typeof document !== 'undefined') {
-      if (!this._recvCache)
-        this._resetCache();
-
-      switch (slice._ns) {
-
-        case 'accounts':
-          // Cache the first / default account.
-          var firstItem = slice.items[0] && slice.items[0]._wireRep;
-
-          // Clear cache if no accounts or the first account has changed.
-          if (!slice.items.length || this._recvCache.accountId !== firstItem.id)
-            this._resetCache();
-
-          tempMsg = objCopy(msg);
-          tempMsg.howMany = 0;
-          tempMsg.index = 0;
-          if (firstItem) {
-            tempMsg.addItems = [firstItem];
-            this._recvCache.accountId = firstItem.id;
-          }
-          this._recvCache.accounts = tempMsg;
-          this._setHasAccounts();
-          this._saveCache();
-          break;
-
-        case 'folders':
-          // Cache the (first) inbox for the default account.
-          items = slice.items;
-          if (this._recvCache.accountId &&
-              this._recvCache.accountId === slice.accountId) {
-            for (i = 0; i < items.length; i++) {
-              var folderItem = items[i];
-              // Find first inbox item.
-              if (folderItem.type === 'inbox') {
-                this._recvCache.folderId = folderItem.id;
-                tempMsg = objCopy(msg);
-                tempMsg.howMany = 0;
-                tempMsg.index = 0;
-                tempMsg.addItems = [folderItem._wireRep];
-                this._recvCache.folders = tempMsg;
-                this._saveCache();
-                break;
-              }
-            }
-          }
-          break;
-
-        case 'headers':
-          // Cache the top HEADER_CACHE_LIMIT messages for the default inbox.
-          if (msg.atTop && slice.folderId === this._recvCache.folderId) {
-            tempMsg = {
-              "type": "sliceSplice",
-              handle: msg.handle,
-              index: 0,
-              howMany: 0,
-              atTop: false
-            };
-            tempMsg.addItems = [];
-            items = slice.items;
-            for (i = 0; i < HEADER_CACHE_LIMIT && i < items.length; i++)
-              tempMsg.addItems[i] = items[i]._wireRep;
-            this._recvCache.headers = tempMsg;
-            this._saveCache();
-          }
-          break;
       }
     }
   },
@@ -3833,7 +3597,7 @@ MailDB.prototype = {
     trans.objectStore(TBL_FOLDER_INFO).put(folderInfo, accountId);
 
     var headerStore = trans.objectStore(TBL_HEADER_BLOCKS),
-        bodyStore = trans.objectStore(TBL_BODY_BLOCKS), 
+        bodyStore = trans.objectStore(TBL_BODY_BLOCKS),
         i;
 
     /**
