@@ -9,6 +9,8 @@ function (require, exports, MailAPI, mozL10n, toasterNode, ValueSelector) {
 
 var Cards, Toaster;
 
+var initialCardInsertion = true;
+
 function dieOnFatalError(msg) {
   console.error('FATAL:', msg);
   throw new Error(msg);
@@ -388,7 +390,7 @@ Cards = {
    *   }
    * ]
    */
-  pushCard: function(type, mode, showMethod, args, placement) {
+  pushCard: function(type, mode, showMethod, args, placement, callback) {
     var cardDef = this._cardDefs[type];
     var typePrefix = type.split('-')[0];
 
@@ -439,6 +441,12 @@ console.log('pushCard for type: ' + type);
       domNode.classList.add('after');
     }
     this._cardStack.splice(cardIndex, 0, cardInst);
+
+    if (initialCardInsertion) {
+      initialCardInsertion = false;
+      this._cardsNode.innerHTML = '';
+    }
+
     this._cardsNode.insertBefore(domNode, insertBuddy);
 
     // If the card has any <button type="reset"> buttons,
@@ -457,9 +465,8 @@ console.log('pushCard for type: ' + type);
       this._showCard(cardIndex, showMethod, 'forward');
     }
 
-    if (!Cards.startedBackend) {
-      Cards.startedBackend = true;
-      MailAPI.startBackend();
+    if (callback) {
+      callback();
     }
   },
 

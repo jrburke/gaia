@@ -49,6 +49,7 @@ require.config({
 // Named module, so it is the same before and after build.
 define('mail-app', [
   'require',
+  'htmlCache',
   'mail-common',
   'api',
   'l10n',
@@ -58,10 +59,10 @@ define('mail-app', [
   'cards/folder-picker',
   'cards/setup-account-info'
 ],
-function (require, common, MailAPI, mozL10n) {
+function (require, htmlCache, common, MailAPI, mozL10n) {
 
 var Cards = common.Cards,
-    insertedMessageList = false,
+    initialCardInsertion = true,
     activityCallback = null;
 
 var App = {
@@ -125,6 +126,7 @@ var App = {
    */
   showMessageViewOrSetup: function(showLatest) {
     // Get the list of accounts including the unified account (if it exists)
+
     var acctsSlice = MailAPI.viewAccounts(false);
     acctsSlice.oncomplete = function() {
       // - we have accounts, show the message view!
@@ -144,29 +146,22 @@ var App = {
             common.dieOnFatalError('We have an account without an inbox!',
                 foldersSlice.items);
 
-          // Find out if a blank message-list card was already inserted, and
-          // if so, then just reuse it.
-          if (insertedMessageList ||
-              Cards.hasCard(['message-list', 'nonsearch'])) {
-            // Just update existing card
-            Cards.tellCard(
-              ['message-list', 'nonsearch'],
-              { folder: inboxFolder }
-            );
-          } else {
+          if (initialCardInsertion) {
+            initialCardInsertion = true;
+          }  else {
             // Clear out old cards, start fresh. This can happen for
             // an incorrect fast path guess, and likely to happen for
             // email apps that get upgraded from a version that did
             // not have the cookie fast path.
             Cards.removeAllCards();
-
-            // Push the message list card
-            Cards.pushCard(
-              'message-list', 'nonsearch', 'immediate',
-              {
-                folder: inboxFolder
-              });
           }
+
+          // Push the message list card
+          Cards.pushCard(
+            'message-list', 'nonsearch', 'immediate',
+            {
+              folder: inboxFolder
+            });
 
           // Add navigation, but before the message list.
           Cards.pushCard(
@@ -203,37 +198,25 @@ var App = {
               return;
           }
 
-          // Could have bad state from an incorrect _fake fast path.
-          // Mostly likely when the email app is updated from one that
-          // did not have the fast path cookies set up.
-          Cards.removeAllCards();
+          if (initialCardInsertion) {
+            initialCardInsertion = false;
+          } else {
+            // Could have bad state from an incorrect _fake fast path.
+            // Mostly likely when the email app is updated from one that
+            // did not have the fast path cookies set up.
+            Cards.removeAllCards();
+          }
 
           Cards.pushCard(
             'setup-account-info', 'default', 'immediate',
             {
               allowBack: false
+            }, null, function () {
+              htmlCache.delayedSaveFromNode();
             });
         }
       }
     };
-
-    acctsSlice.oncachereset = function() {
-      // Edge case cache error occurred, reset the UI.
-      acctsSlice.die();
-      App.showMessageViewOrSetup();
-    };
-
-    if (MailAPI.hasAccounts) {
-      // Insert a fake card while loading finishes, to give the appearance
-      // of something loading, and to shorten the time the page is white.
-      insertedMessageList = true;
-
-      Cards.assertNoCards();
-      Cards.pushCard(
-        'message-list', 'nonsearch', 'immediate',
-        { folder: null }
-      );
-    }
   }
 };
 
@@ -355,7 +338,6 @@ if ('mozSetMessageHandler' in window.navigator) {
           Cards.pushCard('compose',
             'default', 'immediate', { composer: composer,
             activity: activity });
-          activityLock = false;
         });
     };
 

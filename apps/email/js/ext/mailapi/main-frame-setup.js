@@ -34,77 +34,6 @@ function objCopy(obj) {
 }
 
 /**
- * Saves a JS object to document.cookie using JSON.stringify().
- * This method claims all cookie keys that have pattern
- * /cache(\d+)/
- */
-function saveCookieCache(obj) {
-  var json = JSON.stringify(obj);
-  json = encodeURIComponent(json);
-
-  // Set to 20 years from now.
-  var expiry = Date.now() + (20 * 365 * 24 * 60 * 60 * 1000);
-  expiry = (new Date(expiry)).toUTCString();
-
-  // Split string into segments.
-  var index = 0;
-  var endPoint = 0;
-  var length = json.length;
-
-  for (var i = 0; i < length; i = endPoint, index += 1) {
-    // Max per-cookie length is around 4097 bytes for firefox.
-    // Give some space for key and allow i18n chars, which may
-    // take two bytes, end up with 2030. This page used
-    // to test cookie limits: http://browsercookielimits.x64.me/
-    endPoint = 2030 + i;
-    if (endPoint > length) {
-      endPoint = length;
-    }
-
-    document.cookie = 'cache' + index + '=' + json.substring(i, endPoint) +
-                      '; expires=' + expiry;
-  }
-
-  // If previous cookie was bigger, clear out the other values,
-  // to make sure they do not interfere later when reading and
-  // reassembling.
-  var maxSegment = 20;
-  for (i = index; i < maxSegment; i++) {
-    document.cookie = 'cache' + i + '=; expires=' + expiry;
-  }
-
-  console.log('saveCacheCookie: ' + json.length + ' in ' +
-              (index) + ' segments');
-}
-
-/**
- * Gets a JS object from document.cookie using JSON.stringify().
- * This method assumes all cookie keys that have pattern
- * /cache(\d+)/ are part of the object value. This method could
- * throw given vagaries of cookie cookie storage and encodings.
- * Be prepared.
- */
-function getCookieCache() {
-  var value = document.cookie;
-  var pairRegExp = /cache(\d+)=([^;]+)/g;
-  var segments = [];
-  var match;
-
-  while (match = pairRegExp.exec(value)) {
-    segments[parseInt(match[1], 10)] = match[2] || '';
-  }
-
-  value = decodeURIComponent(segments.join(''));
-  return (value && JSON.parse(value)) || null;
-}
-
-/**
- * recvCache version number. If the DB or structure of recv messages
- * changes, then this version should be revved.
- */
-var CACHE_VERSION = 1;
-
-/**
  * The number of header wire messages to cache in the recvCache
  */
 var HEADER_CACHE_LIMIT = 8;
@@ -1126,18 +1055,12 @@ function BridgedViewSlice(api, ns, handle) {
    */
   this._growing = 0;
 
-  /**
-   * Indicates if this slice holds fake, cached data used only for fast startup.
-   */
-  this._fake = false;
-
   this.onadd = null;
   this.onchange = null;
   this.onsplice = null;
   this.onremove = null;
   this.onstatus = null;
   this.oncomplete = null;
-  this.oncachereset = null;
   this.ondead = null;
 }
 BridgedViewSlice.prototype = {
@@ -1201,7 +1124,6 @@ BridgedViewSlice.prototype = {
     this.onremove = null;
     this.onstatus = null;
     this.oncomplete = null;
-    this.oncachereset = null;
     this._api.__bridgeSend({
         type: 'killSlice',
         handle: this._handle
@@ -1720,26 +1642,6 @@ function MailAPI() {
    * }
    */
   this.onbadlogin = null;
-
-  // Read cache for select recv messages for fast startup.
-  if (typeof document !== 'undefined') {
-    var cache;
-    try {
-      this._recvCache = cache = getCookieCache();
-      if (cache && cache.version !== CACHE_VERSION)
-        cache = null;
-    } catch (e) {
-      console.log('Bad cookie cache, ignoring: ' + e);
-      document.cookie = '';
-      cache = null;
-    }
-  }
-
-  if (!cache) {
-    this._resetCache();
-  }
-
-  this._setHasAccounts();
 }
 exports.MailAPI = MailAPI;
 MailAPI.prototype = {
@@ -1752,71 +1654,15 @@ MailAPI.prototype = {
 
   utils: MailUtils,
 
-
-  _setHasAccounts: function () {
-    this.hasAccounts = this._recvCache && this._recvCache.accounts &&
-                       this._recvCache.accounts.addItems &&
-                       this._recvCache.accounts.addItems[0];
-  },
-
-  _resetCache: function () {
-    this._recvCache = {
-      version: CACHE_VERSION
-    };
-  },
-
-  /**
-   * Saves off the recvCache to persistent storage. Do it on
-   * a setTimeout to avoid blocking any critical startup code.
-   */
-  _saveCache: function () {
-    if (!this._saveCacheId) {
-      this._saveCacheId = setTimeout(function () {
-        this._saveCacheId = 0;
-        saveCookieCache(this._recvCache);
-      }.bind(this), 1000);
-    }
-  },
-
   /**
    * Send a message over/to the bridge.  The idea is that we (can) communicate
    * with the backend using only a postMessage-style JSON channel.
    */
   __bridgeSend: function(msg) {
     // This method gets clobbered eventually once back end worker is ready.
-    // Until then, it will store calls to send to the back end and use
-    // cached responses for fast startup.
+    // Until then, it will store calls to send to the back end.
 
     this._storedSends.push(msg);
-
-    var cache = this._recvCache;
-
-    var fakeMessage;
-    if (cache && cache.accounts) {
-      if (msg.type === 'viewAccounts') {
-        fakeMessage = cache.accounts;
-      } else if (msg.type === 'viewFolders' &&
-        cache.accountId === msg.argument) {
-        fakeMessage = cache.folders;
-      } else if (msg.type === 'viewFolderMessages') {
-        fakeMessage = cache.headers;
-      }
-
-      if (fakeMessage) {
-        // While the handle IDs should match, allow for the cached value
-        // to be generated differently, and force the value for the handle
-        // we have now in this instance of the app.
-        fakeMessage.handle = msg.handle;
-
-        // Notify async to maintain observable behavior when messages are sent
-        // async to the back end.
-        setTimeout(function () {
-          this._recv_sliceSplice(fakeMessage, true);
-        }.bind(this));
-      }
-    } else {
-      this.startBackend();
-    }
   },
 
   /**
@@ -1872,13 +1718,6 @@ MailAPI.prototype = {
                                 msg.handle);
       return true;
     }
-
-    // Track if this is a slice with some fake data, so the slice can
-    // clean up the cached data later. This will be reset later to
-    // true once splice wraps up in _fire_sliceSplice, when real data
-    // comes in.
-    if (fake)
-      slice._fake = true;
 
     var transformedItems = this._transform_sliceSplice(msg, slice);
     // It's possible that a transformed representation is depending on an async
@@ -1943,53 +1782,6 @@ MailAPI.prototype = {
   _fire_sliceSplice: function ma__fire_sliceSplice(msg, slice,
                                                    transformedItems, fake) {
     var i, stopIndex, items, tempMsg;
-
-    // If slice is still in fake mode, and the transformed items
-    // all match current values, just bail early.
-    if (!fake && slice._fake) {
-      // a slice can only be in a fake mode once, on startup.
-      slice._fake = false;
-
-      var fakeLength = slice.items.length;
-      var mismatched = transformedItems.length !== fakeLength ||
-        transformedItems.some(function (item, i) {
-          return !slice.items[i] || slice.items[i].id !== item.id;
-        });
-
-      if (mismatched) {
-        // Clear out the cached data from the slice as it is no
-        // longer valid.
-        this._fire_sliceSplice({
-          index: 0,
-          howMany: fakeLength
-        }, slice, [], true);
-
-        // In an extreme edge case where cache has data but the IndexedDB
-        // has been wiped or corrupted, need to clear out the cache, as
-        // the accounts result may have addedItems: [] but the slice will
-        // have cached bad data.
-        if (slice._ns === 'accounts' && !transformedItems.length &&
-            !msg.moreExpected && msg.requested && msg.howMany === 0 &&
-            msg.index === 0 && fakeLength) {
-          this._resetCache();
-          this._setHasAccounts();
-
-          console.log('Account cache not valid, issuing slice.oncachereset');
-          if (slice.oncachereset) {
-            try {
-              slice.oncachereset();
-            }
-            catch (ex) {
-              reportClientCodeError('oncachereset notification error', ex,
-                                    '\n', ex.stack);
-            }
-          }
-        }
-      } else {
-        console.log('Slice cache match, ignoring sliceSplice for ' + slice._ns);
-        return;
-      }
-    }
 
     // - generate namespace-specific notifications
     slice.atTop = msg.atTop;
@@ -2067,77 +1859,6 @@ MailAPI.prototype = {
           reportClientCodeError('oncomplete notification error', ex,
                                 '\n', ex.stack);
         }
-      }
-    }
-
-    // Update the cache for the front end
-    if (!fake && typeof document !== 'undefined') {
-      if (!this._recvCache)
-        this._resetCache();
-
-      switch (slice._ns) {
-
-        case 'accounts':
-          // Cache default account.
-          var defaultItem = slice.defaultAccount;
-
-          // Clear cache if no accounts or the first account has changed.
-          if (!slice.items.length ||
-              this._recvCache.accountId !== defaultItem.id)
-            this._resetCache();
-
-          tempMsg = objCopy(msg);
-          tempMsg.howMany = 0;
-          tempMsg.index = 0;
-          if (defaultItem) {
-            tempMsg.addItems = [defaultItem];
-            this._recvCache.accountId = defaultItem.id;
-          }
-          this._recvCache.accounts = tempMsg;
-          this._setHasAccounts();
-          this._saveCache();
-          break;
-
-        case 'folders':
-          // Cache the (first) inbox for the default account.
-          items = slice.items;
-          if (this._recvCache.accountId &&
-              this._recvCache.accountId === slice.accountId) {
-            for (i = 0; i < items.length; i++) {
-              var folderItem = items[i];
-              // Find first inbox item.
-              if (folderItem.type === 'inbox') {
-                this._recvCache.folderId = folderItem.id;
-                tempMsg = objCopy(msg);
-                tempMsg.howMany = 0;
-                tempMsg.index = 0;
-                tempMsg.addItems = [folderItem._wireRep];
-                this._recvCache.folders = tempMsg;
-                this._saveCache();
-                break;
-              }
-            }
-          }
-          break;
-
-        case 'headers':
-          // Cache the top HEADER_CACHE_LIMIT messages for the default inbox.
-          if (msg.atTop && slice.folderId === this._recvCache.folderId) {
-            tempMsg = {
-              "type": "sliceSplice",
-              handle: msg.handle,
-              index: 0,
-              howMany: 0,
-              atTop: false
-            };
-            tempMsg.addItems = [];
-            items = slice.items;
-            for (i = 0; i < HEADER_CACHE_LIMIT && i < items.length; i++)
-              tempMsg.addItems[i] = items[i]._wireRep;
-            this._recvCache.headers = tempMsg;
-            this._saveCache();
-          }
-          break;
       }
     }
   },
@@ -2460,12 +2181,6 @@ MailAPI.prototype = {
   },
 
   _modifyAccount: function ma__modifyAccount(account, mods) {
-    if (mods.hasOwnProperty('setAsDefault')) {
-      // The order of accounts changed. The cache is now invalid.
-      this._resetCache();
-      this._saveCache();
-    }
-
     this.__bridgeSend({
       type: 'modifyAccount',
       accountId: account.id,
@@ -2543,13 +2258,6 @@ MailAPI.prototype = {
   viewFolders: function ma_viewFolders(mode, argument) {
     var handle = this._nextHandle++,
         slice = new FoldersViewSlice(this, handle);
-
-    // Hold on to the ID for use in recvCache. In the
-    // recvCache case, this is only needed when fetching
-    // accounts.
-    if (argument && mode === 'account') {
-      slice.accountId = argument.id;
-    }
 
     this._slices[handle] = slice;
 
@@ -3079,6 +2787,1050 @@ MailAPI.prototype = {
 
 }); // end define
 ;
+define('mailapi/worker-support/main-router',[],function() {
+  'use strict';
+
+  var listeners = {};
+  var modules = [];
+  var worker = null;
+
+  function register(module) {
+    var name = module.name;
+    modules.push(module);
+
+    listeners[name] = function(msg) {
+      module.process(msg.uid, msg.cmd, msg.args);
+    };
+
+    module.sendMessage = function(uid, cmd, args, transferArgs) {
+    //dump('\x1b[34mM => w: send: ' + name + ' ' + uid + ' ' + cmd + '\x1b[0m\n');
+      //debug('onmessage: ' + name + ": " + uid + " - " + cmd);
+      worker.postMessage({
+        type: name,
+        uid: uid,
+        cmd: cmd,
+        args: args
+      }, transferArgs);
+    };
+  }
+
+  function unregister(module) {
+    delete listeners['on' + module.name];
+  }
+
+  function shutdown() {
+    modules.forEach(function(module) {
+      if (module.shutdown)
+        module.shutdown();
+    });
+  }
+
+  function useWorker(_worker) {
+    worker = _worker;
+    worker.onmessage = function dispatchToListener(evt) {
+      var data = evt.data;
+//dump('\x1b[37mM <= w: recv: '+data.type+' '+data.uid+' '+data.cmd+'\x1b[0m\n');
+      var listener = listeners[data.type];
+      if (listener)
+        listener(data);
+    };
+  }
+
+  return {
+    register: register,
+    unregister: unregister,
+    useWorker: useWorker,
+    shutdown: shutdown
+  };
+}); // end define
+;
+define('mailapi/worker-support/configparser-main',[],function() {
+  'use strict';
+
+  function debug(str) {
+    //dump('ConfigParser: ' + str + '\n');
+  }
+
+  function nsResolver(prefix) {
+    var baseUrl = 'http://schemas.microsoft.com/exchange/autodiscover/';
+    var ns = {
+      rq: baseUrl + 'mobilesync/requestschema/2006',
+      ad: baseUrl + 'responseschema/2006',
+      ms: baseUrl + 'mobilesync/responseschema/2006',
+    };
+    return ns[prefix] || null;
+  }
+
+  function parseAccountCommon(uid, cmd, text) {
+    var doc = new DOMParser().parseFromString(text, 'text/xml');
+    var getNode = function(xpath, rel) {
+      return doc.evaluate(xpath, rel || doc, null,
+                          XPathResult.FIRST_ORDERED_NODE_TYPE, null)
+                            .singleNodeValue;
+    };
+
+    var provider = getNode('/clientConfig/emailProvider');
+    // Get the first incomingServer we can use (we assume first == best).
+    var incoming = getNode('incomingServer[@type="imap"] | ' +
+                           'incomingServer[@type="activesync"]', provider);
+    var outgoing = getNode('outgoingServer[@type="smtp"]', provider);
+
+    var config = null;
+    var status = null;
+    if (incoming) {
+      config = { type: null, incoming: {}, outgoing: {} };
+      for (var iter in Iterator(incoming.children)) {
+        var child = iter[1];
+        config.incoming[child.tagName] = child.textContent;
+      }
+
+      if (incoming.getAttribute('type') === 'activesync') {
+        config.type = 'activesync';
+      } else if (outgoing) {
+        config.type = 'imap+smtp';
+        for (var iter in Iterator(outgoing.children)) {
+          var child = iter[1];
+          config.outgoing[child.tagName] = child.textContent;
+        }
+
+        // We do not support unencrypted connections outside of unit tests.
+        if (config.incoming.socketType !== 'SSL' ||
+            config.outgoing.socketType !== 'SSL') {
+          config = null;
+          status = 'unsafe';
+        }
+      } else {
+        config = null;
+        status = 'no-outgoing';
+      }
+    } else {
+      status = 'no-incoming';
+    }
+
+    self.sendMessage(uid, cmd, [config, status]);
+  }
+
+  function parseActiveSyncAccount(uid, cmd, text) {
+    var doc = new DOMParser().parseFromString(text, 'text/xml');
+
+    var getNode = function(xpath, rel) {
+      return doc.evaluate(xpath, rel, nsResolver,
+                          XPathResult.FIRST_ORDERED_NODE_TYPE, null)
+                  .singleNodeValue;
+    };
+    var getNodes = function(xpath, rel) {
+      return doc.evaluate(xpath, rel, nsResolver,
+                          XPathResult.ORDERED_NODE_ITERATOR_TYPE, null);
+    };
+    var getString = function(xpath, rel) {
+      return doc.evaluate(xpath, rel, nsResolver, XPathResult.STRING_TYPE,
+                          null).stringValue;
+    };
+
+    var postResponse = function(error, config, redirectedEmail) {
+      self.sendMessage(uid, cmd, [config, error, redirectedEmail]);
+    };
+
+    var error = null;
+    if (doc.documentElement.tagName === 'parsererror') {
+      error = 'Error parsing autodiscover response';
+      return postResponse(error);
+    }
+
+    var responseNode = getNode('/ad:Autodiscover/ms:Response', doc);
+    if (!responseNode) {
+      error = 'Missing Autodiscover Response node';
+      return postResponse(error);
+    }
+
+    var error = getNode('ms:Error', responseNode) ||
+                getNode('ms:Action/ms:Error', responseNode);
+    if (error) {
+      error = getString('ms:Message/text()', error);
+      return postResponse(error);
+    }
+
+    var redirect = getNode('ms:Action/ms:Redirect', responseNode);
+    if (redirect) {
+      if (aNoRedirect) {
+        error = 'Multiple redirects occurred during autodiscovery';
+        return postResponse(error);
+      }
+
+      var redirectedEmail = getString('text()', redirect);
+      return postResponse(null, null, redirectedEmail);
+    }
+
+    var user = getNode('ms:User', responseNode);
+    var config = {
+      culture: getString('ms:Culture/text()', responseNode),
+      user: {
+        name:  getString('ms:DisplayName/text()',  user),
+        email: getString('ms:EMailAddress/text()', user),
+      },
+      servers: [],
+    };
+
+    var servers = getNodes('ms:Action/ms:Settings/ms:Server', responseNode);
+    var server;
+    while ((server = servers.iterateNext())) {
+      config.servers.push({
+        type:       getString('ms:Type/text()',       server),
+        url:        getString('ms:Url/text()',        server),
+        name:       getString('ms:Name/text()',       server),
+        serverData: getString('ms:ServerData/text()', server),
+      });
+    }
+
+    // Try to find a MobileSync server from Autodiscovery.
+    for (var iter in Iterator(config.servers)) {
+      var server = iter[1];
+      if (server.type === 'MobileSync') {
+        config.mobileSyncServer = server;
+        break;
+      }
+    }
+
+    if (!config.mobileSyncServer) {
+      error = 'No MobileSync server found';
+      return postResponse(error, config);
+    }
+
+    postResponse(null, config);
+  };
+
+  var self = {
+    name: 'configparser',
+    sendMessage: null,
+    process: function(uid, cmd, args) {
+      debug('process ' + cmd);
+      switch (cmd) {
+        case 'accountcommon':
+          parseAccountCommon(uid, cmd, args[0]);
+          break;
+        case 'accountactivesync':
+          parseActiveSyncAccount(uid, cmd, args[0]);
+          break;
+      }
+    }
+  };
+  return self;
+});
+
+define('mailapi/worker-support/cronsync-main',[],function() {
+  'use strict';
+
+  function debug(str) {
+    //dump('CronSync: ' + str + '\n');
+  }
+
+  function clearAlarms() {
+    if (navigator.mozAlarms) {
+      var req = navigator.mozAlarms.getAll();
+      req.onsuccess = function(event) {
+        var alarms = event.target.result;
+        for (var i = 0; i < alarms.length; i++) {
+          navigator.mozAlarms.remove(alarms[i].id);
+        }
+
+        debug("clearAlarms: done.");
+      };
+
+      req.onerror = function(event) {
+        debug("clearAlarms: failure.");
+      };
+    }
+  }
+
+  function addAlarm(time) {
+    if (navigator.mozAlarms) {
+      var req = navigator.mozAlarms.add(time, 'ignoreTimezone', {});
+
+      req.onsuccess = function() {
+        debug('addAlarm: done.');
+      };
+
+      req.onerror = function(event) {
+        debug('addAlarm: failure.');
+
+        var target = event.target;
+        console.warn('err:', target && target.error && target.error.name);
+      };
+    }
+  }
+
+  var gApp, gIconUrl;
+  navigator.mozApps.getSelf().onsuccess = function(event) {
+    gApp = event.target.result;
+    if (gApp)
+      gIconUrl = gApp.installOrigin + '/style/icons/Email.png';
+  };
+
+  /**
+   * Try and bring up the given header in the front-end.
+   *
+   * XXX currently, we just cause the app to display, but we don't do anything
+   * to cause the actual message to be displayed.  Right now, since the back-end
+   * and the front-end are in the same app, we can easily tell ourselves to do
+   * things, but in the separated future, we might want to use a webactivity,
+   * and as such we should consider using that initially too.
+   */
+  function showApp(header) {
+    gApp.launch();
+  }
+
+  function showNotification(uid, title, body) {
+    var success = function() {
+      self.sendMessage(uid, 'showNotification', true);
+    };
+
+    var close = function() {
+      self.sendMessage(uid, 'showNotification', false);
+    };
+
+    NotificationHelper.send(title, body, gIconUrl, success, close);
+  }
+
+  var self = {
+    name: 'cronsyncer',
+    sendMessage: null,
+    process: function(uid, cmd, args) {
+      debug('process ' + cmd);
+      switch (cmd) {
+        case 'clearAlarms':
+          clearAlarms.apply(this, args);
+          break;
+        case 'addAlarm':
+          addAlarm.apply(this, args);
+          break;
+        case 'showNotification':
+          args.unshift(uid);
+          showNotification.apply(this, args);
+          break;
+        case 'showApp':
+          showApp.apply(this, args);
+          break;
+      }
+    }
+  };
+  return self;
+});
+
+define('mailapi/worker-support/devicestorage-main',[],function() {
+  'use strict';
+
+  function debug(str) {
+    dump('DeviceStorage: ' + str + '\n');
+  }
+
+  function save(uid, cmd, storage, blob, filename) {
+    var deviceStorage = navigator.getDeviceStorage(storage);
+    var req = deviceStorage.addNamed(blob, filename);
+
+    req.onerror = function() {
+      self.sendMessage(uid, cmd, [false, req.error.name]);
+    };
+
+    req.onsuccess = function() {
+      self.sendMessage(uid, cmd, [true]);
+    };
+  }
+
+  var self = {
+    name: 'devicestorage',
+    sendMessage: null,
+    process: function(uid, cmd, args) {
+      debug('process ' + cmd);
+      switch (cmd) {
+        case 'save':
+          save(uid, cmd, args[0], args[1], args[2]);
+          break;
+      }
+    }
+  };
+  return self;
+});
+
+define('mailapi/worker-support/maildb-main',[],function() {
+'use strict';
+
+  function debug(str) {
+    dump('MailDB: ' + str + '\n');
+  }
+
+  var db = null;
+  function open(uid, cmd, args) {
+    db = self._debugDB = new MailDB(args[0], function() {
+      self.sendMessage(uid, cmd, Array.prototype.slice.call(arguments));
+    });
+  }
+
+  function others(uid, cmd, args) {
+    if (!Array.isArray(args))
+      args = [];
+    args.push(function() {
+      self.sendMessage(uid, cmd, Array.prototype.slice.call(arguments));
+    });
+    db[cmd].apply(db, args);
+  }
+
+  var self = {
+    name: 'maildb',
+    sendMessage: null,
+    process: function(uid, cmd, args) {
+      switch (cmd) {
+        case 'open':
+          open(uid, cmd, args);
+          break;
+        default:
+          others(uid, cmd, args);
+          break;
+      }
+    },
+    _debugDB: null
+  };
+
+var IndexedDB;
+if (("indexedDB" in window) && window.indexedDB) {
+  IndexedDB = window.indexedDB;
+} else if (("mozIndexedDB" in window) && window.mozIndexedDB) {
+  IndexedDB = window.mozIndexedDB;
+} else if (("webkitIndexedDB" in window) && window.webkitIndexedDB) {
+  IndexedDB = window.webkitIndexedDB;
+} else {
+  console.error("No IndexedDB!");
+  throw new Error("I need IndexedDB; load me in a content page universe!");
+}
+
+/**
+ * The current database version.
+ *
+ * Explanation of most recent bump:
+ *
+ * Bumping to 21 because of massive error in partial fetching merges.
+ *
+ * Bumping to 20 because of block sizing changes.
+ *
+ * Bumping to 19 because of change from uids to ids, but mainly because we are
+ * now doing parallel IMAP fetching and we want to see the results of using it
+ * immediately.
+ *
+ * Bumping to 18 because of massive change for lazily fetching snippets and
+ * message bodies.
+ *
+ * Bumping to 17 because we changed the folder representation to store
+ * hierarchy.
+ */
+var CUR_VERSION = 21;
+
+/**
+ * What is the lowest database version that we are capable of performing a
+ * friendly-but-lazy upgrade where we nuke the database but re-create the user's
+ * accounts?  Set this to the CUR_VERSION if we can't.
+ *
+ * Note that this type of upgrade can still be EXTREMELY DANGEROUS because it
+ * may blow away user actions that haven't hit a server yet.
+ */
+var FRIENDLY_LAZY_DB_UPGRADE_VERSION = 5;
+
+/**
+ * The configuration table contains configuration data that should persist
+ * despite implementation changes. Global configuration data, and account login
+ * info.  Things that would be annoying for us to have to re-type.
+ */
+var TBL_CONFIG = 'config',
+      CONFIG_KEY_ROOT = 'config',
+      // key: accountDef:`AccountId`
+      CONFIG_KEYPREFIX_ACCOUNT_DEF = 'accountDef:';
+
+/**
+ * The folder-info table stores meta-data about the known folders for each
+ * account.  This information may be blown away on upgrade.
+ *
+ * While we may eventually stash info like histograms of messages by date in
+ * a folder, for now this is all about serving as a directory service for the
+ * header and body blocks.  See `ImapFolderStorage` for the details of the
+ * payload.
+ *
+ * All the folder info for each account is stored in a single object since we
+ * keep it all in-memory for now.
+ *
+ * key: `AccountId`
+ */
+var TBL_FOLDER_INFO = 'folderInfo';
+
+/**
+ * Stores time-clustered information about messages in folders.  Message bodies
+ * and attachment names are not included, but initial snippets and the presence
+ * of attachments are.
+ *
+ * We store headers separately from bodies because our access patterns are
+ * different for each.  When we want headers, all we want is headers, and don't
+ * need the bodies clogging up our IO.  Additionally, we expect better
+ * compression for bodies if they are stored together.
+ *
+ * key: `FolderId`:`BlockId`
+ *
+ * Each value is an object dictionary whose keys are either UIDs or a more
+ * globally unique identifier (ex: gmail's X-GM-MSGID values).  The values are
+ * the info on the message; see `ImapFolderStorage` for details.
+ */
+var TBL_HEADER_BLOCKS = 'headerBlocks';
+/**
+ * Stores time-clustered information about message bodies.  Body details include
+ * the list of attachments, as well as the body payloads and the embedded inline
+ * parts if they all met the sync heuristics.  (If we can't sync all the inline
+ * images, for example, we won't sync any.)
+ *
+ * Note that body blocks are not paired with header blocks; their storage is
+ * completely separate.
+ *
+ * key: `FolderId`:`BlockId`
+ *
+ * Each value is an object dictionary whose keys are either UIDs or a more
+ * globally unique identifier (ex: gmail's X-GM-MSGID values).  The values are
+ * the info on the message; see `ImapFolderStorage` for details.
+ */
+var TBL_BODY_BLOCKS = 'bodyBlocks';
+
+/**
+ * DB helper methods for Gecko's IndexedDB implementation.  We are assuming
+ * the presence of the Mozilla-specific mozGetAll helper right now.  Since our
+ * app is also dependent on the existence of the TCP API that no one else
+ * supports right now and we are assuming a SQLite-based IndexedDB
+ * implementation, this does not seem too crazy.
+ *
+ * == Useful tidbits on our IndexedDB implementation
+ *
+ * - SQLite page size is 32k
+ * - The data persisted to the database (but not Blobs AFAICS) gets compressed
+ *   using snappy on a per-value basis.
+ * - Blobs/files are stored as files on the file-system that are referenced by
+ *   the data row.  Since they are written in one go, they are highly unlikely
+ *   to be fragmented.
+ * - Blobs/files are clever once persisted.  Specifically, nsDOMFileFile
+ *   instances are created with just the knowledge of the file-path.  This means
+ *   the data does not have to be marshaled, and it means that it can be
+ *   streamed off the disk.  This is primarily beneficial in that if there is
+ *   data we don't need to mutate, we can feed it directly to the web browser
+ *   engine without potentially creating JS string garbage.
+ *
+ * Given the page size and snappy compression, we probably only want to spill to
+ * a blob for non-binary data that exceeds 64k by a fair margin, and less
+ * compressible binary data that is at least 64k.
+ *
+ * @args[
+ *   @param[testOptions #:optional @dict[
+ *     @key[dbVersion #:optional Number]{
+ *       Override the database version to treat as the database version to use.
+ *       This is intended to let us do simple database migration testing by
+ *       creating the database with an old version number, then re-open it
+ *       with the current version and seeing a migration happen.  To test
+ *       more authentic migrations when things get more complex, we will
+ *       probably want to persist JSON blobs to disk of actual older versions
+ *       and then pass that in to populate the database.
+ *     }
+ *     @key[nukeDb #:optional Boolean]{
+ *       Compel ourselves to nuke the previous database state and start from
+ *       scratch.  This only has an effect when IndexedDB has fired an
+ *       onupgradeneeded event.
+ *     }
+ *   ]]
+ * ]
+ */
+function MailDB(testOptions, successCb, errorCb, upgradeCb) {
+  this._db = null;
+
+  this._lazyConfigCarryover = null;
+
+  /**
+   * Fatal error handler.  This gets to be the error handler for all unexpected
+   * error cases.
+   */
+  this._fatalError = function(event) {
+    function explainSource(source) {
+      if (!source)
+        return 'unknown source';
+      if (source instanceof IDBObjectStore)
+        return 'object store "' + source.name + '"';
+      if (source instanceof IDBIndex)
+        return 'index "' + source.name + '" on object store "' +
+          source.objectStore.name + '"';
+      if (source instanceof IDBCursor)
+        return 'cursor on ' + explainSource(source.source);
+      return 'unexpected source';
+    }
+    var explainedSource, target = event.target;
+    if (target instanceof IDBTransaction) {
+      explainedSource = 'transaction (' + target.mode + ')';
+    }
+    else if (target instanceof IDBRequest) {
+      explainedSource = 'request as part of ' +
+        (target.transaction ? target.transaction.mode : 'NO') +
+        ' transaction on ' + explainSource(target.source);
+    }
+    else { // dunno, ask it to stringify itself.
+      explainedSource = target.toString();
+    }
+    console.error('indexedDB error:', target.error.name, 'from',
+                  explainedSource);
+  };
+
+  var dbVersion = CUR_VERSION;
+  if (testOptions && testOptions.dbVersion)
+    dbVersion = testOptions.dbVersion;
+  var openRequest = IndexedDB.open('b2g-email', dbVersion), self = this;
+  openRequest.onsuccess = function(event) {
+    self._db = openRequest.result;
+
+    successCb();
+  };
+  openRequest.onupgradeneeded = function(event) {
+    console.log('MailDB in onupgradeneeded');
+    var db = openRequest.result;
+
+    // - reset to clean slate
+    if ((event.oldVersion < FRIENDLY_LAZY_DB_UPGRADE_VERSION) ||
+        (testOptions && testOptions.nukeDb)) {
+      self._nukeDB(db);
+    }
+    // - friendly, lazy upgrade
+    else {
+      var trans = openRequest.transaction;
+      // Load the current config, save it off so getConfig can use it, then nuke
+      // like usual.  This is obviously a potentially data-lossy approach to
+      // things; but this is a 'lazy' / best-effort approach to make us more
+      // willing to bump revs during development, not the holy grail.
+      self.getConfig(function(configObj, accountInfos) {
+        if (configObj)
+          self._lazyConfigCarryover = {
+            oldVersion: event.oldVersion,
+            config: configObj,
+            accountInfos: accountInfos
+          };
+        self._nukeDB(db);
+      }, trans);
+    }
+  };
+  openRequest.onerror = this._fatalError;
+}
+
+MailDB.prototype = {
+  /**
+   * Reset the contents of the database.
+   */
+  _nukeDB: function(db) {
+    var existingNames = db.objectStoreNames;
+    for (var i = 0; i < existingNames.length; i++) {
+      db.deleteObjectStore(existingNames[i]);
+    }
+
+    db.createObjectStore(TBL_CONFIG);
+    db.createObjectStore(TBL_FOLDER_INFO);
+    db.createObjectStore(TBL_HEADER_BLOCKS);
+    db.createObjectStore(TBL_BODY_BLOCKS);
+  },
+
+  close: function() {
+    if (this._db) {
+      this._db.close();
+      this._db = null;
+    }
+  },
+
+  getConfig: function(callback, trans) {
+    var transaction = trans ||
+                      this._db.transaction([TBL_CONFIG, TBL_FOLDER_INFO],
+                                           'readonly');
+    var configStore = transaction.objectStore(TBL_CONFIG),
+        folderInfoStore = transaction.objectStore(TBL_FOLDER_INFO);
+
+    // these will fire sequentially
+    var configReq = configStore.mozGetAll(),
+        folderInfoReq = folderInfoStore.mozGetAll();
+
+    configReq.onerror = this._fatalError;
+    // no need to track success, we can read it off folderInfoReq
+    folderInfoReq.onerror = this._fatalError;
+    var self = this;
+    folderInfoReq.onsuccess = function(event) {
+      var configObj = null, accounts = [], i, obj;
+
+      // - Check for lazy carryover.
+      // IndexedDB provides us with a strong ordering guarantee that this is
+      // happening after any upgrade check.  Doing it outside this closure would
+      // be race-prone/reliably fail.
+      if (self._lazyConfigCarryover) {
+        var lazyCarryover = self._lazyConfigCarryover;
+        self._lazyConfigCarryover = null;
+        callback(configObj, accounts, lazyCarryover);
+        return;
+      }
+
+      // - Process the results
+      for (i = 0; i < configReq.result.length; i++) {
+        obj = configReq.result[i];
+        if (obj.id === 'config')
+          configObj = obj;
+        else
+          accounts.push({def: obj, folderInfo: null});
+      }
+      for (i = 0; i < folderInfoReq.result.length; i++) {
+        accounts[i].folderInfo = folderInfoReq.result[i];
+      }
+
+      try {
+        callback(configObj, accounts);
+      }
+      catch(ex) {
+        console.error('Problem in configCallback', ex, '\n', ex.stack);
+      }
+    };
+  },
+
+  saveConfig: function(config) {
+    var req = this._db.transaction(TBL_CONFIG, 'readwrite')
+                        .objectStore(TBL_CONFIG)
+                        .put(config, 'config');
+    req.onerror = this._fatalError;
+  },
+
+  /**
+   * Save the addition of a new account or when changing account settings.  Only
+   * pass `folderInfo` for the new account case; omit it for changing settings
+   * so it doesn't get updated.  For coherency reasons it should only be updated
+   * using saveAccountFolderStates.
+   */
+  saveAccountDef: function(config, accountDef, folderInfo) {
+    var trans = this._db.transaction([TBL_CONFIG, TBL_FOLDER_INFO],
+                                     'readwrite');
+
+    var configStore = trans.objectStore(TBL_CONFIG);
+    configStore.put(config, 'config');
+    configStore.put(accountDef, CONFIG_KEYPREFIX_ACCOUNT_DEF + accountDef.id);
+    if (folderInfo) {
+      trans.objectStore(TBL_FOLDER_INFO)
+           .put(folderInfo, accountDef.id);
+    }
+    trans.onerror = this._fatalError;
+  },
+
+  loadHeaderBlock: function(folderId, blockId, callback) {
+    var req = this._db.transaction(TBL_HEADER_BLOCKS, 'readonly')
+                         .objectStore(TBL_HEADER_BLOCKS)
+                         .get(folderId + ':' + blockId);
+    req.onerror = this._fatalError;
+    req.onsuccess = function() {
+      callback(req.result);
+    };
+  },
+
+  loadBodyBlock: function(folderId, blockId, callback) {
+    var req = this._db.transaction(TBL_BODY_BLOCKS, 'readonly')
+                         .objectStore(TBL_BODY_BLOCKS)
+                         .get(folderId + ':' + blockId);
+    req.onerror = this._fatalError;
+    req.onsuccess = function() {
+      callback(req.result);
+    };
+  },
+
+  /**
+   * Coherently update the state of the folderInfo for an account plus all dirty
+   * blocks at once in a single (IndexedDB and SQLite) commit. If we broke
+   * folderInfo out into separate keys, we could do this on a per-folder basis
+   * instead of per-account.  Revisit if performance data shows stupidity.
+   *
+   * @args[
+   *   @param[accountId]
+   *   @param[folderInfo]
+   *   @param[perFolderStuff @listof[@dict[
+   *     @key[id FolderId]
+   *     @key[headerBlocks @dictof[@key[BlockId] @value[HeaderBlock]]]
+   *     @key[bodyBlocks @dictof[@key[BlockID] @value[BodyBlock]]]
+   *   ]]]
+   * ]
+   */
+  saveAccountFolderStates: function(accountId, folderInfo, perFolderStuff,
+                                    deletedFolderIds, callback) {
+    var trans = this._db.transaction([TBL_FOLDER_INFO, TBL_HEADER_BLOCKS,
+                                      TBL_BODY_BLOCKS], 'readwrite');
+    trans.onerror = this._fatalError;
+    trans.objectStore(TBL_FOLDER_INFO).put(folderInfo, accountId);
+
+    var headerStore = trans.objectStore(TBL_HEADER_BLOCKS),
+        bodyStore = trans.objectStore(TBL_BODY_BLOCKS), 
+        i;
+
+    /**
+     * Calling put/delete on operations can be fairly expensive for these blocks
+     * (4-10ms+) which can cause major jerk while scrolling to we send block
+     * operations individually (but inside of a single block) to improve
+     * responsiveness at the cost of throughput.
+     */
+    var operationQueue = [];
+
+    function addToQueue() {
+      var args = Array.slice(arguments);
+      var store = args.shift();
+      var type = args.shift();
+
+      operationQueue.push({
+        store: store,
+        type: type,
+        args: args
+      });
+    }
+
+    function workQueue() {
+      var pendingRequest = operationQueue.shift();
+
+      // no more the transition complete handles the callback
+      if (!pendingRequest)
+        return;
+
+      var store = pendingRequest.store;
+      var type = pendingRequest.type;
+
+      var request = store[type].apply(store, pendingRequest.args);
+
+      request.onsuccess = request.onerror = workQueue;
+    }
+
+    for (i = 0; i < perFolderStuff.length; i++) {
+      var pfs = perFolderStuff[i], block;
+
+      for (var headerBlockId in pfs.headerBlocks) {
+        block = pfs.headerBlocks[headerBlockId];
+        if (block)
+          addToQueue(headerStore, 'put', block, pfs.id + ':' + headerBlockId);
+        else
+          addToQueue(headerStore, 'delete', pfs.id + ':' + headerBlockId);
+      }
+
+      for (var bodyBlockId in pfs.bodyBlocks) {
+        block = pfs.bodyBlocks[bodyBlockId];
+        if (block)
+          addToQueue(bodyStore, 'put', block, pfs.id + ':' + bodyBlockId);
+        else
+          addToQueue(bodyStore, 'delete', pfs.id + ':' + bodyBlockId);
+      }
+    }
+
+    if (deletedFolderIds) {
+      for (i = 0; i < deletedFolderIds.length; i++) {
+        var folderId = deletedFolderIds[i],
+            range = IDBKeyRange.bound(folderId + ':',
+                                      folderId + ':\ufff0',
+                                      false, false);
+        addToQueue(headerStore, 'delete', range);
+        addToQueue(bodyStore, 'delete', range);
+      }
+    }
+
+    if (callback) {
+      trans.addEventListener('complete', function() {
+        callback();
+      });
+    }
+
+    workQueue();
+
+    return trans;
+  },
+
+  /**
+   * Delete all traces of an account from the database.
+   */
+  deleteAccount: function(accountId) {
+    var trans = this._db.transaction([TBL_CONFIG, TBL_FOLDER_INFO,
+                                      TBL_HEADER_BLOCKS, TBL_BODY_BLOCKS],
+                                      'readwrite');
+    trans.onerror = this._fatalError;
+
+    trans.objectStore(TBL_CONFIG).delete('accountDef:' + accountId);
+    trans.objectStore(TBL_FOLDER_INFO).delete(accountId);
+    var range = IDBKeyRange.bound(accountId + '/',
+                                  accountId + '/\ufff0',
+                                  false, false);
+    trans.objectStore(TBL_HEADER_BLOCKS).delete(range);
+    trans.objectStore(TBL_BODY_BLOCKS).delete(range);
+  },
+};
+
+return self;
+});
+
+define('mailapi/worker-support/net-main',[],function() {
+  'use strict';
+
+  function debug(str) {
+    //dump('NetSocket: ' + str + '\n');
+  }
+
+  // Maintain a list of active sockets
+  var socks = {};
+
+  function open(uid, host, port, options) {
+    var socket = navigator.mozTCPSocket;
+    var sock = socks[uid] = socket.open(host, port, options);
+
+    sock.onopen = function(evt) {
+      //debug('onopen ' + uid + ": " + evt.data.toString());
+      self.sendMessage(uid, 'onopen');
+    };
+
+    sock.onerror = function(evt) {
+      //debug('onerror ' + uid + ": " + new Uint8Array(evt.data));
+      var err = evt.data;
+      var wrappedErr;
+      if (err && typeof(err) === 'object') {
+        wrappedErr = {
+          name: err.name,
+          type: err.type,
+          message: err.message
+        };
+      }
+      else {
+        wrappedErr = err;
+      }
+      self.sendMessage(uid, 'onerror', wrappedErr);
+    };
+
+    sock.ondata = function(evt) {
+      var buf = evt.data;
+      self.sendMessage(uid, 'ondata', buf, [buf]);
+    };
+
+    sock.onclose = function(evt) {
+      //debug('onclose ' + uid + ": " + evt.data.toString());
+      self.sendMessage(uid, 'onclose');
+    };
+  }
+
+  function close(uid) {
+    var sock = socks[uid];
+    if (!sock)
+      return;
+    sock.close();
+    sock.onopen = null;
+    sock.onerror = null;
+    sock.ondata = null;
+    sock.onclose = null;
+    delete socks[uid];
+  }
+
+  function write(uid, data, offset, length) {
+    // XXX why are we doing this? ask Vivien or try to remove...
+    socks[uid].send(data, offset, length);
+  }
+
+  var self = {
+    name: 'netsocket',
+    sendMessage: null,
+    process: function(uid, cmd, args) {
+      debug('process ' + cmd);
+      switch (cmd) {
+        case 'open':
+          open(uid, args[0], args[1], args[2]);
+          break;
+        case 'close':
+          close(uid);
+          break;
+        case 'write':
+          write(uid, args[0], args[1], args[2]);
+          break;
+      }
+    }
+  };
+  return self;
+});
+
+define('mailapi/main-frame-backend',[
+  './worker-support/main-router',
+  './worker-support/configparser-main',
+  './worker-support/cronsync-main',
+  './worker-support/devicestorage-main',
+  './worker-support/maildb-main',
+  './worker-support/net-main'
+], function(
+  $router,
+  $configparser,
+  $cronsync,
+  $devicestorage,
+  $maildb,
+  $net
+) {
+
+function init(MailAPI) {
+  var worker = new Worker('js/ext/mailapi/worker-bootstrap.js');
+
+  var bridge = {
+    name: 'bridge',
+    sendMessage: null,
+    process: function(uid, cmd, args) {
+      var msg = args;
+
+      if (msg.type === 'hello') {
+        MailAPI.__bridgeSend = function(msg) {
+          worker.postMessage({
+            uid: uid,
+            type: 'bridge',
+            msg: msg
+          });
+        };
+
+        MailAPI.config = msg.config;
+
+        // Send up all the queued messages to real backend now.
+        MailAPI._storedSends.forEach(function (msg) {
+          MailAPI.__bridgeSend(msg);
+        });
+        MailAPI._storedSends = [];
+      } else {
+        MailAPI.__bridgeReceive(msg);
+      }
+    }
+  };
+
+  var control = {
+    name: 'control',
+    sendMessage: null,
+    process: function(uid, cmd, args) {
+      var online = navigator.onLine;
+      var hasPendingAlarm = navigator.mozHasPendingMessage &&
+                            navigator.mozHasPendingMessage('alarm');
+      control.sendMessage(uid, 'hello', [online, hasPendingAlarm]);
+
+      window.addEventListener('online', function(evt) {
+        control.sendMessage(uid, evt.type, [true]);
+      });
+      window.addEventListener('offline', function(evt) {
+        control.sendMessage(uid, evt.type, [false]);
+      });
+      if (navigator.mozSetMessageHandler) {
+        navigator.mozSetMessageHandler('alarm', function(msg) {
+          control.sendMessage(uid, 'alarm', [msg]);
+        });
+      }
+
+      $router.unregister(control);
+    }
+  };
+
+  $router.useWorker(worker);
+
+  $router.register(control);
+  $router.register(bridge);
+  $router.register($configparser);
+  $router.register($cronsync);
+  $router.register($devicestorage);
+  $router.register($maildb);
+  $router.register($net);
+}
+
+return init;
+});
 /**
  * The startup process (which can be improved) looks like this:
  *
@@ -3104,27 +3856,21 @@ define('mailapi/main-frame-setup',
     // messages that we receive before we finish setup.
     './worker-support/shim-sham',
     './mailapi',
+    './main-frame-backend',
     'require'
   ],
   function(
     $shim_setup,
     $mailapi,
+    $backend,
     require
   ) {
 
   // Create MailAPI instance, and indicate it is fake for
   // now, waiting on real back end to boot up.
   var MailAPI = new $mailapi.MailAPI();
-  MailAPI._fake = true;
 
-  MailAPI.startBackend = function startBackend() {
-    if (!this._backendStarted) {
-      this._backendStarted = true;
-      require(['./main-frame-backend'], function (backend) {
-        backend(MailAPI);
-      });
-    }
-  };
+  $backend(MailAPI);
 
   return MailAPI;
 }); // end define

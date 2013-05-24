@@ -8,7 +8,7 @@
     "end": "console.log('@@@@@@@TOP: ' + _xstart);console.log('@@@@@@@@BOTTOM: ' + (performance.now() - _xstart));"
   },
 */
-  "include": ["l10nbase", "l10ndate", "tmpl", "text", "value_selector",
+  "include": ["alameda", "l10nbase", "l10ndate", "tmpl", "text", "value_selector",
               "folder_depth_classes", "mail-app"],
   "optimize": "none"
 }
