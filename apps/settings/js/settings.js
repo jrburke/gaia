@@ -386,6 +386,7 @@ var Settings = {
     var key = input.name;
 
     var settings = window.navigator.mozSettings;
+    //XXX should we check data-ignore here?
     if (!key || !settings || event.type != 'change')
       return;
 
@@ -516,27 +517,59 @@ var Settings = {
   },
 
   getSupportedLanguages: function settings_getLanguages(callback) {
-    var LANGUAGES = 'shared/resources/languages.json';
+    if (!callback)
+      return;
 
     if (this._languages) {
       callback(this._languages);
     } else {
+      var LANGUAGES = 'languages.json';
       var self = this;
-      var xhr = new XMLHttpRequest();
-      xhr.onreadystatechange = function loadSupportedLocales() {
-        if (xhr.readyState === 4) {
-          if (xhr.status === 0 || xhr.status === 200) {
-            self._languages = xhr.response;
-            callback(self._languages);
-          } else {
-            console.error('Failed to fetch languages.json: ', xhr.statusText);
-          }
+      this.readSharedFile(LANGUAGES, function getLanguages(data) {
+        if (data) {
+          self._languages = data;
+          callback(self._languages);
         }
-      };
-      xhr.open('GET', LANGUAGES, true); // async
-      xhr.responseType = 'json';
-      xhr.send();
+      });
     }
+  },
+
+  getSupportedKbLayouts: function settings_getSupportedKbLayouts(callback) {
+    if (!callback)
+      return;
+
+    if (this._kbLayoutList) {
+      callback(this._kbLayoutList);
+    } else {
+      var KEYBOARDS = 'keyboard_layouts.json';
+      var self = this;
+      this.readSharedFile(KEYBOARDS, function getKeyboardLayouts(data) {
+        if (data) {
+          self._kbLayoutList = data;
+          callback(self._kbLayoutList);
+        }
+      });
+    }
+  },
+
+  readSharedFile: function settings_readSharedFile(file, callback) {
+    var URI = '/shared/resources/' + file;
+    if (!callback)
+      return;
+
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function loadFile() {
+      if (xhr.readyState === 4) {
+        if (xhr.status === 0 || xhr.status === 200) {
+          callback(xhr.response);
+        } else {
+          console.error('Failed to fetch file: ' + file, xhr.statusText);
+        }
+      }
+    };
+    xhr.open('GET', URI, true); // async
+    xhr.responseType = 'json';
+    xhr.send();
   },
 
   updateLanguagePanel: function settings_updateLanguagePanel() {
@@ -570,6 +603,53 @@ var Settings = {
     function callback() {
       self._panelStylesheetsLoaded = true;
     });
+  },
+
+  updateKeyboardPanel: function settings_updateKeyboardPanel() {
+    var panel = document.getElementById('keyboard');
+    // Update the keyboard layouts list from the Keyboard panel
+    if (panel) {
+      this.getSupportedKbLayouts(function updateKbList(keyboards) {
+        var kbLayoutsList = document.getElementById('keyboard-layouts');
+        // Get pointers to the top list entry and its labels which are used to
+        // pin the language associated keyboard at the top of the keyboards list
+        var pinnedKb = document.getElementById('language-keyboard');
+        var pinnedKbLabel = pinnedKb.querySelector('a');
+        var pinnedKbSubLabel = pinnedKb.querySelector('small');
+        pinnedKbSubLabel.textContent = '';
+
+        // Get the current language and its associate keyboard layout
+        var currentLang = document.documentElement.lang;
+        var langKeyboard = keyboards.layout[currentLang];
+
+        var kbSelector = 'input[name="keyboard.layouts.' + langKeyboard + '"]';
+        var kbListQuery = kbLayoutsList.querySelector(kbSelector);
+
+        if (kbListQuery) {
+          // Remove the entry from the list since it will be pinned on top
+          // of the Keyboard Layouts list
+          var kbListEntry = kbListQuery.parentNode.parentNode;
+          kbListEntry.hidden = true;
+
+          var label = kbListEntry.querySelector('a');
+          var sub = kbListEntry.querySelector('small');
+          pinnedKbLabel.dataset.l10nId = label.dataset.l10nId;
+          pinnedKbLabel.textContent = label.textContent;
+          if (sub) {
+            pinnedKbSubLabel.dataset.l10nId = sub.dataset.l10nId;
+            pinnedKbSubLabel.textContent = sub.textContent;
+          }
+        } else {
+          // If the current language does not have an associated keyboard,
+          // fallback to the default keyboard: 'en'
+          // XXX update this if the list order in index.html changes
+          var englishEntry = kbLayoutsList.children[1];
+          englishEntry.hidden = true;
+          pinnedKbLabel.dataset.l10nId = 'english';
+          pinnedKbSubLabel.textContent = '';
+        }
+      });
+    }
   }
 };
 
@@ -590,9 +670,10 @@ window.addEventListener('load', function loadSettings() {
       'js/utils.js',
       'js/airplane_mode.js',
       'js/battery.js',
-      'js/app_storage.js',
-      'js/media_storage.js',
+      'shared/js/async_storage.js',
+      'js/storage.js',
       'shared/js/mobile_operator.js',
+      'shared/js/wifi_helper.js',
       'js/connectivity.js',
       'js/security_privacy.js',
       'js/icc_menu.js'
@@ -659,11 +740,8 @@ window.addEventListener('load', function loadSettings() {
         });
         setTimeout(Settings.updateLanguagePanel);
         break;
-      case 'mediaStorage':        // full media storage status + panel startup
-        MediaStorage.initUI();
-        break;
-      case 'deviceStorage':       // full device storage status
-        AppStorage.update();
+      case 'keyboard':
+        Settings.updateKeyboardPanel();
         break;
       case 'battery':             // full battery status
         Battery.update();
@@ -747,51 +825,36 @@ window.addEventListener('load', function loadSettings() {
   }
 
   function handleRadioAndCardState() {
-    function updateDataSubpanelItem(disabled) {
-      var item = document.getElementById('data-connectivity');
-      var link = document.getElementById('menuItem-cellularAndData');
-      if (!item || !link)
-        return;
+    function disableSIMRelatedSubpanels(disable) {
+      const itemIds = ['call-settings',
+                       'data-connectivity',
+                       'simSecurity-settings'];
 
-      if (disabled) {
-        item.classList.add('carrier-disabled');
-        link.onclick = function() { return false; };
-      } else {
-        item.classList.remove('carrier-disabled');
-        link.onclick = null;
+      for (var id = 0; id < itemIds.length; id++) {
+        var item = document.getElementById(itemIds[id]);
+        if (!item) {
+          continue;
+        }
+
+        if (disable) {
+          item.classList.add('disabled');
+        } else {
+          item.classList.remove('disabled');
+        }
       }
     }
 
-    function updateCallSubpanelItem(disabled) {
-      var item = document.getElementById('call-settings');
-      var link = document.getElementById('menuItem-callSettings');
-      if (!item || !link)
-        return;
-
-      if (disabled) {
-        item.classList.add('call-settings-disabled');
-        link.onclick = function() { return false; };
-      } else {
-        item.classList.remove('call-settings-disabled');
-        link.onclick = null;
-      }
+    var mobileConnection = window.navigator.mozMobileConnection;
+    if (!mobileConnection) {
+      disableSIMRelatedSubpanels(true);
     }
 
-    var key = 'ril.radio.disabled';
+    var cardState = mobileConnection.cardState;
+    disableSIMRelatedSubpanels(cardState !== 'ready');
 
-    var settings = Settings.mozSettings;
-    if (!settings)
-      return;
-
-    var req = settings.createLock().get(key);
-    req.onsuccess = function() {
-      var value = req.result[key];
-      updateDataSubpanelItem(value);
-      updateCallSubpanelItem(value);
-    };
-    settings.addObserver(key, function(evt) {
-      updateDataSubpanelItem(evt.settingValue);
-      updateCallSubpanelItem(evt.settingValue);
+    mobileConnection.addEventListener('cardstatechange', function() {
+      var cardState = mobileConnection.cardState;
+      disableSIMRelatedSubpanels(cardState !== 'ready');
     });
   }
 
@@ -834,7 +897,7 @@ window.addEventListener('keydown', function handleSpecialKeys(event) {
 });
 
 // startup & language switching
-window.addEventListener('localized', function showLanguages() {
+window.addEventListener('localized', function updateLocalized() {
   // set the 'lang' and 'dir' attributes to <html> when the page is translated
   document.documentElement.lang = navigator.mozL10n.language.code;
   document.documentElement.dir = navigator.mozL10n.language.direction;
@@ -845,6 +908,37 @@ window.addEventListener('localized', function showLanguages() {
         languages[navigator.mozL10n.language.code];
   });
   Settings.updateLanguagePanel();
+
+  // update the enabled keyboards list with the language associated keyboard
+  Settings.getSupportedKbLayouts(function updateEnabledKb(keyboards) {
+    var newKb = keyboards.layout[navigator.mozL10n.language.code];
+    var settingNewKeyboard = {};
+    var settingNewKeyboardLayout = {};
+    settingNewKeyboard['keyboard.current'] = navigator.mozL10n.language.code;
+    settingNewKeyboardLayout['keyboard.layouts.' + newKb] = true;
+
+    var settings = navigator.mozSettings;
+    try {
+      var lock = settings.createLock();
+      // Enable the language specific keyboard layout group
+      lock.set(settingNewKeyboardLayout);
+      // Activate the language associated keyboard, everything.me also uses
+      // this setting to improve searches
+      lock.set(settingNewKeyboard);
+    } catch (ex) {
+      console.warn('Exception in mozSettings.createLock():', ex);
+    }
+  });
+
+  // update the keyboard layouts list by resetting the top pinned element,
+  // since it displays the previous language setting
+  var kbLayoutsList = document.getElementById('keyboard-layouts');
+  if (kbLayoutsList) {
+    var prevKbLayout = kbLayoutsList.querySelector('li[hidden]');
+    prevKbLayout.hidden = false;
+
+    Settings.updateKeyboardPanel();
+  }
 });
 
 // Do initialization work that doesn't depend on the DOM, as early as

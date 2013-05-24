@@ -21,7 +21,6 @@ function SetupProgressCard(domNode, mode, args) {
 
   var self = this;
   this.creationInProcess = true;
-
   MailAPI.tryToCreateAccount(
     {
       displayName: args.displayName,

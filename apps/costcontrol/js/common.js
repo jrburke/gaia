@@ -2,9 +2,21 @@
 'use strict';
 
 // Checks for a SIM change
-function checkSIMChange(callback) {
+function checkSIMChange(callback, onerror) {
   asyncStorage.getItem('lastSIM', function _compareWithCurrent(lastSIM) {
     var currentSIM = window.navigator.mozMobileConnection.iccInfo.iccid;
+    if (!isValidICCID(currentSIM)) {
+      console.error('Impossible: or we don\'t have SIM (so this method ' +
+                    'should not be called) or ' +
+                    'the RIL is returning invalid Iccid ' +
+                    'from time to time when checking ICCID.');
+
+      if (typeof onerror === 'function') {
+        onerror();
+      }
+      return;
+    }
+
     if (lastSIM !== currentSIM) {
       debug('SIM change!');
       MindGap.updateTagList(currentSIM);
@@ -249,4 +261,8 @@ function localizeWeekdaySelector(selector) {
     list.insertBefore(sunday, list.childNodes[0]); // sunday is the first
     list.insertBefore(monday, sunday.nextSibling); // monday is the second
   }
+}
+
+function isValidICCID(iccid) {
+  return typeof iccid === 'string' && iccid.length;
 }

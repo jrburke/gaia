@@ -3,6 +3,7 @@
 var CallScreen = {
   _ticker: null,
   _screenLock: null,
+  _typedNumber: '',
 
   body: document.body,
   screen: document.getElementById('call-screen'),
@@ -53,7 +54,7 @@ var CallScreen = {
                                 OnCallHandler.toggleCalls);
 
     // If the phone is locked, show as an locked-style at very first.
-    if (window.location.hash === '#locked') {
+    if ((window.location.hash === '#locked') && !this.screen.dataset.layout) {
       CallScreen.render('incoming-locked');
     }
     if (navigator.mozSettings) {
@@ -62,6 +63,23 @@ var CallScreen = {
         CallScreen.setCallerContactImage(
           req.result['wallpaper.image'], false, true);
       };
+    }
+
+    // Handle resize events
+    window.addEventListener('resize', this.resizeHandler.bind(this));
+  },
+
+  resizeHandler: function cs_resizeHandler() {
+    // Handle attention screen switches between full screen/status bar mode.
+    // If a user is typing keypad during calling,
+    // we don't show the typed number in status bar mode.
+    if (window.innerHeight <= 40) {
+      if (this.body.classList.contains('showKeypad')) {
+        this._typedNumber = KeypadManager._phoneNumber;
+        KeypadManager.restorePhoneNumber('end', true);
+      }
+    } else if (this.body.classList.contains('showKeypad')) {
+      KeypadManager.updatePhoneNumber(this._typedNumber, 'begin', true);
     }
   },
 
@@ -94,6 +112,11 @@ var CallScreen = {
   toggleSpeaker: function cs_toggleSpeaker() {
     this.speakerButton.classList.toggle('speak');
     OnCallHandler.toggleSpeaker();
+  },
+
+  turnSpeakerOn: function cs_turnSpeakerOn() {
+    this.speakerButton.classList.add('speak');
+    OnCallHandler.turnSpeakerOn();
   },
 
   turnSpeakerOff: function cs_turnSpeakerOff() {
@@ -161,6 +184,8 @@ var OnCallHandler = (function onCallHandler() {
   var telephony = window.navigator.mozTelephony;
   telephony.oncallschanged = onCallsChanged;
 
+  var settings = window.navigator.mozSettings;
+
   var displayed = false;
   var closing = false;
   var animating = false;
@@ -169,7 +194,7 @@ var OnCallHandler = (function onCallHandler() {
 
   /* === Settings === */
   var activePhoneSound = null;
-  SettingsListener.observe('ring.enabled', true, function(value) {
+  SettingsListener.observe('audio.volume.notification', 7, function(value) {
     activePhoneSound = !!value;
     if (ringing && activePhoneSound) {
       ringtonePlayer.play();
@@ -373,6 +398,9 @@ var OnCallHandler = (function onCallHandler() {
   }
 
   function handleFirstIncoming(call) {
+    unmute();
+    turnSpeakerOff();
+
     var vibrateInterval = 0;
     if (activateVibration != false) {
       vibrateInterval = window.setInterval(function vibrate() {
@@ -494,7 +522,7 @@ var OnCallHandler = (function onCallHandler() {
       return;
     }
 
-    // Currently managing to kind of commands:
+    // Currently managing three kinds of commands:
     // BT: bluetooth
     // HS: headset
     // * : general cases, not specific to hardware control
@@ -524,7 +552,11 @@ var OnCallHandler = (function onCallHandler() {
         endAndAnswer();
         break;
       case 'CHLD+ATA':
-        holdAndAnswer();
+        if (telephony.calls.length === 1) {
+          holdOrResumeSingleCall();
+        } else {
+          holdAndAnswer();
+        }
         break;
       default:
         var partialCommand = message.substring(0, 3);
@@ -535,11 +567,26 @@ var OnCallHandler = (function onCallHandler() {
     }
   }
 
+  var lastHeadsetPress = 0;
+
   function handleHSCommand(message) {
-    // We will receive the message for button released,
-    // we will ignore it
-    if (message != 'headset-button-press') {
-      return;
+    /**
+     * See bug 853132: plugging / unplugging some headphones might send a
+     * 'headset-button-press' / 'headset-button-release' message
+     * => if these two events happen in the same second, it's a click;
+     * => if these two events are too distant, ignore them.
+     */
+    switch (message) {
+      case 'headset-button-press':
+        lastHeadsetPress = Date.now();
+        return;
+        break;
+      case 'headset-button-release':
+        if ((Date.now() - lastHeadsetPress) > 1000)
+          return;
+        break;
+      default:
+        return;
     }
 
     if (telephony.active) {
@@ -604,10 +651,23 @@ var OnCallHandler = (function onCallHandler() {
 
   function toggleCalls() {
     if (handledCalls.length < 2) {
+      holdOrResumeSingleCall();
       return;
     }
 
     telephony.active.hold();
+  }
+
+  function holdOrResumeSingleCall() {
+    if (handledCalls.length !== 1) {
+      return;
+    }
+
+    if (telephony.active) {
+      telephony.active.hold();
+    } else {
+      telephony.calls[0].resume();
+    }
   }
 
   function ignore() {
@@ -639,8 +699,22 @@ var OnCallHandler = (function onCallHandler() {
     telephony.muted = false;
   }
 
+  function turnSpeakerOn() {
+    if (!telephony.speakerEnabled) {
+      telephony.speakerEnabled = true;
+      if (settings) {
+        settings.createLock().set({'telephony.speaker.enabled': true});
+      }
+    }
+  }
+
   function turnSpeakerOff() {
-    telephony.speakerEnabled = false;
+    if (telephony.speakerEnabled) {
+      telephony.speakerEnabled = false;
+      if (settings) {
+        settings.createLock().set({'telephony.speaker.enabled': false});
+      }
+    }
   }
 
   function toggleMute() {
@@ -648,7 +722,10 @@ var OnCallHandler = (function onCallHandler() {
   }
 
   function toggleSpeaker() {
-    telephony.speakerEnabled = !telephony.speakerEnabled;
+    if (telephony.speakerEnabled)
+      turnSpeakerOff();
+    else
+      turnSpeakerOn();
   }
 
   /* === Recents management === */
@@ -691,6 +768,7 @@ var OnCallHandler = (function onCallHandler() {
     toggleMute: toggleMute,
     toggleSpeaker: toggleSpeaker,
     unmute: unmute,
+    turnSpeakerOn: turnSpeakerOn,
     turnSpeakerOff: turnSpeakerOff,
 
     addRecentEntry: addRecentEntry,
@@ -706,5 +784,4 @@ window.addEventListener('load', function callSetup(evt) {
   CallScreen.init();
   CallScreen.syncSpeakerEnabled();
   KeypadManager.init(true);
-
 });

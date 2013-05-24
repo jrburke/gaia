@@ -6,9 +6,7 @@
 *~
 manifest.appcache
 
-/apps/system/camera
-/apps/settings/resources/gaia_commit.txt
-/apps/email/js/mail-app-built.js
+/apps/calendar/js/presets.js
 /apps/homescreen/js/init.json
 /apps/homescreen/js/hiddenapps.js
 /apps/settings/js/hiddenapps.js
@@ -43,3 +41,5 @@ manifest.appcache
 /tools/xpcwindow/vendor/
 
 /outoftree_apps/
+
+/distribution/

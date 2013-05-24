@@ -17,9 +17,9 @@ html, body {
 }
 
 body {
-  background: #000;
   color: #fff;
-  font: 1.6rem/2.2rem MozTT, Sans-serif;
+  font-size: 1.6rem;
+  line-height: 2.2rem;
   text-align: center;
   vertical-align: middle;
 }
@@ -68,17 +68,16 @@ abbr, acronym {
 }
 
 strong {
-  font-family: MozTT, Sans-serif;
   font-weight: bold;
 }
 
 b {
-  font-family: MozTT, Sans-serif;
   font-weight: 600;
 }
 
 small {
-  font: 1.1rem/1rem MozTT, Sans-serif;
+  font-size: 1.1rem;
+  line-height: 1rem;
   color: #999;
 }
 
@@ -210,7 +209,6 @@ menu, nav, section, video, audio, canvas, progress, meter, time {
     We must fill a bug with this issue
  */
 section[role="region"] > header:first-child {
-  background-color: #cd6623;
 }
 
 /* Rewritting from buttons.css */
@@ -276,6 +274,11 @@ li a[role="button"].activity > b{
   bottom: 0;
 }
 
+/* BB Lists extending */
+[data-type="list"] header {
+  margin-left: -1rem;
+}
+
 /* JS helper */
 [data-type="list"] li p,
 [data-type="list"] li aside {
@@ -318,7 +321,7 @@ form p + p {
   z-index: 5;
   width: 100%;
   -moz-box-sizing: border-box;
-  padding: 1.4rem 1.5rem;
+  padding: 1.4rem 2rem;
   background: #f4f4f4;
   color: #333;
   text-align: left;

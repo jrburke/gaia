@@ -1,6 +1,39 @@
 requireApp('calendar/shared/js/notification_helper.js');
+requireLib('notification.js');
 
 suiteGroup('Controllers.Alarm', function() {
+
+  function mockRequestWakeLock(handler) {
+    var realApi;
+
+    function lockMock() {
+      return {
+        mAquired: false,
+        mIsUnlocked: false,
+        unlock: function() {
+          this.mIsUnlocked = true;
+        }
+      };
+    }
+
+    suiteSetup(function() {
+      realApi = navigator.requestWakeLock;
+
+      navigator.requestWakeLock = function(type) {
+        var lock = lockMock();
+        lock.type = type;
+        lock.mAquired = true;
+
+        handler && handler(lock);
+
+        return lock;
+      };
+    });
+
+    suiteTeardown(function() {
+      navigator.requestWakeLock = realApi;
+    });
+  }
 
   var subject;
   var app;
@@ -150,63 +183,50 @@ suiteGroup('Controllers.Alarm', function() {
 
     suite('#_sendAlarmNotification', function() {
       var realApi;
-      var lastNotification;
       var sent = [];
       var onsend;
-      var mockApi = {
+      var MockNotifications = {
         send: function() {
-          sent.push(Array.prototype.slice.call(arguments));
-          lastNotification = {};
-          lastNotification;
+          var args = Array.slice(arguments);
+          var callback = args[args.length - 1];
 
+          sent.push(args);
           // wait until next tick...
-          setTimeout(function() {
-            onsend();
-          }, 0);
-        },
-
-        getIconURI: function() {
-          return 'icon';
+          setTimeout(callback);
         }
       };
 
       suiteSetup(function() {
-        realApi = window.NotificationHelper;
-        window.NotificationHelper = mockApi;
+        realApi = Calendar.Notification;
+        Calendar.Notification = MockNotifications;
       });
 
       suiteTeardown(function() {
-        window.NotificationHelper = realApi;
+        Calendar.Notification = realApi;
       });
-/*
-// These tests are currently failing on travis and have been temporarily
-// disabled as per Bug 841815. They should be fixed and re-enabled as soon as
-// possible as per Bug 840489.
-      test('result', function(done) {
-        sent.length = 0;
-        var sentTo;
 
-        var now = new Date();
+      test('issues notification', function(done) {
         var event = Factory('event');
-        var busytime = Factory('busytime');
+        var busytime = Factory('busytime', { _id: '1' });
+        var url = subject.displayURL + busytime._id;
 
-        app.router.show = function(url) {
-          sentTo = url;
-        };
-
-        onsend = function() {
-          done(function() {
-            var note = sent[0];
-            assert.equal(note[1], event.remote.description);
-            note[3]();
-            assert.ok(sentTo);
-            assert.include(sentTo, busytime._id);
-          });
-        };
-
-        subject._sendAlarmNotification({}, event, busytime);
+        subject._sendAlarmNotification(
+          {},
+          event,
+          busytime,
+          function() {
+            done(function() {
+              var notification = sent[0];
+              assert.ok(notification, 'sends notification');
+              assert.ok(notification[0], 'has title');
+              assert.equal(
+                notification[1], event.remote.description, 'description'
+              );
+              assert.equal(notification[2], url, 'sends url');
+            });
+          }
+        );
       });
-*/
     });
 
     suite('#handleAlarm', function() {
@@ -214,8 +234,8 @@ suiteGroup('Controllers.Alarm', function() {
       var busytime;
       var event;
       var alarm;
-
       var transPending = 0;
+      var worksQueue;
 
       function createTrans(done) {
         var trans = eventStore.db.transaction(
@@ -236,12 +256,25 @@ suiteGroup('Controllers.Alarm', function() {
         return trans;
       }
 
+      var lock;
+      mockRequestWakeLock(function(_lock) {
+        lock = _lock;
+      });
+
       setup(function() {
+        lock = null;
+        worksQueue = false;
         subject.observe();
         transPending = 0;
         sent.length = 0;
         event = null;
         busytime = null;
+
+        alarmStore.workQueue = function() {
+          worksQueue = true;
+          var callback = Array.slice(arguments).pop();
+          Calendar.nextTick(callback);
+        };
 
         subject._sendAlarmNotification = function() {
           sent.push(arguments);
@@ -288,28 +321,31 @@ suiteGroup('Controllers.Alarm', function() {
         });
 
         test('result', function(done) {
-          var trans = createTrans(function() {
-            done(function() {
-              assert.length(sent, 0);
+          subject.handleAlarm(alarm, function() {
+            Calendar.nextTick(function() {
+              done(function() {
+                assert.length(sent, 0);
+                assert.ok(lock.mIsUnlocked, 'frees lock');
+                assert.ok(worksQueue, 'works alarm queue');
+              });
             });
           });
-          subject.handleAlarm(alarm, trans);
+          assert.ok(lock.mAquired, 'aquired lock');
         });
       });
 
       test('missing records', function(done) {
-        var trans = createTrans(function() {
-          done(function() {
-            assert.equal(sent.length, 0);
-          });
-        });
-
         alarm = {
           eventId: 12,
           busytimeId: 12
         };
 
-        subject.handleAlarm(alarm, trans);
+        subject.handleAlarm(alarm, function() {
+          done(function() {
+            assert.equal(sent.length, 0);
+            assert.ok(worksQueue, 'works alarm queue');
+          });
+        });
       });
 
       suite('valid busytime', function() {
@@ -332,13 +368,32 @@ suiteGroup('Controllers.Alarm', function() {
         });
 
         test('result', function(done) {
-          var trans = createTrans(function() {
-            done(function() {
-              assert.deepEqual(sent[0][0], alarm);
-              assert.length(sent, 1);
+          var isComplete = false;
+
+          var sent;
+          subject._sendAlarmNotification = function() {
+            sent = Array.slice(arguments);
+            assert.isFalse(
+              lock.mIsUnlocked, 'is locked until notification is ready'
+            );
+
+            var cb = sent[sent.length - 1];
+            cb();
+            isComplete = true;
+          };
+
+          subject.handleAlarm(alarm, function() {
+            Calendar.nextTick(function() {
+              done(function() {
+                assert.ok(isComplete);
+                assert.deepEqual(sent[0], alarm);
+                assert.ok(worksQueue, 'works alarm queue');
+                assert.ok(lock.mIsUnlocked, 'frees lock');
+              });
             });
           });
-          subject.handleAlarm(alarm, trans);
+
+          assert.ok(lock.mAquired, 'aquired lock');
         });
       });
     });
@@ -449,33 +504,12 @@ suiteGroup('Controllers.Alarm', function() {
 
       suite('type: sync', function() {
         var locks = [];
-
-        var Lock = {
-          locked: false,
-
-          unlock: function() {
-            this.locked = false;
-          }
-        };
-
         var realLockApi;
 
-        suiteSetup(function() {
-          realLockApi = navigator.requestWakeLock;
-
-          navigator.requestWakeLock = function mockRequestLock(type) {
-            if (type === 'wifi') {
-              var lock = Object.create(Lock);
-              locks.push(lock);
-
-              lock.locked = true;
-              return lock;
-            }
-          };
-        });
-
-        suiteTeardown(function() {
-          navigator.requestWakeLock = realLockApi;
+        mockRequestWakeLock(function(lock) {
+          if (lock.type === 'wifi') {
+            locks.push(lock);
+          }
         });
 
         setup(function(done) {
@@ -528,7 +562,7 @@ suiteGroup('Controllers.Alarm', function() {
             assert.length(locks, 4, 'has correct number of locks');
 
             var freedAll = locks.every(function(lock) {
-              return lock.locked === false;
+              return lock.mIsUnlocked === true;
             });
 
             assert.ok(freedAll, 'all locks are freed.');
@@ -537,11 +571,11 @@ suiteGroup('Controllers.Alarm', function() {
           app.syncController.all = function(callback) {
             var lock = locks[locks.length - 1];
             assert.ok(lock, 'has lock');
-            assert.isTrue(lock.locked, 'is locked');
+            assert.isFalse(lock.mIsUnlocked, 'is locked');
 
             Calendar.nextTick(function() {
               callback();
-              assert.isFalse(lock.locked, 'unlocks itself');
+              assert.isTrue(lock.mIsUnlocked, 'unlocks itself');
 
               if (!(--pending))
                 done(onComplete);
@@ -562,7 +596,11 @@ suiteGroup('Controllers.Alarm', function() {
       var message;
 
       setup(function(done) {
-        message = {clicked: true, imageURL: 'app://calendar.gaiamobile.org/icon.png?foo'};
+        message = {
+          clicked: true,
+          imageURL: 'app://calendar.gaiamobile.org/icon.png?/alarm-display/foo'
+        };
+
         realGo = app.go;
         done();
       });
@@ -574,7 +612,8 @@ suiteGroup('Controllers.Alarm', function() {
       test('receive a notification message', function(done) {
 
         app.go = function(place) {
-          assert.equal(place, '/alarm-display/foo', 'redirects to alarm display page');
+          assert.equal(place, '/alarm-display/foo',
+              'redirects to alarm display page');
           done();
         };
 

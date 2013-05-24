@@ -104,10 +104,15 @@ var LockScreen = {
   */
   HANDLE_MAX: 70,
 
+  /**
+   * Object used for handling the clock UI element, wraps all related timers
+   */
+  clock: new Clock(),
+
   /* init */
   init: function ls_init() {
     if (this.ready) { // already initialized: just trigger a translation
-      this.updateTime();
+      this.refreshClock(new Date());
       this.updateConnState();
       return;
     }
@@ -125,6 +130,7 @@ var LockScreen = {
     /* Gesture */
     this.area.addEventListener('mousedown', this);
     this.areaCamera.addEventListener('click', this);
+    this.altCameraButton.addEventListener('click', this);
     this.areaUnlock.addEventListener('click', this);
     this.iconContainer.addEventListener('mousedown', this);
 
@@ -167,8 +173,8 @@ var LockScreen = {
       self.setEnabled(value);
     });
 
-    SettingsListener.observe('ring.enabled', true, function(value) {
-      self.mute.hidden = value;
+    SettingsListener.observe('audio.volume.notification', 7, function(value) {
+      self.mute.hidden = (value != 0);
     });
 
     SettingsListener.observe('vibration.enabled', true, function(value) {
@@ -262,12 +268,22 @@ var LockScreen = {
           if (this.camera.firstElementChild)
             this.camera.removeChild(this.camera.firstElementChild);
 
+          // Stop refreshing the clock when the screen is turned off.
+          this.clock.stop();
         } else {
           var _screenOffInterval = new Date().getTime() - this._screenOffTime;
           if (_screenOffInterval > this.passCodeRequestTimeout * 1000) {
             this._passCodeTimeoutCheck = true;
           } else {
             this._passCodeTimeoutCheck = false;
+          }
+
+          // Resume refreshing the clock when the screen is turned on.
+          this.clock.start(this.refreshClock.bind(this));
+
+          // Show the unlock keypad immediately
+          if (this.passCodeEnabled) {
+            this.switchPanel('passcode');
           }
         }
 
@@ -279,7 +295,9 @@ var LockScreen = {
         this.updateConnState();
 
       case 'click':
-        if (evt.target === this.areaUnlock || evt.target === this.areaCamera) {
+        if (evt.target === this.areaUnlock ||
+           evt.target === this.areaCamera ||
+           evt.target === this.altCameraButton) {
           this.handleIconClick(evt.target);
           break;
         }
@@ -358,7 +376,11 @@ var LockScreen = {
 
       case 'home':
         if (this.locked) {
-          this.switchPanel();
+          if (this.passCodeEnabled) {
+            this.switchPanel('passcode');
+          } else {
+            this.switchPanel();
+          }
           evt.stopImmediatePropagation();
         }
         break;
@@ -438,6 +460,7 @@ var LockScreen = {
     var self = this;
     switch (target) {
       case this.areaCamera:
+      case this.altCameraButton:
         var panelOrFullApp = function panelOrFullApp() {
           // If the passcode is enabled and it has a timeout which has passed
           // switch to secure camera
@@ -581,13 +604,15 @@ var LockScreen = {
     this.setElasticEnabled(false);
     this.mainScreen.focus();
     this.dispatchEvent('will-unlock');
+
+    // The lockscreen will be hidden, stop refreshing the clock.
+    this.clock.stop();
   },
 
   lock: function ls_lock(instant) {
     var wasAlreadyLocked = this.locked;
     this.locked = true;
 
-    navigator.mozL10n.ready(this.updateTime.bind(this));
     this.switchPanel();
 
     this.setElasticEnabled(ScreenManager.screenEnabled);
@@ -748,25 +773,19 @@ var LockScreen = {
     });
   },
 
-  updateTime: function ls_updateTime() {
+  refreshClock: function ls_refreshClock(now) {
     if (!this.locked)
       return;
 
-    var d = new Date();
     var f = new navigator.mozL10n.DateTimeFormat();
     var _ = navigator.mozL10n.get;
 
     var timeFormat = _('shortTimeFormat');
     var dateFormat = _('longDateFormat');
-    var time = f.localeFormat(d, timeFormat);
+    var time = f.localeFormat(now, timeFormat);
     this.clockNumbers.textContent = time.match(/([012]?\d).[0-5]\d/g);
     this.clockMeridiem.textContent = (time.match(/AM|PM/i) || []).join('');
-    this.date.textContent = f.localeFormat(d, dateFormat);
-
-    var self = this;
-    window.setTimeout(function ls_clockTimeout() {
-      self.updateTime();
-    }, (59 - d.getSeconds()) * 1000);
+    this.date.textContent = f.localeFormat(now, dateFormat);
   },
 
   updateConnState: function ls_updateConnState() {
@@ -945,7 +964,7 @@ var LockScreen = {
     // ID of elements to create references
     var elements = ['connstate', 'mute', 'clock-numbers', 'clock-meridiem',
         'date', 'area', 'area-unlock', 'area-camera', 'icon-container',
-        'area-handle', 'passcode-code',
+        'area-handle', 'passcode-code', 'alt-camera', 'alt-camera-button',
         'passcode-pad', 'camera', 'accessibility-camera',
         'accessibility-unlock', 'panel-emergency-call'];
 

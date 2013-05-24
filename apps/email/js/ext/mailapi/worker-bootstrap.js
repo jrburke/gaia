@@ -8133,7 +8133,9 @@ FolderStorage.prototype = {
 
     aranges.splice.apply(aranges, [newInfo[0], delCount].concat(insertions));
 
-    this.folderMeta.lastSyncedAt = endTS;
+    /*lastSyncedAt depends on current timestamp of the client device
+     should not be added timezone offset*/
+    this.folderMeta.lastSyncedAt = NOW();
     if (this._account.universe)
       this._account.universe.__notifyModifiedFolder(this._account,
                                                     this.folderMeta);
@@ -11449,13 +11451,16 @@ define('encoding',['require','exports','module'],function(require, exports, modu
  */
 function checkEncoding(name){
     name = (name || "").toString().trim().toLowerCase().
+        // this handles aliases with dashes and underscores too; built-in
+        // aliase are only for latin1, latin2, etc.
         replace(/^latin[\-_]?(\d+)$/, "iso-8859-$1").
-        replace(/^win(?:dows)?[\-_]?(\d+)$/, "windows-$1").
+        // win949, win-949, ms949 => windows-949
+        replace(/^(?:(?:win(?:dows)?)|ms)[\-_]?(\d+)$/, "windows-$1").
         replace(/^utf[\-_]?(\d+)$/, "utf-$1").
-        replace(/^ks_c_5601\-1987$/, "windows-949"). // maps to euc-kr
         replace(/^us_?ascii$/, "ascii"); // maps to windows-1252
     return name;
 }
+exports.checkEncoding = checkEncoding;
 
 var ENCODER_OPTIONS = { fatal: false };
 
@@ -11521,6 +11526,7 @@ define('mailapi/mailbridge',
     'rdcommon/log',
     './util',
     './mailchew-strings',
+    './date',
     'require',
     'module',
     'exports'
@@ -11529,6 +11535,7 @@ define('mailapi/mailbridge',
     $log,
     $imaputil,
     $mailchewStrings,
+    $date,
     require,
     $module,
     exports
@@ -11772,6 +11779,14 @@ MailBridge.prototype = {
 
         case 'syncRange':
           accountDef.syncRange = val;
+          break;
+
+        case 'setAsDefault':
+          // Weird things can happen if the device's clock goes back in time,
+          // but this way, at least the user can change their default if they
+          // cycle through their accounts.
+          if (val)
+            accountDef.defaultPriority = $date.NOW();
           break;
       }
     }
@@ -12464,8 +12479,7 @@ MailBridge.prototype = {
             to: header.to,
             cc: header.cc,
             bcc: header.bcc,
-            // we abuse guid to serve as the references list...
-            referencesStr: header.guid,
+            referencesStr: body.references,
             attachments: attachments
           });
           callWhenDone();
@@ -14640,7 +14654,8 @@ MailUniverse.prototype = {
     }
     if (!userDetails.forceCreate) {
       for (var i = 0; i < this.accounts.length; i++) {
-        if (userDetails.emailAddress = this.accounts[i].identities[0].address) {
+        if (userDetails.emailAddress ===
+            this.accounts[i].identities[0].address) {
           callback('user-account-exists');
           return;
         }
@@ -14696,6 +14711,12 @@ MailUniverse.prototype = {
 
   saveAccountDef: function(accountDef, folderInfo) {
     this._db.saveAccountDef(this.config, accountDef, folderInfo);
+    var account = this.getAccountForAccountId(accountDef.id);
+
+    // If account exists, notify of modification. However on first
+    // save, the account does not exist yet.
+    if (account)
+      this.__notifyModifiedAccount(account);
   },
 
   /**

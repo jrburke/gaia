@@ -112,12 +112,15 @@ var HEADER_CACHE_LIMIT = 8;
 /**
  *
  */
-function MailAccount(api, wireRep) {
+function MailAccount(api, wireRep, acctsSlice) {
   this._api = api;
   this.id = wireRep.id;
 
   // Hold on to wireRep for caching
   this._wireRep = wireRep;
+
+  // Hold on to acctsSlice for use in determining default account.
+  this.acctsSlice = acctsSlice;
 
   this.type = wireRep.type;
   this.name = wireRep.name;
@@ -179,6 +182,7 @@ MailAccount.prototype = {
   __update: function(wireRep) {
     this.enabled = wireRep.enabled;
     this.problems = wireRep.problems;
+    this._wireRep.defaultPriority = wireRep.defaultPriority;
   },
 
   /**
@@ -194,7 +198,11 @@ MailAccount.prototype = {
    *   @param[mods @dict[
    *     @key[password String]
    *   ]]
-   * ]
+   * ]{
+   *   In addition to regular account property settings,
+   *   "setAsDefault": true can be passed to set this
+   *   account as the default acccount.
+   * }
    */
   modifyAccount: function(mods) {
     this._api._modifyAccount(this, mods);
@@ -207,6 +215,17 @@ MailAccount.prototype = {
    */
   deleteAccount: function() {
     this._api._deleteAccount(this);
+  },
+
+  /**
+   * Returns true if this account is the default account, by looking at
+   * all accounts in the acctsSlice.
+   */
+  get isDefault() {
+    if (!this.acctsSlice)
+      throw new Error('No account slice available');
+
+    return this.acctsSlice.defaultAccount === this;
   },
 };
 
@@ -742,6 +761,8 @@ function MailBody(api, suid, wireRep, handle) {
   }
   this._relatedParts = wireRep.relatedParts;
   this.bodyReps = wireRep.bodyReps;
+  // references is included for debug/unit testing purposes, hence is private
+  this._references = wireRep.references;
 
   this.onchange = null;
   this.ondead = null;
@@ -1187,6 +1208,26 @@ BridgedViewSlice.prototype = {
       });
   },
 };
+
+function AccountsViewSlice(api, handle) {
+  BridgedViewSlice.call(this, api, 'accounts', handle);
+}
+AccountsViewSlice.prototype = Object.create(BridgedViewSlice.prototype);
+
+Object.defineProperty(AccountsViewSlice.prototype, 'defaultAccount', {
+  get: function () {
+    var defaultAccount = this.items[0];
+    for (var i = 1; i < this.items.length; i++) {
+      // For UI upgrades, the defaultPriority may not be set, so default to
+      // zero for comparisons
+      if ((this.items[i]._wireRep.defaultPriority || 0) >
+          (defaultAccount._wireRep.defaultPriority || 0))
+        defaultAccount = this.items[i];
+    }
+
+    return defaultAccount;
+  }
+});
 
 function FoldersViewSlice(api, handle) {
   BridgedViewSlice.call(this, api, 'folders', handle);
@@ -1820,7 +1861,7 @@ MailAPI.prototype = {
 
   _recv_badLogin: function ma__recv_badLogin(msg) {
     if (this.onbadlogin)
-      this.onbadlogin(new MailAccount(this, msg.account), msg.problem);
+      this.onbadlogin(new MailAccount(this, msg.account, null), msg.problem);
     return true;
   },
 
@@ -1862,7 +1903,7 @@ MailAPI.prototype = {
     switch (slice._ns) {
       case 'accounts':
         for (i = 0; i < addItems.length; i++) {
-          transformedItems.push(new MailAccount(this, addItems[i]));
+          transformedItems.push(new MailAccount(this, addItems[i], slice));
         }
         break;
 
@@ -2037,19 +2078,20 @@ MailAPI.prototype = {
       switch (slice._ns) {
 
         case 'accounts':
-          // Cache the first / default account.
-          var firstItem = slice.items[0] && slice.items[0]._wireRep;
+          // Cache default account.
+          var defaultItem = slice.defaultAccount;
 
           // Clear cache if no accounts or the first account has changed.
-          if (!slice.items.length || this._recvCache.accountId !== firstItem.id)
+          if (!slice.items.length ||
+              this._recvCache.accountId !== defaultItem.id)
             this._resetCache();
 
           tempMsg = objCopy(msg);
           tempMsg.howMany = 0;
           tempMsg.index = 0;
-          if (firstItem) {
-            tempMsg.addItems = [firstItem];
-            this._recvCache.accountId = firstItem.id;
+          if (defaultItem) {
+            tempMsg.addItems = [defaultItem];
+            this._recvCache.accountId = defaultItem.id;
           }
           this._recvCache.accounts = tempMsg;
           this._setHasAccounts();
@@ -2418,6 +2460,12 @@ MailAPI.prototype = {
   },
 
   _modifyAccount: function ma__modifyAccount(account, mods) {
+    if (mods.hasOwnProperty('setAsDefault')) {
+      // The order of accounts changed. The cache is now invalid.
+      this._resetCache();
+      this._saveCache();
+    }
+
     this.__bridgeSend({
       type: 'modifyAccount',
       accountId: account.id,
@@ -2447,7 +2495,7 @@ MailAPI.prototype = {
    */
   viewAccounts: function ma_viewAccounts(realAccountsOnly) {
     var handle = this._nextHandle++,
-        slice = new BridgedViewSlice(this, 'accounts', handle);
+        slice = new AccountsViewSlice(this, handle);
     this._slices[handle] = slice;
 
     this.__bridgeSend({
@@ -2905,7 +2953,8 @@ MailAPI.prototype = {
     if (req.type === 'die' || (!msg.err && (req.type !== 'save')))
       delete this._pendingRequests[msg.handle];
     if (req.callback) {
-      req.callback.call(null, msg.err, msg.badAddresses, msg.sentDate);
+      req.callback.call(null, msg.err, msg.badAddresses,
+                        { sentDate: msg.sentDate, messageId: msg.messageId });
       req.callback = null;
     }
     return true;

@@ -8,7 +8,6 @@ body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  font-family: 'MozTT', sans-serif;
   color: #fff;
 }
 
@@ -223,22 +222,35 @@ body {
   left: 0;
   top: 2rem;
 
-  /* Need to leave this in here to prevent flickering. */
-  transform: scale(1);
+  /*
+   * Do not specify height/width here!
+  * They should be handle executively in window_manager.js
+  *
+  */
 
-/*
- * Do not specify height/width here!
- * They should be handle executively in window_manager.js
- *
- */
+  /*
+  * Disable this for now because it forces an expensive fallback path in
+  * Gecko.  The performance issue should be fixed by
+  * https://bugzilla.mozilla.org/show_bug.cgi?id=697645 or a related bug.
+  *
+    border-radius: 0.8rem;
+  */
 
-/*
- * Disable this for now because it forces an expensive fallback path in
- * Gecko.  The performance issue should be fixed by
- * https://bugzilla.mozilla.org/show_bug.cgi?id=697645 or a related bug.
- *
-  border-radius: 0.8rem;
- */
+  background-repeat: no-repeat;
+  background-position: center center;
+}
+
+#windows > .appWindow:not(.homescreen) {
+  background-color: black;
+}
+
+#windows > .appWindow:not(.homescreen).render {
+  background-image: none !important;
+  background-color: transparent;
+}
+
+#windows > .appWindow:not(.homescreen):not(.active):not(.opening):not(.closing):not(.inlineActivity) {
+  opacity: 0;
 }
 
 #windows > .appWindow > iframe {
@@ -250,38 +262,21 @@ body {
   border: none;
 }
 
+#windows > .appWindow:not(.homescreen).render > iframe {
+  background-color: #fff;
+}
+
 #screen.active-statusbar #windows > .appWindow {
   top: 4rem;
 }
 
-#windows > .appWindow:not(.homescreen) {
-  background-color: #fff;
-}
-
-#windows > .appWindow:not(.homescreen).default-background {
-  background: url('/shared/resources/branding/splash_screen_generic.png') center center no-repeat #fff;
-}
-
-#windows > .appWindow:not(.active):not(.homescreen):not(.opening):not(.closing) {
-  visibility: hidden;
-}
-
-#windows > .appWindow:not(.homescreen):not(.active):not(.inlineActivity):not(.opening):not(.closing) {
-  opacity: 0;
-}
-
-#screen.switch-app > #windows > .appWindow.closing {
-  opacity: 0;
-  transform: scale(0.6);
-}
-
 #windows > .appWindow.opening {
-  animation: openApp 0.3s forwards ease;
+  animation: openApp .3s forwards ease;
   pointer-events: auto;
 }
 
 #windows.slow-transition > .appWindow.opening {
-  animation: openApp 3s forwards ease;
+  animation-duration: 3s;
 }
 
 #screen.cards-view > #windows > .appWindow.opening {
@@ -289,7 +284,7 @@ body {
 }
 
 #screen.cards-view > #windows.slow-transition > .appWindow.opening {
-  animation: openAppFromCardView 1.5s forwards ease;
+  animation-duration: 1.5s;
 }
 
 /* Opacity increases start up time then we don't use it anymore for opening */
@@ -299,11 +294,12 @@ body {
 }
 
 #windows > .appWindow.homescreen.zoom-in > iframe {
+  transform: scale(1);
   animation: zoom-in 0.3s forwards ease;
 }
 
 #windows.slow-transition > .appWindow.homescreen.zoom-in > iframe {
-  animation: zoom-in 3s forwards ease;
+  animation-duration: 3s;
 }
 
 #screen.switch-app > #windows > .appWindow.homescreen.zoom-in > iframe,
@@ -321,46 +317,51 @@ body {
   100% { transform: scale(1.0); }
 }
 
-#screen.switch-app > #windows > .appWindow.opening,
+#screen.switch-app > #windows {
+  /* The background color is black behind the switch app animation
+   * (the homescreen is hidden) */
+  background: #000;
+}
+
+#screen.switch-app > #windows > .appWindow.opening > iframe {
+  /* The background is defined for invoked apps because we don't have the
+     splash screen available at this point */
+  background-attachment: scroll, scroll;
+  background-clip: border-box, border-box;
+  background-color: transparent;
+  background-image: url("../themes/default/images/images/ui/pattern.png"),
+                    url("../themes/default/images/ui/gradient.png");
+  background-origin: padding-box, padding-box;
+  background-position: left top, left top;
+  background-repeat: repeat, no-repeat;
+  background-size: auto auto, 100% 100%;
+}
+
+#screen.switch-app > #windows > .appWindow.opening {
+  animation: invokedApp 0.6s forwards ease-out;
+}
+
 #screen.switch-app > #windows > .appWindow.closing {
-  transition: transform 0.25s ease;
-  visibility: inherit;
-  opacity: 1;
-  animation: none;
+  animation: invokingApp 0.6s forwards ease-out;
 }
 
 #screen.switch-app > #windows.slow-transition > .appWindow.opening,
 #screen.switch-app > #windows.slow-transition > .appWindow.closing {
-  transition: transform 5s ease;
-  animation: none;
+  animation-duration: 6s;
 }
 
-#screen.switch-app > #windows > .appWindow.opening-card {
-  transform: translateX(70%) scale(0.6);
-  visibility: inherit;
-  opacity: 1;
+/* Invoking app moves out */
+@keyframes invokingApp {
+  0%   { transform: scale(1.0); opacity: 1 }
+  50%  { transform: scale(0.8) translateX(0); opacity: 0.3 }
+  100% { transform: scale(0.6) translateX(105%); }
 }
 
-#screen.switch-app > #windows > .appWindow.opening-switching {
-  transform: scale(0.6);
-  transition: transform 0.25s ease;
-  visibility: inherit;
-  opacity: 1;
-}
-
-#screen.switch-app > #windows.slow-transition > .appWindow.opening-switching {
-  transition: transform 5s ease;
-}
-
-#screen.switch-app > #windows > .appWindow.closing-card {
-  transform: translateX(-70%) scale(0.6);
-  transition: transform 0.25s ease;
-  visibility: inherit;
-  opacity: 1;
-}
-
-#screen.switch-app > #windows.slow-transition > .appWindow.closing-card {
-  transition: transform 5s ease;
+/* Invoked app moves in */
+@keyframes invokedApp {
+  0%   { transform: scale(0.6) translateX(-133%); opacity: 0.3 }
+  50%  { transform: scale(0.6) translateX(-105%); opacity: 1 }
+  100% { transform: scale(1.0) translateX(0) }
 }
 
 #windows > .appWindow.closing {
@@ -371,15 +372,16 @@ body {
 }
 
 #windows.slow-transition > .appWindow.closing {
-  animation: closeApp 3s forwards ease;
+  animation-duration: 3s;
 }
 
 #windows > .appWindow.homescreen.zoom-out > iframe {
+  transform: scale(1.8);
   animation: zoom-out 0.3s forwards ease;
 }
 
 #windows.slow-transition > .appWindow.homescreen.zoom-out > iframe {
-  animation: zoom-out 3s forwards ease;
+  animation-duration: 3s;
 }
 
 #screen.switch-app > #windows > .appWindow.homescreen.zoom-out > iframe ,
@@ -388,8 +390,8 @@ body {
 }
 
 @keyframes zoom-out {
-  0%   { transform: scale(1.8) }
-  100% { transform: scale(1) }
+  0%   { transform: scale(1.8); }
+  100% { transform: scale(1); }
 }
 
 #screen.cards-view > #windows > .appWindow.closing {
@@ -439,97 +441,13 @@ body {
   top: 0;
 }
 
-#screen.attention > #windows > .appWindow.fullscreen-app,
-#screen.attention > #windowSprite,
-#screen.fullscreen-app.attention > #windowSprite {
+#screen.attention > #windows > .appWindow.fullscreen-app {
   height: calc(100% - 4rem);
   top: 4rem;
 }
 
-#windowSprite.before-inline-activity {
-  transform: translateY(calc(100% - 0.1rem));
-  opacity: 1;
-  visibility: visible;
-}
-
-#windowSprite.inline-activity-opening {
-  transition: transform 0.25s ease;
-  transform: translateY(0);
-  opacity: 1;
-  visibility: visible;
-}
-
-#windowSprite.inline-activity-opened {
-  transition: opacity 0.15s ease;
-
-  transform: translateY(0);
-  opacity: 0;
-  visibility: visible;
-}
-
-#windowSprite.before-open {
-  transform: scale(0.6);
-  /* 0.01 opacity is needed to make sure Gecko paints and fire
-     MozAfterPaint event for us. */
-  opacity: 0.01;
-  visibility: visible;
-}
-
-#windowSprite.opening {
-  transition: transform 0.25s ease, opacity 0.15s ease;
-
-  transform: scale(1);
-  opacity: 1;
-  visibility: visible;
-}
-
-#screen.trustedui #windowSprite.opening {
-  opacity: 0;
-}
-
-#windowSprite.opened {
-  transition: opacity 0.15s ease;
-
-  transform: scale(1);
-  opacity: 0;
-  visibility: visible;
-}
-
-#windowSprite.before-close {
-  transform: scale(1);
-  /* 0.01 opacity is needed to make sure Gecko paints and fire
-     MozAfterPaint event for us. */
-  opacity: 0.01;
-  visibility: visible;
-}
-
-#windowSprite.closing {
-  transition: opacity 0.05s ease;
-
-  transform: scale(1);
-  opacity: 1;
-  visibility: visible;
-}
-
-#windowSprite.closed {
-  transition: transform 0.25s ease, opacity 0.15s ease;
-
-  transform: scale(0.6);
-  opacity: 0;
-  visibility: visible;
-}
-
 .accessibility-invert {
   filter: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgogIDxmaWx0ZXIKICAgICAgaWQ9ImludmVydEZpbHRlciIKICAgICAgY29sb3ItaW50ZXJwb2xhdGlvbi1maWx0ZXJzPSJzUkdCIj4KICAgIDxmZUNvbG9yTWF0cml4CiAgICAgICAgdmFsdWVzPSItMSAwIDAgMCAxIDAgLTEgMCAwIDEgMCAwIC0xIDAgMSAwIDAgMCAxIDAgIiAvPgogIDwvZmlsdGVyPgo8L3N2Zz4K#invertFilter);
-}
-
-iframe.backgroundWindow {
-  position: absolute;
-  top: -1px;
-  left: -1px;
-  width: 1px;
-  height: 1px;
-  visibility: hidden;
 }
 
 #dialog-overlay {
@@ -566,7 +484,7 @@ iframe.backgroundWindow {
 #screen.authentication-dialog #dialog-overlay,
 #screen.authentication-dialog #authentication-dialog,
 #screen.crash-dialog #dialog-overlay,
-#screen.crash-dialog #crash-dialog
+#screen.crash-dialog #crash-dialog,
 #screen.modal-dialog #dialog-overlay,
 #screen.modal-dialog #modal-dialog,
 #screen.popup #popup-container,

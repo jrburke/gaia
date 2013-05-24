@@ -1,3 +1,4 @@
+requireLib('oauth_window.js');
 requireLib('provider/abstract.js');
 requireLib('provider/local.js');
 
@@ -7,6 +8,51 @@ suiteGroup('Views.ModifyAccount', function() {
   var account;
   var triggerEvent;
   var app;
+
+  var mozApp = {};
+
+  var MockOAuth = function(server, params) {
+    this.server = server;
+    this.params = params;
+
+    this.open = function() {
+      this.isOpen = true;
+    };
+
+    this.close = function() {
+      this.isOpen = false;
+    };
+  };
+
+  var RealOAuth;
+  var realMozApps;
+  function setupOauth() {
+    realMozApps = navigator.mozApps;
+    RealOAuth = Calendar.OAuthWindow;
+    Calendar.OAuthWindow = MockOAuth;
+
+    navigator.mozApps = {
+      getSelf: function() {
+        var req = {};
+        Calendar.nextTick(function() {
+          if (req.onsuccess) {
+            req.onsuccess({
+              target: {
+                result: mozApp
+              }
+            });
+          }
+        });
+
+        return req;
+      }
+    };
+  };
+
+  function teardownOauth() {
+    Calendar.OAuthWindow = RealOAuth;
+    navigator.mozApps = realMozApps;
+  };
 
   suiteSetup(function() {
     triggerEvent = testSupport.calendar.triggerEvent;
@@ -48,6 +94,7 @@ suiteGroup('Views.ModifyAccount', function() {
           '<input name="fullUrl" />',
         '</form>',
         '<button class="delete-confirm">',
+        '<a class="force-oauth2"></a>',
       '</div>',
       '<section id="oauth2">',
         '<header>',
@@ -107,8 +154,16 @@ suiteGroup('Views.ModifyAccount', function() {
 
   });
 
+  test('#authenticationType', function() {
+    assert.equal(subject.authenticationType, 'basic');
+  });
+
   test('#oauth2Window', function() {
     assert.ok(subject.oauth2Window);
+  });
+
+  test('#oauth2SignIn', function() {
+    assert.ok(subject.oauth2SignIn);
   });
 
   test('#deleteButton', function() {
@@ -372,6 +427,17 @@ suiteGroup('Views.ModifyAccount', function() {
   });
 
   suite('#render', function() {
+    suite('with error', function() {
+      setup(function() {
+        account.error = {};
+        subject.render();
+      });
+
+      test('has .error class', function() {
+        assert.isTrue(hasClass('error'));
+      });
+    });
+
     suite('normal flow', function() {
 
       setup(function() {
@@ -412,44 +478,72 @@ suiteGroup('Views.ModifyAccount', function() {
       });
 
       test('type class', function() {
+        assert.isFalse(hasClass('error'));
         assert.isTrue(hasClass(subject.type));
         assert.isTrue(hasClass('preset-' + account.preset));
         assert.isTrue(hasClass('provider-' + account.providerType));
+        assert.isTrue(hasClass('auth-' + subject.authenticationType));
       });
     });
 
     suite('oauth flow', function() {
       var callsSave;
-      var MockOAuth = function(server, params) {
-        this.server = server;
-        this.params = params;
 
-        this.open = function() {
-          this.isOpen = true;
-        };
+      suiteSetup(setupOauth);
+      suiteTeardown(teardownOauth);
 
-        this.close = function() {
-          this.isOpen = false;
-        };
+      var clearsCookies;
+      mozApp = {
+        clearBrowserData: function() {
+          var req = {};
+
+          Calendar.nextTick(function() {
+            clearsCookies = true;
+            req.onsuccess && req.onsuccess();
+          });
+          return req;
+        }
       };
 
-      var RealOAuth;
-      suiteSetup(function() {
-        RealOAuth = Calendar.OAuthWindow;
-        Calendar.OAuthWindow = MockOAuth;
-      });
-
-      suiteTeardown(function() {
-        Calendar.OAuthWindow = RealOAuth;
-      });
-
-      setup(function() {
+      setup(function(done) {
+        clearsCookies = false;
         subject.save = function() {
           callsSave = true;
         };
 
+        // Oauth flows are only for new accounts
+        subject.model = {};
+
         subject.preset = Calendar.Presets.google;
         subject.render();
+
+        var realFlow = subject._redirectToOAuthFlow;
+        subject._redirectToOAuthFlow = function() {
+          realFlow.apply(this, arguments);
+          done();
+        };
+      });
+
+      test('clears cookies', function() {
+        assert.ok(clearsCookies, 'cookies where cleared');
+      });
+
+      test('authenticationType', function() {
+        assert.equal(
+          subject.authenticationType,
+          subject.preset.authenticationType,
+          'sets authentication type to preset'
+        );
+      });
+
+      test('class names', function() {
+        assert.isTrue(hasClass('auth-' + subject.authenticationType));
+      });
+
+      test('oauth dialog comples with error', function(done) {
+        subject.cancel = done;
+        assert.ok(subject._oauthDialog, 'has dialog');
+        subject._oauthDialog.oncomplete({ error: 'access_denied' });
       });
 
       test('oauth flow is a success', function() {
@@ -459,41 +553,94 @@ suiteGroup('Views.ModifyAccount', function() {
         assert.equal(subject.model.oauth.code, code, 'sets code');
         assert.ok(callsSave);
       });
-
-      test('oauth flow is aborted', function(done) {
-        subject.cancel = done;
-        subject._oauthDialog.onabort();
-      });
     });
+
+    suite('modify oauth account', function() {
+
+      suiteSetup(setupOauth);
+      suiteTeardown(teardownOauth);
+
+      setup(function() {
+        subject.preset = Calendar.Presets.google;
+        subject.render();
+      });
+
+      test('oauth flow is not triggered', function() {
+        assert.equal(subject._oauthDialog, undefined, 'does not have dialog');
+        assert.ok(subject.fields.user.disabled);
+      });
+
+      test('force sign in', function() {
+        // stub out real oauth flow window to prevent failures
+        subject._redirectToOAuthFlow = function() {};
+
+        assert.ok(
+          !subject.oauth2Window.classList.contains('active'),
+          'is inactive before click'
+        );
+
+        triggerEvent(subject.oauth2SignIn, 'click');
+
+        assert.ok(
+          subject.oauth2Window.classList.contains('active'), 'shows oauth2'
+        );
+      });
+
+    });
+
   });
 
   suite('#destroy', function() {
-    setup(function() {
-      subject.render();
-      subject.destroy();
+    suite('normal flow', function() {
+      setup(function() {
+        subject.model.error = {};
+        subject.render();
+        subject.destroy();
+      });
+
+      test('save button', function() {
+        var called;
+
+        subject._persistForm = function() {
+          called = true;
+        };
+
+        triggerEvent(subject.saveButton, 'click');
+        assert.ok(!called);
+      });
+
+      test('fields', function() {
+        assert.equal(subject._fields, null);
+        assert.equal(subject.fields.user.disabled, false,
+          're-enable username field');
+      });
+
+      test('type class', function() {
+        assert.isFalse(hasClass(subject.type));
+        assert.isFalse(hasClass('error'));
+        assert.isFalse(hasClass('preset-' + account.preset));
+        assert.isFalse(hasClass('provider-' + account.providerType));
+      });
     });
 
-    test('save button', function() {
-      var called;
+    suite('oauth2 edit flow', function() {
+      setup(function() {
+        subject.preset = Calendar.Presets.google;
+        subject.model._id = 1;
 
-      subject._persistForm = function() {
-        called = true;
-      };
+        assert.equal(subject.authenticationType, 'oauth2');
+        subject.render();
+        subject.destroy();
+      });
 
-      triggerEvent(subject.saveButton, 'click');
-      assert.ok(!called);
+      test('should disable force display of oauth2', function() {
+        triggerEvent(subject.oauth2SignIn, 'click');
+        assert.ok(
+          !subject.oauth2Window.classList.contains('active'),
+          'is ignored after destroy'
+        );
+      });
     });
-
-    test('fields', function() {
-      assert.equal(subject._fields, null);
-    });
-
-    test('type class', function() {
-      assert.isFalse(hasClass(subject.type));
-      assert.isFalse(hasClass('preset-' + account.preset));
-      assert.isFalse(hasClass('provider-' + account.providerType));
-    });
-
   });
 
 });

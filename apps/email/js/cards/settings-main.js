@@ -107,11 +107,10 @@ SettingsMainCard.prototype = {
 
   onClickSecretButton: function() {
     if (this._secretButtonTimer === null) {
-      var self = this;
       this._secretButtonTimer = window.setTimeout(
         function() {
-          self._secretButtonTimer = null;
-          self._secretButtonClickCount = 0;
+          this._secretButtonTimer = null;
+          this._secretButtonClickCount = 0;
         }.bind(this), 2000);
     }
 
