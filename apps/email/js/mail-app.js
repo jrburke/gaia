@@ -160,7 +160,8 @@ var App = {
           Cards.pushCard(
             'message-list', 'nonsearch', 'immediate',
             {
-              folder: inboxFolder
+              folder: inboxFolder,
+              isCacheabledFolder: true
             });
 
           // Add navigation, but before the message list.

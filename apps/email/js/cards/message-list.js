@@ -6,9 +6,10 @@ define([
   'mail-common',
   'mail-app',
   'api',
+  'htmlCache',
   'l10n'
 ], function (templateNode, msgHeaderItemNode, deleteConfirmMsgNode,
-   common, App, MailAPI, mozL10n) {
+   common, App, MailAPI, htmlCache, mozL10n) {
 
 var Cards = common.Cards,
     Toaster = common.Toaster,
@@ -221,6 +222,8 @@ function MessageListCard(domNode, mode, args) {
     this.showFolder(args.folder);
   else
     this.showSearch(args.folder, args.phrase || '', args.filter || 'all');
+
+  this.isCacheabledFolder = !!args.isCacheabledFolder;
 }
 MessageListCard.prototype = {
   /**
@@ -846,6 +849,10 @@ MessageListCard.prototype = {
     if (prevHeight) {
       this.scrollContainer.scrollTop +=
         (this.messagesContainer.clientHeight - prevHeight);
+    }
+
+    if (this.isCacheabledFolder && this.messagesSlice.atTop) {
+      htmlCache.delayedSaveFromNode();
     }
   },
 
