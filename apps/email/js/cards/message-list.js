@@ -852,11 +852,11 @@ MessageListCard.prototype = {
     if (this.isCacheabledFolder && this.messagesSlice.atTop) {
       // Save this card node, but trim the message list
       var cacheNode = this.domNode.cloneNode(true);
-      if (this.messagesContainer.children.length > 2) {
+      if (this.messagesContainer.children.length > 10) {
         var msgContainer = cacheNode
                           .getElementsByClassName('msg-messages-container')[0];
         for (var childIndex = msgContainer.children.length - 1;
-                              childIndex > 1;
+                              childIndex > 9;
                               childIndex--) {
           var childNode = msgContainer.children[childIndex];
           childNode.parentNode.removeChild(childNode);
