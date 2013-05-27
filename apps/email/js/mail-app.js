@@ -207,8 +207,8 @@ var App = {
             'setup-account-info', 'default', 'immediate',
             {
               allowBack: false,
-              onPushed: function () {
-                htmlCache.delayedSaveFromNode();
+              onPushed: function (impl) {
+                htmlCache.delayedSaveFromNode(impl.domNode);
               }
             });
         }

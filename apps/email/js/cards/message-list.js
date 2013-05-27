@@ -49,8 +49,6 @@ var MINIMUM_ITEMS_FOR_SCROLL_CALC = 10;
 var MAXIMUM_MS_BETWEEN_SNIPPET_REQUEST = 6000;
 
 /**
-<<<<<<< HEAD:apps/email/js/cards/message-list.js
-=======
  * Fetch up to 4kb while scrolling
  */
 var MAXIMUM_BYTES_PER_MESSAGE_DURING_SCROLL = 4 * 1024;
@@ -75,7 +73,6 @@ function displaySubject(subjectNode, message) {
 }
 
 /**
->>>>>>> master:apps/email/js/message-cards.js
  * List messages for listing the contents of folders ('nonsearch' mode) and
  * searches ('search' mode).  Multi-editing is just a state of the card.
  *
@@ -853,10 +850,22 @@ MessageListCard.prototype = {
     }
 
     if (this.isCacheabledFolder && this.messagesSlice.atTop) {
-      htmlCache.delayedSaveFromNode();
+      // Save this card node, but trim the message list
+      var cacheNode = this.domNode.cloneNode(true);
+      if (this.messagesContainer.children.length > 2) {
+        var msgContainer = cacheNode
+                          .getElementsByClassName('msg-messages-container')[0];
+        for (var childIndex = msgContainer.children.length - 1;
+                              childIndex > 1;
+                              childIndex--) {
+          var childNode = msgContainer.children[childIndex];
+          childNode.parentNode.removeChild(childNode);
+        }
+      }
+      htmlCache.delayedSaveFromNode(cacheNode);
     }
 
-    if (this._onDataInserted) {
+    if (this._onDataInserted && this.messagesSlice.atTop) {
       var onDataInserted = this._onDataInserted;
       this._onDataInserted = null;
       onDataInserted();

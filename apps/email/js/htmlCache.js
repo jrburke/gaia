@@ -66,8 +66,8 @@ var delayedSaveId = 0;
  */
 var delayedHtml = '';
 
-exports.delayedSaveFromNode = function delayedSaveFromNode() {
-  delayedHtml = document.getElementById('cards').innerHTML;
+exports.delayedSaveFromNode = function delayedSaveFromNode(node) {
+  delayedHtml = node.outerHTML;
   if (!delayedSaveId) {
     setTimeout(function () {
       delayedSaveId = 0;

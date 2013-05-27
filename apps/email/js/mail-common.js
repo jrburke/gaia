@@ -441,10 +441,8 @@ console.log('pushCard for type: ' + type);
         this._showCard(cardIndex, showMethod, 'forward');
       }
 
-      if (args.onPushed) {
-        args.onPushed();
-    }
-
+      if (args.onPushed)
+        args.onPushed(cardImpl);
     }.bind(this);
 
     if (args.waitForData) {
