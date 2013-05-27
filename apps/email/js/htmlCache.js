@@ -40,8 +40,14 @@ exports.save = function htmlCacheSave(html) {
 
   // If previous cookie was bigger, clear out the other values,
   // to make sure they do not interfere later when reading and
-  // reassembling.
-  var maxSegment = 30;
+  // reassembling. If the cache saved is too big, just clear it as
+  // there will likely be cache corruption/partial, bad HTML saved
+  // otherwise.
+  var maxSegment = 40;
+  if (index > 39) {
+    index = 0;
+    console.log('htmlCache.save TOO BIG. Removing all of it.');
+  }
   for (i = index; i < maxSegment; i++) {
     document.cookie = 'htmlc' + i + '=; expires=' + expiry;
   }

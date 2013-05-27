@@ -390,7 +390,7 @@ Cards = {
    *   }
    * ]
    */
-  pushCard: function(type, mode, showMethod, args, placement, callback) {
+  pushCard: function(type, mode, showMethod, args, placement) {
     var cardDef = this._cardDefs[type];
     var typePrefix = type.split('-')[0];
 
@@ -413,6 +413,43 @@ Cards = {
 console.log('pushCard for type: ' + type);
 
     var domNode = cardDef.templateNode.cloneNode(true);
+
+    var boundShowCard = function () {
+      if (initialCardInsertion) {
+        initialCardInsertion = false;
+        this._cardsNode.innerHTML = '';
+      }
+
+      this._cardsNode.insertBefore(domNode, insertBuddy);
+
+      // If the card has any <button type="reset"> buttons,
+      // make them clear the field they're next to and not the entire form.
+      // See input_areas.js and shared/style/input_areas.css.
+      hookupInputAreaResetButtons(domNode);
+
+      if ('postInsert' in cardImpl)
+        cardImpl.postInsert();
+
+      if (args.waitForData)
+        this._cardsNode.insertBefore(domNode, insertBuddy);
+
+      if (showMethod !== 'none') {
+        // make sure the reflow sees the new node so that the animation
+        // later is smooth.
+        domNode.clientWidth;
+
+        this._showCard(cardIndex, showMethod, 'forward');
+      }
+
+      if (args.onPushed) {
+        args.onPushed();
+    }
+
+    }.bind(this);
+
+    if (args.waitForData) {
+      args.onDataInserted = boundShowCard;
+    }
 
     var cardImpl = new cardDef.constructor(domNode, mode, args);
     var cardInst = {
@@ -442,31 +479,8 @@ console.log('pushCard for type: ' + type);
     }
     this._cardStack.splice(cardIndex, 0, cardInst);
 
-    if (initialCardInsertion) {
-      initialCardInsertion = false;
-      this._cardsNode.innerHTML = '';
-    }
-
-    this._cardsNode.insertBefore(domNode, insertBuddy);
-
-    // If the card has any <button type="reset"> buttons,
-    // make them clear the field they're next to and not the entire form.
-    // See input_areas.js and shared/style/input_areas.css.
-    hookupInputAreaResetButtons(domNode);
-
-    if ('postInsert' in cardImpl)
-      cardImpl.postInsert();
-
-    if (showMethod !== 'none') {
-      // make sure the reflow sees the new node so that the animation
-      // later is smooth.
-      domNode.clientWidth;
-
-      this._showCard(cardIndex, showMethod, 'forward');
-    }
-
-    if (callback) {
-      callback();
+    if (!args.waitForData) {
+      boundShowCard();
     }
   },
 
@@ -826,6 +840,11 @@ console.log('pushCard for type: ' + type);
   },
 
   _onTransitionEnd: function(event) {
+    // If no current card, this could be initial setup from cache, no valid
+    // cards yet, so bail.
+    if (!this._cardStack[this.activeCardIndex])
+      return;
+
     // Multiple cards can animate, so there can be multiple transitionend
     // events. Only do the end work when all have finished animating.
     if (this._transitionCount > 0)

@@ -224,6 +224,7 @@ function MessageListCard(domNode, mode, args) {
     this.showSearch(args.folder, args.phrase || '', args.filter || 'all');
 
   this.isCacheabledFolder = !!args.isCacheabledFolder;
+  this._onDataInserted = args.onDataInserted;
 }
 MessageListCard.prototype = {
   /**
@@ -853,6 +854,12 @@ MessageListCard.prototype = {
 
     if (this.isCacheabledFolder && this.messagesSlice.atTop) {
       htmlCache.delayedSaveFromNode();
+    }
+
+    if (this._onDataInserted) {
+      var onDataInserted = this._onDataInserted;
+      this._onDataInserted = null;
+      onDataInserted();
     }
   },
 

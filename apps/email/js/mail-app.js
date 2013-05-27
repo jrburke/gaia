@@ -147,12 +147,8 @@ var App = {
                 foldersSlice.items);
 
           if (initialCardInsertion) {
-            initialCardInsertion = true;
-          }  else {
-            // Clear out old cards, start fresh. This can happen for
-            // an incorrect fast path guess, and likely to happen for
-            // email apps that get upgraded from a version that did
-            // not have the cookie fast path.
+            initialCardInsertion = false;
+          } else {
             Cards.removeAllCards();
           }
 
@@ -161,25 +157,27 @@ var App = {
             'message-list', 'nonsearch', 'immediate',
             {
               folder: inboxFolder,
-              isCacheabledFolder: true
+              isCacheabledFolder: true,
+              waitForData: true,
+              onPushed: function () {
+                // Add navigation, but before the message list.
+                Cards.pushCard(
+                  'folder-picker', 'navigation', 'none',
+                  {
+                    acctsSlice: acctsSlice,
+                    curAccount: account,
+                    foldersSlice: foldersSlice,
+                    curFolder: inboxFolder
+                  },
+                  // Place to left of message list
+                  'left');
+
+                if (activityCallback) {
+                  activityCallback();
+                  activityCallback = null;
+                }
+              }
             });
-
-          // Add navigation, but before the message list.
-          Cards.pushCard(
-            'folder-picker', 'navigation', 'none',
-            {
-              acctsSlice: acctsSlice,
-              curAccount: account,
-              foldersSlice: foldersSlice,
-              curFolder: inboxFolder
-            },
-            // Place to left of message list
-            'left');
-
-          if (activityCallback) {
-            activityCallback();
-            activityCallback = null;
-          }
         };
       } else {
         if (acctsSlice)
@@ -202,18 +200,16 @@ var App = {
           if (initialCardInsertion) {
             initialCardInsertion = false;
           } else {
-            // Could have bad state from an incorrect _fake fast path.
-            // Mostly likely when the email app is updated from one that
-            // did not have the fast path cookies set up.
             Cards.removeAllCards();
           }
 
           Cards.pushCard(
             'setup-account-info', 'default', 'immediate',
             {
-              allowBack: false
-            }, null, function () {
-              htmlCache.delayedSaveFromNode();
+              allowBack: false,
+              onPushed: function () {
+                htmlCache.delayedSaveFromNode();
+              }
             });
         }
       }
