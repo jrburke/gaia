@@ -146,19 +146,16 @@ var App = {
             common.dieOnFatalError('We have an account without an inbox!',
                 foldersSlice.items);
 
-          if (initialCardInsertion) {
-            initialCardInsertion = false;
-          } else {
+          if (!initialCardInsertion)
             Cards.removeAllCards();
-          }
 
           // Push the message list card
           Cards.pushCard(
             'message-list', 'nonsearch', 'immediate',
             {
               folder: inboxFolder,
-              isCacheabledFolder: true,
-              waitForData: true,
+              isCacheabledFolder: account === acctsSlice.defaultAccount,
+              waitForData: initialCardInsertion,
               onPushed: function () {
                 // Add navigation, but before the message list.
                 Cards.pushCard(
@@ -178,6 +175,8 @@ var App = {
                 }
               }
             });
+
+          initialCardInsertion = false;
         };
       } else {
         if (acctsSlice)
