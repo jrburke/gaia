@@ -10,6 +10,7 @@ html {
 }
 
 body {
+  background-color: black;
   color: #fff;
   font-size: 1rem;
   margin: 0;
@@ -666,7 +667,7 @@ a.filter-faded {
 
 #edit-border-none {
   left: calc(0% + 0.3rem);
-  border: 0.2rem solid white;
+  border: 0;
 }
 #edit-border-thin-white {
   left: calc(20% + 0.3rem);

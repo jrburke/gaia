@@ -17,14 +17,20 @@ define([
   'tmpl!./cmp/sending-container.html',
   'mail-common',
   'iframe-shims',
+  'marquee',
   'l10n'
 ],
-function (require, templateNode, cmpAttachmentItemNode, cmpContactMenuNode,
-          cmpDraftMenuNode, cmpPeepBubbleNode, cmpSendFailedConfirmNode,
-          cmpSendingContainerNode, common, iframeShims, mozL10n) {
+function(require, templateNode, cmpAttachmentItemNode, cmpContactMenuNode,
+         cmpDraftMenuNode, cmpPeepBubbleNode, cmpSendFailedConfirmNode,
+         cmpSendingContainerNode, common, iframeShims, Marquee, mozL10n) {
 
 var prettyFileSize = common.prettyFileSize,
     Cards = common.Cards;
+
+/**
+ * Max composer attachment size is defined as 5120000 bytes.
+ */
+var MAX_ATTACHMENT_SIZE = 5120000;
 
 /**
  * To make it easier to focus input boxes, we have clicks on their owning
@@ -104,7 +110,7 @@ function ComposeCard(domNode, mode, args) {
   }
   // Add attachments area event listener
   var attachmentBtns =
-    domNode.getElementsByClassName('cmp-attachment-container');
+    domNode.getElementsByClassName('cmp-attachment-btn');
   for (var i = 0; i < attachmentBtns.length; i++) {
     attachmentBtns[i].addEventListener('click',
                                        this.onAttachmentAdd.bind(this));
@@ -246,8 +252,8 @@ ComposeCard.prototype = {
 
   createBubbleNode: function(name, address) {
     var bubble = cmpPeepBubbleNode.cloneNode(true);
+    bubble.classList.add('peep-bubble');
     bubble.classList.add('msg-peep-bubble');
-    bubble.classList.add('cmp-peep-bubble');
     bubble.setAttribute('data-address', address);
     bubble.setAttribute('data-name', name);
     bubble.querySelector('.cmp-peep-address').textContent = address;
@@ -382,8 +388,13 @@ ComposeCard.prototype = {
     if (target.classList.contains('cmp-peep-bubble')) {
       var contents = cmpContactMenuNode.cloneNode(true);
       var email = target.querySelector('.cmp-peep-address').textContent;
-      contents.getElementsByTagName('header')[0].textContent = email;
+      var headerNode = contents.getElementsByTagName('header')[0];
+      // Setup the marquee structure
+      Marquee.setup(email, headerNode);
+      // Activate marquee once the contents DOM are added to document
       document.body.appendChild(contents);
+      Marquee.activate('alternate', 'ease');
+
       var formSubmit = (function(evt) {
         document.body.removeChild(contents);
         switch (evt.explicitOriginalTarget.className) {
@@ -423,7 +434,7 @@ ComposeCard.prototype = {
 
   insertAttachments: function() {
     var attachmentsContainer =
-      this.domNode.getElementsByClassName('cmp-attachments-container')[0];
+      this.domNode.getElementsByClassName('cmp-attachment-container')[0];
 
     if (this.composer.attachments && this.composer.attachments.length) {
       // Clean the container before we insert the new attachments
@@ -434,8 +445,41 @@ ComposeCard.prototype = {
             attTemplate.getElementsByClassName('cmp-attachment-filename')[0],
           filesizeTemplate =
             attTemplate.getElementsByClassName('cmp-attachment-filesize')[0];
+      var totalSize = 0;
       for (var i = 0; i < this.composer.attachments.length; i++) {
         var attachment = this.composer.attachments[i];
+        //check for attachment max size
+        if ((totalSize + attachment.blob.size) > MAX_ATTACHMENT_SIZE) {
+
+          /*Remove all the remaining attachments from composer*/
+          while (this.composer.attachments.length > i) {
+            this.composer.removeAttachment(this.composer.attachments[i]);
+          }
+          var dialog = msgNodes['attach-confirm'].cloneNode(true);
+          var title = dialog.getElementsByTagName('h1')[0];
+          var content = dialog.getElementsByTagName('p')[0];
+
+          if (this.composer.attachments.length > 0) {
+            title.textContent = mozL10n.get('composer-attachments-large');
+            content.textContent =
+            mozL10n.get('compose-attchments-size-exceeded');
+          } else {
+            title.textContent = mozL10n.get('composer-attachment-large');
+            content.textContent =
+            mozL10n.get('compose-attchment-size-exceeded');
+          }
+          ConfirmDialog.show(dialog,
+           {
+            // ok
+            id: 'msg-attach-ok',
+            handler: function() {
+              this.updateAttachmentsSize();
+            }.bind(this)
+           }
+          );
+          return;
+        }
+        totalSize = totalSize + attachment.blob.size;
         filenameTemplate.textContent = attachment.name;
         filesizeTemplate.textContent = prettyFileSize(attachment.blob.size);
         var attachmentNode = attTemplate.cloneNode(true);
@@ -459,8 +503,10 @@ ComposeCard.prototype = {
   updateAttachmentsSize: function() {
     var attachmentLabel =
       this.domNode.getElementsByClassName('cmp-attachment-label')[0];
+    var attachmentTotal =
+      this.domNode.getElementsByClassName('cmp-attachment-total')[0];
     var attachmentsSize =
-      this.domNode.getElementsByClassName('cmp-attachments-size')[0];
+      this.domNode.getElementsByClassName('cmp-attachment-size')[0];
 
     attachmentLabel.textContent =
       mozL10n.get('compose-attachments',
@@ -472,7 +518,7 @@ ComposeCard.prototype = {
       // When there is no attachments, hide the container
       // to keep the style of empty attachments
       var attachmentsContainer =
-        this.domNode.getElementsByClassName('cmp-attachments-container')[0];
+        this.domNode.getElementsByClassName('cmp-attachment-container')[0];
 
       attachmentsContainer.classList.add('collapsed');
     }
@@ -484,6 +530,12 @@ ComposeCard.prototype = {
 
       attachmentsSize.textContent = prettyFileSize(totalSize);
     }
+
+    // Only display the total size when the number of attachments is more than 1
+    if (this.composer.attachments.length > 1)
+      attachmentTotal.classList.remove('collapsed');
+    else
+      attachmentTotal.classList.add('collapsed');
   },
 
   onClickRemoveAttachment: function(node, attachment) {

@@ -645,29 +645,46 @@ var GridManager = (function() {
       goToPage(currentPage);
   }
 
+  function pageOverflowed(page) {
+    return page.getNumIcons() > MAX_ICONS_PER_PAGE;
+  }
+
   /*
    * Checks number of apps per page
    *
    * It propagates icons in order to avoiding overflow in
    * pages with a number of apps greater that the maximum
    */
-  function ensurePagesOverflow() {
-    pages.forEach(function checkIsOverflow(page, index) {
-      // ignore the landing page
-      if (index < numberOfSpecialPages) {
-        return;
-      }
+  function ensurePagesOverflow(callback) {
+    ensurePageOverflow(numberOfSpecialPages, callback);
+  }
 
-      // if the page is not full
-      while (page.getNumIcons() > MAX_ICONS_PER_PAGE) {
-        var propagateIco = page.popIcon();
-        if (index === pages.length - 1) {
-          pageHelper.addPage([propagateIco]); // new page
-        } else {
-          pages[index + 1].prependIcon(propagateIco); // next page
-        }
-      }
-    });
+  function ensurePageOverflow(index, callback) {
+    var page = pages[index];
+    if (!page) {
+      callback();
+      return; // There are not more pages
+    }
+
+    if (!pageOverflowed(page)) {
+      ensurePageOverflow(index + 1, callback);
+      return;
+    }
+
+    var propagateIco = page.popIcon();
+    if (index === pages.length - 1) {
+      propagateIco.loadRenderedIcon(function loaded(url) {
+        pageHelper.addPage([propagateIco]); // new page
+        window.URL.revokeObjectURL(url);
+        ensurePageOverflow(pageOverflowed(page) ? index : index + 1, callback);
+      });
+    } else {
+      propagateIco.loadRenderedIcon(function loaded(url) {
+        pages[index + 1].prependIcon(propagateIco); // next page
+        window.URL.revokeObjectURL(url);
+        ensurePageOverflow(pageOverflowed(page) ? index : index + 1, callback);
+      });
+    }
   }
 
   var pageHelper = {
@@ -901,8 +918,7 @@ var GridManager = (function() {
         }
       }
 
-      ensurePagesOverflow();
-      removeEmptyPages();
+      ensurePagesOverflow(removeEmptyPages);
     };
   }
 
@@ -959,6 +975,17 @@ var GridManager = (function() {
   }
 
   /*
+    Detect if an app can work offline
+  */
+  function isHosted(app) {
+    return app.origin.indexOf('app://') === -1;
+  }
+
+  function hasOfflineCache(app) {
+    return app.manifest.appcache_path != null;
+  }
+
+  /*
    * Create or update a single icon for an Application (or Bookmark) object.
    */
   function createOrUpdateIconForApp(app, entryPoint) {
@@ -989,7 +1016,10 @@ var GridManager = (function() {
       removable: app.removable,
       name: iconsAndNameHolder.name,
       icon: bestMatchingIcon(app, iconsAndNameHolder),
-      useAsyncPanZoom: app.useAsyncPanZoom
+      useAsyncPanZoom: app.useAsyncPanZoom,
+      isHosted: isHosted(app),
+      hasOfflineCache: hasOfflineCache(app),
+      isBookmark: app.isBookmark
     };
     if (haveLocale && !app.isBookmark) {
       descriptor.localizedName = iconsAndNameHolder.name;
@@ -1194,8 +1224,7 @@ var GridManager = (function() {
       dragging = false;
       delete document.body.dataset.transitioning;
       ensurePanning();
-      ensurePagesOverflow();
-      removeEmptyPages();
+      ensurePagesOverflow(removeEmptyPages);
     },
 
     /*

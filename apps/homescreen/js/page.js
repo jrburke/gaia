@@ -61,6 +61,12 @@ Icon.prototype = {
            (descriptor.entry_point ? descriptor.entry_point : '');
   },
 
+  isOfflineReady: function icon_isOfflineReady() {
+    return !(this.descriptor.isHosted &&
+      !this.descriptor.hasOfflineCache ||
+      this.descriptor.isBookmark);
+  },
+
   /*
    * Renders the icon into the page
    *
@@ -80,6 +86,7 @@ Icon.prototype = {
      */
 
     var container = this.container = document.createElement('li');
+    this.container.dataset.offlineReady = this.isOfflineReady();
     container.className = 'icon';
     if (this.descriptor.hidden) {
       delete this.descriptor.hidden;
@@ -130,11 +137,7 @@ Icon.prototype = {
     container.appendChild(icon);
 
     if (descriptor.removable === true) {
-      // Menu button to delete the app
-      var options = document.createElement('span');
-      options.className = 'options';
-      options.dataset.isIcon = true;
-      container.appendChild(options);
+      this.appendOptions();
     }
 
     target.appendChild(container);
@@ -145,6 +148,28 @@ Icon.prototype = {
       container.style.visibility = 'visible';
       icon.classList.add('loading');
     }
+  },
+
+  appendOptions: function icon_appendOptions() {
+    var options = this.container.querySelector('.options');
+    if (options) {
+      return;
+    }
+
+    // Menu button to delete the app
+    options = document.createElement('span');
+    options.className = 'options';
+    options.dataset.isIcon = true;
+    this.container.appendChild(options);
+  },
+
+  removeOptions: function icon_removeOptions() {
+    var options = this.container.querySelector('.options');
+    if (!options) {
+      return;
+    }
+
+    this.container.removeChild(options);
   },
 
   applyOverflowTextMask: function icon_applyOverflowTextMask() {
@@ -360,6 +385,10 @@ Icon.prototype = {
     this.updateAppStatus(app);
     var oldDescriptor = this.descriptor;
     this.descriptor = descriptor;
+    descriptor.removable === true ? this.appendOptions() : this.removeOptions();
+
+    // Update offline availability
+    this.container.dataset.offlineReady = this.isOfflineReady();
 
     if (descriptor.updateTime == oldDescriptor.updateTime &&
         descriptor.icon == oldDescriptor.icon) {
@@ -610,10 +639,10 @@ Page.prototype = {
   ready: true,
 
   setReady: function pg_setReady(value) {
+    this.ready = value;
     if (value) {
       this.container.dispatchEvent(new CustomEvent('onpageready'));
     }
-    this.ready = value;
   },
 
   /*
@@ -661,8 +690,8 @@ Page.prototype = {
     this.placeIcon(draggableNode, draggableIndex, targetIndex);
 
     var self = this;
-    targetNode.addEventListener('transitionend', function onTransitionEnd() {
-      targetNode.removeEventListener('transitionend', onTransitionEnd);
+    targetNode.addEventListener('transitionend', function onTransitionEnd(e) {
+      e.target.removeEventListener('transitionend', onTransitionEnd);
       children.splice(draggableIndex, 1);
       children.splice(targetIndex, 0, draggableNode);
       setTimeout(self.setReady.bind(self, true));
@@ -699,12 +728,20 @@ Page.prototype = {
     }
 
     if (!this.ready) {
-      var self = this;
-
-      self.container.addEventListener('onpageready', function onPageReady() {
-        self.container.removeEventListener('onpageready', onPageReady);
-        self.doDragLeave(callback, reflow);
+      var self = this, ensureCallbackID = null;
+      self.container.addEventListener('onpageready', function onPageReady(e) {
+        e.target.container.removeEventListener('onpageready', onPageReady);
+        if (ensureCallbackID !== null) {
+          window.clearTimeout(ensureCallbackID);
+          self.doDragLeave(callback, reflow);
+        }
       });
+
+      // We ensure that there is not a transitionend lost on dragging
+      var ensureCallbackID = window.setTimeout(function() {
+        ensureCallbackID = null;
+        self.doDragLeave(callback, reflow);
+      }, 300); // Dragging transition time
 
       return;
     }
@@ -946,6 +983,10 @@ dockProto.moveByWithDuration = function dk_moveByWithDuration(scrollX,
 
 dockProto.getLeft = function dk_getLeft() {
   return this.olist.getBoundingClientRect().left;
+};
+
+dockProto.getTransform = function dk_getTransform() {
+  return this.movableContainer.style.MozTransform;
 };
 
 /**
