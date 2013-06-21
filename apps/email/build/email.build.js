@@ -1,7 +1,7 @@
 {
   "baseUrl": "../js",
-  "mainConfigFile": "../js/mail-app.js",
-  "out": "../js/mail-app-built.js",
+  "mainConfigFile": "../js/mail_app.js",
+  "out": "../js/mail_app_built.js",
 /*
   "wrap": {
     "start": "var _xstart = performance.now(); var _fromStart = _xstart - performance.timing.fetchStart;",
@@ -9,6 +9,6 @@
   },
 */
   "include": ["alameda", "l10nbase", "l10ndate", "tmpl", "text", "value_selector",
-              "folder_depth_classes", "mail-app"],
+              "folder_depth_classes", "mail_app"],
   "optimize": "none"
 }

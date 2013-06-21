@@ -1,19 +1,21 @@
 /*global define, console, window, navigator, document, MozActivity */
 define([
-  'tmpl!./message-reader.html',
-  'tmpl!./msg/delete-confirm.html',
-  'tmpl!./msg/contact-menu.html',
-  'tmpl!./msg/browse-confirm.html',
-  'tmpl!./msg/peep-bubble.html',
-  'tmpl!./msg/attachment-item.html',
-  'mail-common',
+  'tmpl!./message_reader.html',
+  'tmpl!./msg/delete_confirm.html',
+  'tmpl!./msg/contact_menu.html',
+  'tmpl!./msg/browse_confirm.html',
+  'tmpl!./msg/peep_bubble.html',
+  'tmpl!./msg/attachment_item.html',
+  'tmpl!./msg/attachment_disabled_confirm.html',
+  'mail_common',
   'require',
   'api',
-  'iframe-shims',
+  'iframe_shims',
   'marquee',
   'l10n'
 ], function(templateNode, msgDeleteConfirmNode, msgContactMenuNode,
             msgBrowseConfirmNode, msgPeepBubbleNode, msgAttachmentItemNode,
+            msgAttachmentDisabledConfirmNode,
             common, require, MailAPI, iframeShims,
             Marquee, mozL10n) {
 
@@ -177,7 +179,7 @@ MessageReaderCard.prototype = {
     }.bind(this));
 
     if (needToPrompt) {
-      var dialog = msgNodes['attachment-disabled-confirm'].cloneNode(true);
+      var dialog = msgAttachmentDisabledConfirmNode.cloneNode(true);
       ConfirmDialog.show(dialog,
         {
           id: 'msg-attachment-disabled-ok',
@@ -724,7 +726,7 @@ MessageReaderCard.prototype = {
   }
 };
 Cards.defineCardWithDefaultMode(
-    'message-reader',
+    'message_reader',
     { tray: false },
     MessageReaderCard,
     templateNode

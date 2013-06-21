@@ -1,11 +1,11 @@
 /*global define*/
 define([
-  'tmpl!./settings-account.html',
-  'tmpl!./tng/account-settings-server.html',
-  'tmpl!./tng/account-delete-confirm.html',
-  'mail-common',
-  'mail-app',
-  './setup-l10n-map',
+  'tmpl!./settings_account.html',
+  'tmpl!./tng/account_settings_server.html',
+  'tmpl!./tng/account_delete_confirm.html',
+  'mail_common',
+  'mail_app',
+  './setup_l10n_map',
   'l10n'
 ], function (templateNode, tngAccountSettingsServerNode,
    tngAccountDeleteConfirmNode, common, App, SETUP_ERROR_L10N_ID_MAP, mozL10n) {
@@ -87,7 +87,7 @@ SettingsAccountCard.prototype = {
 
   onClickCredentials: function() {
     Cards.pushCard(
-      'settings-account-credentials', 'default', 'animate',
+      'settings_account_credentials', 'default', 'animate',
       {
         account: this.account
       },
@@ -96,7 +96,7 @@ SettingsAccountCard.prototype = {
 
   onClickServers: function(index) {
     Cards.pushCard(
-      'settings-account-servers', 'default', 'animate',
+      'settings_account_servers', 'default', 'animate',
       {
         account: this.account,
         index: index
@@ -109,10 +109,10 @@ SettingsAccountCard.prototype = {
 
     // If we just changed the currently-selected account, refresh the
     // currently-open folder to propagate the syncRange change.
-    var curAccount = Cards.findCardObject(['folder-picker', 'navigation'])
+    var curAccount = Cards.findCardObject(['folder_picker', 'navigation'])
                           .cardImpl.curAccount;
     if (curAccount.id === this.account.id) {
-      Cards.findCardObject(['message-list', 'nonsearch']).cardImpl.onRefresh();
+      Cards.findCardObject(['message_list', 'nonsearch']).cardImpl.onRefresh();
     }
   },
 
@@ -143,7 +143,7 @@ SettingsAccountCard.prototype = {
   }
 };
 Cards.defineCardWithDefaultMode(
-    'settings-account',
+    'settings_account',
     { tray: false },
     SettingsAccountCard,
     templateNode

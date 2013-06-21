@@ -1,9 +1,9 @@
 /*global define*/
 define([
-  'tmpl!./setup-manual-config.html',
-  'mail-common',
-  'mail-app',
-  './setup-account-info'
+  'tmpl!./setup_manual_config.html',
+  'mail_common',
+  'mail_app',
+  './setup_account_info'
 ], function (templateNode, common, App, SetupAccountInfoCard) {
 
 var Cards = common.Cards,
@@ -119,7 +119,7 @@ SetupManualConfig.prototype = {
 
     // The progress card is the dude that actually tries to create the account.
     Cards.pushCard(
-      'setup-progress', 'default', 'animate',
+      'setup_progress', 'default', 'animate',
       {
         displayName: this.formItems.common.displayName.value,
         emailAddress: this.formItems.common.emailAddress.value,
@@ -176,7 +176,7 @@ SetupManualConfig.prototype = {
   }
 };
 Cards.defineCardWithDefaultMode(
-    'setup-manual-config',
+    'setup_manual_config',
     { tray: false },
     SetupManualConfig,
     templateNode

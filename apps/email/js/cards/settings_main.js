@@ -1,8 +1,8 @@
 /*global define*/
 define([
-  'tmpl!./settings-main.html',
-  'tmpl!./tng/account-item.html',
-  'mail-common',
+  'tmpl!./settings_main.html',
+  'tmpl!./tng/account_item.html',
+  'mail_common',
   'api'
 ], function (templateNode, tngAccountItemNode, common, MailAPI) {
 
@@ -89,7 +89,7 @@ SettingsMainCard.prototype = {
 
   onClickAddAccount: function() {
     Cards.pushCard(
-      'setup-account-info', 'default', 'animate',
+      'setup_account_info', 'default', 'animate',
       {
         allowBack: true
       },
@@ -98,7 +98,7 @@ SettingsMainCard.prototype = {
 
   onClickEnterAccount: function(account) {
     Cards.pushCard(
-      'settings-account', 'default', 'animate',
+      'settings_account', 'default', 'animate',
       {
         account: account
       },
@@ -118,7 +118,7 @@ SettingsMainCard.prototype = {
       window.clearTimeout(this._secretButtonTimer);
       this._secretButtonTimer = null;
       this._secretButtonClickCount = 0;
-      Cards.pushCard('settings-debug', 'default', 'animate', {}, 'right');
+      Cards.pushCard('settings_debug', 'default', 'animate', {}, 'right');
     }
   },
 
@@ -127,7 +127,7 @@ SettingsMainCard.prototype = {
   }
 };
 Cards.defineCardWithDefaultMode(
-    'settings-main',
+    'settings_main',
     { tray: false },
     SettingsMainCard,
     templateNode

@@ -1,8 +1,8 @@
 /*global define */
 define([
-  'tmpl!./account-picker.html',
-  'tmpl!./fld/account-item.html',
-  'mail-common',
+  'tmpl!./account_picker.html',
+  'tmpl!./fld/account_item.html',
+  'mail_common',
 ], function (templateNode, fldAccountItemNode, common) {
 
 var Cards = common.Cards,
@@ -47,7 +47,7 @@ AccountPickerCard.prototype = {
 
   onShowSettings: function() {
     Cards.pushCard(
-      'settings-main', 'default', 'animate', {}, 'left');
+      'settings_main', 'default', 'animate', {}, 'left');
   },
 
   onAccountsSplice: function(index, howMany, addedItems,
@@ -76,7 +76,7 @@ AccountPickerCard.prototype = {
 
   onHideAccounts: function() {
     Cards.removeCardAndSuccessors(this.domNode, 'animate', 1,
-                                  ['folder-picker', 'navigation']);
+                                  ['folder_picker', 'navigation']);
   },
 
   onAccountsChange: function(account) {
@@ -109,7 +109,7 @@ AccountPickerCard.prototype = {
         account = this.curAccount = accountNode.account;
 
     if (oldAccount !== account) {
-      var folderCard = Cards.findCardObject(['folder-picker', 'navigation']);
+      var folderCard = Cards.findCardObject(['folder_picker', 'navigation']);
       folderCard.cardImpl.updateAccount(account);
     }
 
@@ -118,7 +118,7 @@ AccountPickerCard.prototype = {
 };
 
 Cards.defineCard({
-  name: 'account-picker',
+  name: 'account_picker',
   modes: {
     // Navigation mode acts like a tray
     navigation: {

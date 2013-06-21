@@ -1,7 +1,7 @@
 /*global define*/
 define([
-  'tmpl!./settings-debug.html',
-  'mail-common',
+  'tmpl!./settings_debug.html',
+  'mail_common',
   'api'
 ], function (templateNode, common, MailAPI) {
 
@@ -84,7 +84,7 @@ SettingsDebugCard.prototype = {
   }
 };
 Cards.defineCardWithDefaultMode(
-    'settings-debug',
+    'settings_debug',
     { tray: false },
     SettingsDebugCard,
     templateNode

@@ -1,5 +1,5 @@
 define({
-  pluginBuilder: './text-builder',
+  pluginBuilder: './text_builder',
   load: function (name, req, onload, config) {
     var url = req.toUrl(name),
         xhr = new XMLHttpRequest();

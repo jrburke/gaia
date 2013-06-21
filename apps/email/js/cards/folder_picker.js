@@ -1,9 +1,9 @@
 /*global define, navigator */
 define([
-  'tmpl!./folder-picker.html',
-  'tmpl!./fld/folder-item.html',
+  'tmpl!./folder_picker.html',
+  'tmpl!./fld/folder_item.html',
   'folder_depth_classes',
-  'mail-common',
+  'mail_common',
   'api',
   'l10n'
 ], function (templateNode, fldFolderItemNode, FOLDER_DEPTH_CLASSES,
@@ -49,7 +49,7 @@ function FolderPickerCard(domNode, mode, args) {
 FolderPickerCard.prototype = {
   onShowSettings: function() {
     Cards.pushCard(
-      'settings-main', 'default', 'animate', {}, 'left');
+      'settings_main', 'default', 'animate', {}, 'left');
   },
 
   /**
@@ -93,7 +93,7 @@ FolderPickerCard.prototype = {
   onShowAccounts: function() {
     // Add account picker before this folder list.
     Cards.pushCard(
-      'account-picker', 'navigation', 'animate',
+      'account_picker', 'navigation', 'animate',
       {
         acctsSlice: this.acctsSlice,
         curAccount: this.curAccount
@@ -210,14 +210,14 @@ FolderPickerCard.prototype = {
     this.updateFolderDom(folder);
 
     this._showFolder(folder);
-    Cards.moveToCard(['message-list', 'nonsearch']);
+    Cards.moveToCard(['message_list', 'nonsearch']);
   },
 
   /**
    * Tell the message-list to show this folder; exists for single code path.
    */
   _showFolder: function(folder) {
-    Cards.tellCard(['message-list', 'nonsearch'], { folder: folder });
+    Cards.tellCard(['message_list', 'nonsearch'], { folder: folder });
   },
 
   /**
@@ -229,7 +229,7 @@ FolderPickerCard.prototype = {
   }
 };
 Cards.defineCard({
-  name: 'folder-picker',
+  name: 'folder_picker',
   modes: {
     // Navigation mode acts like a tray
     navigation: {

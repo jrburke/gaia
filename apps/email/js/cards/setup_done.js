@@ -1,8 +1,8 @@
 /*global define*/
 define([
-  'tmpl!./setup-done.html',
-  'mail-common',
-  'mail-app'
+  'tmpl!./setup_done.html',
+  'mail_common',
+  'mail_app'
 ], function (templateNode, common, App) {
 
 var Cards = common.Cards;
@@ -23,7 +23,7 @@ SetupDoneCard.prototype = {
     Cards.removeAllCards();
     // Show the first setup card again.
     Cards.pushCard(
-      'setup-account-info', 'default', 'immediate',
+      'setup_account_info', 'default', 'immediate',
       {
         allowBack: true
       });
@@ -39,7 +39,7 @@ SetupDoneCard.prototype = {
   }
 };
 Cards.defineCardWithDefaultMode(
-    'setup-done',
+    'setup_done',
     { tray: false },
     SetupDoneCard,
     templateNode

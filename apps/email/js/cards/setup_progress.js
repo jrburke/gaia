@@ -1,7 +1,7 @@
 /*global define*/
 define([
-  'tmpl!./setup-progress.html',
-  'mail-common',
+  'tmpl!./setup_progress.html',
+  'mail_common',
   'api'
 ], function (templateNode, common, MailAPI) {
 
@@ -57,7 +57,7 @@ SetupProgressCard.prototype = {
     // nuke the current card stack, replace them with the done card.
     Cards.removeAllCards();
     Cards.pushCard(
-      'setup-done', 'default', 'immediate',
+      'setup_done', 'default', 'immediate',
       {});
   },
 
@@ -66,7 +66,7 @@ SetupProgressCard.prototype = {
   }
 };
 Cards.defineCardWithDefaultMode(
-    'setup-progress',
+    'setup_progress',
     { tray: false },
     SetupProgressCard,
     templateNode

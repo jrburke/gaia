@@ -10,11 +10,11 @@
 @import url('../shared/style_unstable/tabs.css');
 
 @import url('common.css');
-@import url('compose-cards.css');
-@import url('folder-cards.css');
+@import url('compose_cards.css');
+@import url('folder_cards.css');
 @import url('marquee.css');
-@import url('message-cards.css');
-@import url('setup-cards.css');
+@import url('message_cards.css');
+@import url('setup_cards.css');
 
 
 .peep-bubble {

@@ -1,6 +1,6 @@
 define(['l10n'], function (mozL10n) {
   var tmpl = {
-    pluginBuilder: './tmpl-builder',
+    pluginBuilder: './tmpl_builder',
 
     toDom: function (text) {
         var temp = document.createElement('div');

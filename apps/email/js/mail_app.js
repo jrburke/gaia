@@ -47,17 +47,17 @@ require.config({
 });
 
 // Named module, so it is the same before and after build.
-define('mail-app', [
+define('mail_app', [
   'require',
   'htmlCache',
-  'mail-common',
+  'mail_common',
   'api',
   'l10n',
   // Preload some cards, but do not worry about creating
   // local variables for them.
-  'cards/message-list',
-  'cards/folder-picker',
-  'cards/setup-account-info'
+  'cards/message_list',
+  'cards/folder_picker',
+  'cards/setup_account_info'
 ],
 function (require, htmlCache, common, MailAPI, mozL10n) {
 
@@ -77,17 +77,17 @@ var App = {
     MailAPI.onbadlogin = function(account, problem) {
       switch (problem) {
         case 'bad-user-or-pass':
-          Cards.pushCard('setup-fix-password', 'default', 'animate',
+          Cards.pushCard('setup_fix_password', 'default', 'animate',
                     { account: account, restoreCard: Cards.activeCardIndex },
                     'right');
           break;
         case 'imap-disabled':
-          Cards.pushCard('setup-fix-gmail-imap', 'default', 'animate',
+          Cards.pushCard('setup_fix_gmail_imap', 'default', 'animate',
                     { account: account, restoreCard: Cards.activeCardIndex },
                     'right');
           break;
         case 'needs-app-pass':
-          Cards.pushCard('setup-fix-gmail-twofactor', 'default', 'animate',
+          Cards.pushCard('setup_fix_gmail_twofactor', 'default', 'animate',
                     { account: account, restoreCard: Cards.activeCardIndex },
                     'right');
           break;
@@ -151,7 +151,7 @@ var App = {
 
           // Push the message list card
           Cards.pushCard(
-            'message-list', 'nonsearch', 'immediate',
+            'message_list', 'nonsearch', 'immediate',
             {
               folder: inboxFolder,
               isCacheabledFolder: account === acctsSlice.defaultAccount,
@@ -159,7 +159,7 @@ var App = {
               onPushed: function () {
                 // Add navigation, but before the message list.
                 Cards.pushCard(
-                  'folder-picker', 'navigation', 'none',
+                  'folder_picker', 'navigation', 'none',
                   {
                     acctsSlice: acctsSlice,
                     curAccount: account,
@@ -183,7 +183,7 @@ var App = {
           acctsSlice.die();
 
         // - no accounts, show the setup page!
-        if (!Cards.hasCard(['setup-account-info', 'default'])) {
+        if (!Cards.hasCard(['setup_account_info', 'default'])) {
           if (activityCallback) {
             // Clear out activity callback, but do it
             // before calling activityCallback, in
@@ -203,7 +203,7 @@ var App = {
           }
 
           Cards.pushCard(
-            'setup-account-info', 'default', 'immediate',
+            'setup_account_info', 'default', 'immediate',
             {
               allowBack: false,
               onPushed: function (impl) {
@@ -292,7 +292,7 @@ if ('mozSetMessageHandler' in window.navigator) {
       var folderToUse;
       try {
         folderToUse = Cards._cardStack[Cards
-          ._findCard(['folder-picker', 'navigation'])].cardImpl.curFolder;
+          ._findCard(['folder_picker', 'navigation'])].cardImpl.curFolder;
       } catch (e) {
         console.log('no navigation found:', e);
         var req = confirm(mozL10n.get('setup-empty-account-prompt'));
@@ -355,4 +355,4 @@ return App;
 });
 
 // Run the app module, bring in fancy logging
-require(['console-hook', 'mail-app']);
+require(['console_hook', 'mail_app']);

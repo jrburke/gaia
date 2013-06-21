@@ -1,7 +1,7 @@
 /*global define*/
 define([
-  'tmpl!./settings-account-servers.html',
-  'mail-common',
+  'tmpl!./settings_account_servers.html',
+  'mail_common',
   'l10n'
 ], function (templateNode, common, mozL10n) {
 
@@ -50,7 +50,7 @@ SettingsAccountServerCard.prototype = {
   }
 };
 Cards.defineCardWithDefaultMode(
-    'settings-account-servers',
+    'settings_account_servers',
     { tray: false },
     SettingsAccountServerCard,
     templateNode

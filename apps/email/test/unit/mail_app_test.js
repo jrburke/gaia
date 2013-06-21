@@ -1,7 +1,7 @@
 require('/shared/js/lazy_loader.js');
-requireApp('email/js/mail-app.js');
+requireApp('email/js/mail_app.js');
 
-suite('email/mail-app', function() {
+suite('email/mail_app', function() {
 
 
   test('#to', function() {

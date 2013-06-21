@@ -1,7 +1,7 @@
 /*global define*/
 define([
-  'tmpl!./setup-fix-gmail-imap.html',
-  'mail-common'
+  'tmpl!./setup_fix_gmail_imap.html',
+  'mail_common'
 ], function (templateNode, common) {
 
 var Cards = common.Cards;
@@ -33,7 +33,7 @@ SetupFixGmailImap.prototype = {
   }
 };
 Cards.defineCardWithDefaultMode(
-    'setup-fix-gmail-imap',
+    'setup_fix_gmail_imap',
     { tray: false },
     SetupFixGmailImap,
     templateNode

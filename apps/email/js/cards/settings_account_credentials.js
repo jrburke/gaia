@@ -1,7 +1,7 @@
 /*global define*/
 define([
-  'tmpl!./setting-account-credentials.html',
-  'mail-common',
+  'tmpl!./setting_account_credentials.html',
+  'mail_common',
   'l10n'
 ], function (templateNode, common, mozL10n) {
 
@@ -55,7 +55,7 @@ SettingsAccountCredentialsCard.prototype = {
   }
 };
 Cards.defineCardWithDefaultMode(
-    'settings-account-credentials',
+    'settings_account_credentials',
     { tray: false },
     SettingsAccountCredentialsCard,
     templateNode

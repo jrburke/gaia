@@ -9,23 +9,26 @@
 define([
   'require',
   'tmpl!./compose.html',
-  'tmpl!./cmp/attachment-item.html',
-  'tmpl!./cmp/contact-menu.html',
-  'tmpl!./cmp/draft-menu.html',
-  'tmpl!./cmp/peep-bubble.html',
-  'tmpl!./cmp/send-failed-confirm.html',
-  'tmpl!./cmp/sending-container.html',
-  'mail-common',
-  'iframe-shims',
+  'tmpl!./cmp/attachment_item.html',
+  'tmpl!./cmp/contact_menu.html',
+  'tmpl!./cmp/draft_menu.html',
+  'tmpl!./cmp/peep_bubble.html',
+  'tmpl!./cmp/send_failed_confirm.html',
+  'tmpl!./cmp/sending_container.html',
+  'tmpl!./msg/attach_confirm.html',
+  'mail_common',
+  'iframe_shims',
   'marquee',
   'l10n'
 ],
 function(require, templateNode, cmpAttachmentItemNode, cmpContactMenuNode,
          cmpDraftMenuNode, cmpPeepBubbleNode, cmpSendFailedConfirmNode,
-         cmpSendingContainerNode, common, iframeShims, Marquee, mozL10n) {
+         cmpSendingContainerNode, msgAttachConfirmNode, common, iframeShims,
+         Marquee, mozL10n) {
 
 var prettyFileSize = common.prettyFileSize,
-    Cards = common.Cards;
+    Cards = common.Cards,
+    ConfirmDialog = common.ConfirmDialog;
 
 /**
  * Max composer attachment size is defined as 5120000 bytes.
@@ -144,7 +147,7 @@ ComposeCard.prototype = {
   postInsert: function() {
     // the HTML bit needs us linked into the DOM so the iframe can be linked in,
     // hence this happens in postInsert.
-    require(['iframe-shims'], function() {
+    require(['iframe_shims'], function() {
       this._loadStateFromComposer();
     }.bind(this));
   },
@@ -455,7 +458,7 @@ ComposeCard.prototype = {
           while (this.composer.attachments.length > i) {
             this.composer.removeAttachment(this.composer.attachments[i]);
           }
-          var dialog = msgNodes['attach-confirm'].cloneNode(true);
+          var dialog = msgAttachConfirmNode.cloneNode(true);
           var title = dialog.getElementsByTagName('h1')[0];
           var content = dialog.getElementsByTagName('p')[0];
 
@@ -628,7 +631,7 @@ ComposeCard.prototype = {
         if (error) {
           // TODO: We don't have the resend now, so we use alert dialog
           //       before resend is enabled.
-          // var dialog = cmpNodes['send-failed-confirm'].cloneNode(true);
+          // var dialog = cmpSendFailedConfirmNode.cloneNode(true);
           // document.body.appendChild(dialog);
           // var formSubmit = function(evt) {
           //   document.body.removeChild(dialog);

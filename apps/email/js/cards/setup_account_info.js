@@ -1,9 +1,9 @@
 /*global define*/
 define([
-  'tmpl!./setup-account-info.html',
-  'mail-common',
-  'mail-app',
-  './setup-l10n-map',
+  'tmpl!./setup_account_info.html',
+  'mail_common',
+  'mail_app',
+  './setup_l10n_map',
   'l10n'
 ], function (templateNode, common, App, SETUP_ERROR_L10N_ID_MAP, mozL10n) {
 
@@ -73,7 +73,7 @@ SetupAccountInfoCard.prototype = {
 
     // The progress card is the dude that actually tries to create the account.
     Cards.pushCard(
-      'setup-progress', 'default', 'animate',
+      'setup_progress', 'default', 'animate',
       {
         displayName: this.nameNode.value,
         emailAddress: this.emailNode.value,
@@ -89,7 +89,7 @@ SetupAccountInfoCard.prototype = {
 
   onClickManualConfig: function() {
     Cards.pushCard(
-      'setup-manual-config', 'default', 'animate',
+      'setup_manual_config', 'default', 'animate',
       {
         displayName: this.nameNode.value,
         emailAddress: this.emailNode.value,
@@ -133,7 +133,7 @@ SetupAccountInfoCard.prototype = {
   }
 };
 Cards.defineCardWithDefaultMode(
-    'setup-account-info',
+    'setup_account_info',
     { tray: false },
     SetupAccountInfoCard,
     templateNode

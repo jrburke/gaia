@@ -1,10 +1,10 @@
 /*global define, console, window, setTimeout */
 define([
-  'tmpl!./message-list.html',
-  'tmpl!./msg/header-item.html',
-  'tmpl!./msg/delete-confirm.html',
-  'mail-common',
-  'mail-app',
+  'tmpl!./message_list.html',
+  'tmpl!./msg/header_item.html',
+  'tmpl!./msg/delete_confirm.html',
+  'mail_common',
+  'mail_app',
   'api',
   'htmlCache',
   'message_list_topbar',
@@ -250,7 +250,7 @@ MessageListCard.prototype = {
 
   onSearchButton: function() {
     Cards.pushCard(
-      'message-list', 'search', 'animate',
+      'message_list', 'search', 'animate',
       {
         folder: this.curFolder
       });
@@ -364,7 +364,7 @@ MessageListCard.prototype = {
   },
 
   onShowFolders: function() {
-    Cards.moveToCard(['folder-picker', 'navigation']);
+    Cards.moveToCard(['folder_picker', 'navigation']);
   },
 
   onCompose: function() {
@@ -1057,7 +1057,7 @@ MessageListCard.prototype = {
     }
 
     Cards.pushCard(
-      'message-reader', 'default', 'animate',
+      'message_reader', 'default', 'animate',
       {
         header: header
       });
@@ -1157,7 +1157,7 @@ MessageListCard.prototype = {
   }
 };
 Cards.defineCard({
-  name: 'message-list',
+  name: 'message_list',
   modes: {
     nonsearch: {
       tray: false

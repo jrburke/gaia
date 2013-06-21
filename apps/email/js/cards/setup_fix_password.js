@@ -1,7 +1,7 @@
 /*global define*/
 define([
-  'tmpl!./setup-fix-password.html',
-  'mail-common'
+  'tmpl!./setup_fix_password.html',
+  'mail_common'
 ], function (templateNode, common) {
 
 var Cards = common.Cards;
@@ -43,7 +43,7 @@ SetupFixPassword.prototype = {
   }
 };
 Cards.defineCardWithDefaultMode(
-    'setup-fix-password',
+    'setup_fix_password',
     { tray: false },
     SetupFixPassword,
     templateNode
