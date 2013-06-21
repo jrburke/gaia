@@ -10,12 +10,11 @@ define([
   'require',
   'api',
   'iframe-shims',
-  'contacts',
   'marquee',
   'l10n'
 ], function(templateNode, msgDeleteConfirmNode, msgContactMenuNode,
             msgBrowseConfirmNode, msgPeepBubbleNode, msgAttachmentItemNode,
-            common, require, MailAPI, iframeShims, ContactDataManager,
+            common, require, MailAPI, iframeShims,
             Marquee, mozL10n) {
 
 console.log('MESSAGE CARD GOT: ' + MailAPI);
