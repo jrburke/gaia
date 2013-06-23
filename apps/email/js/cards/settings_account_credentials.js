@@ -3,7 +3,7 @@ define([
   'tmpl!./setting_account_credentials.html',
   'mail_common',
   'l10n'
-], function (templateNode, common, mozL10n) {
+], function(templateNode, common, mozL10n) {
 
 var Cards = common.Cards;
 
@@ -61,4 +61,5 @@ Cards.defineCardWithDefaultMode(
     templateNode
 );
 
+return SettingsAccountCredentialsCard;
 });

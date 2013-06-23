@@ -1,6 +1,6 @@
 /*global document, console, setTimeout, define: true */
 
-define(['exports'], function (exports) {
+define(['exports'], function(exports) {
 
 /**
  * Version number for cache, allows expiring
@@ -66,10 +66,25 @@ var delayedSaveId = 0;
  */
 var delayedHtml = '';
 
+/**
+ * Serializes the node to storage. NOTE: it modifies the node tree,
+ * so pass use cloneNode(true) on your node if you use it for other
+ * things besides this call.
+ * @param  {Node} node Node to serialize to storage.
+ */
 exports.delayedSaveFromNode = function delayedSaveFromNode(node) {
+  // Make sure input nodes are disabled since this is just
+  // a pretty picture, a visual cache, not usable.
+  var nodes = node.querySelectorAll('input');
+  if (nodes) {
+    Array.forEach(nodes, function(node) {
+      node.disabled = true;
+    });
+  }
+
   delayedHtml = node.outerHTML;
   if (!delayedSaveId) {
-    setTimeout(function () {
+    setTimeout(function() {
       delayedSaveId = 0;
       exports.save(delayedHtml);
     }, 500);

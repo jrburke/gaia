@@ -6,7 +6,7 @@ define([
   'mail_common',
   'api',
   'l10n'
-], function (templateNode, fldFolderItemNode, FOLDER_DEPTH_CLASSES,
+], function(templateNode, fldFolderItemNode, FOLDER_DEPTH_CLASSES,
              common, MailAPI, mozL10n) {
 
 var Cards = common.Cards,
@@ -243,5 +243,5 @@ Cards.defineCard({
   templateNode: templateNode
 });
 
-
+return FolderPickerCard;
 });

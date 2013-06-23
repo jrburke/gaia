@@ -2,7 +2,7 @@
 define([
   'tmpl!./setup_fix_password.html',
   'mail_common'
-], function (templateNode, common) {
+], function(templateNode, common) {
 
 var Cards = common.Cards;
 
@@ -49,4 +49,5 @@ Cards.defineCardWithDefaultMode(
     templateNode
 );
 
+return SetupFixPassword;
 });

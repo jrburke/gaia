@@ -4,7 +4,7 @@ define([
   'mail_common',
   'mail_app',
   './setup_account_info'
-], function (templateNode, common, App, SetupAccountInfoCard) {
+], function(templateNode, common, App, SetupAccountInfoCard) {
 
 var Cards = common.Cards,
     FormNavigation = common.FormNavigation;
@@ -182,4 +182,5 @@ Cards.defineCardWithDefaultMode(
     templateNode
 );
 
+return SetupManualConfig;
 });

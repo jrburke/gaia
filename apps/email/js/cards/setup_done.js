@@ -3,7 +3,7 @@ define([
   'tmpl!./setup_done.html',
   'mail_common',
   'mail_app'
-], function (templateNode, common, App) {
+], function(templateNode, common, App) {
 
 var Cards = common.Cards;
 
@@ -45,5 +45,5 @@ Cards.defineCardWithDefaultMode(
     templateNode
 );
 
-
+return SetupDoneCard;
 });

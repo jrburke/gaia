@@ -4,7 +4,7 @@ define([
   'tmpl!./tng/account_item.html',
   'mail_common',
   'api'
-], function (templateNode, tngAccountItemNode, common, MailAPI) {
+], function(templateNode, tngAccountItemNode, common, MailAPI) {
 
 var Cards = common.Cards;
 
@@ -133,5 +133,5 @@ Cards.defineCardWithDefaultMode(
     templateNode
 );
 
-
+return SettingsMainCard;
 });

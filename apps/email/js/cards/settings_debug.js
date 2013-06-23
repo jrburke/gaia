@@ -3,7 +3,7 @@ define([
   'tmpl!./settings_debug.html',
   'mail_common',
   'api'
-], function (templateNode, common, MailAPI) {
+], function(templateNode, common, MailAPI) {
 
 var Cards = common.Cards;
 
@@ -90,4 +90,5 @@ Cards.defineCardWithDefaultMode(
     templateNode
 );
 
+return SettingsDebugCard;
 });

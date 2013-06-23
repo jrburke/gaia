@@ -732,4 +732,5 @@ Cards.defineCardWithDefaultMode(
     templateNode
 );
 
+return MessageReaderCard;
 });

@@ -2,7 +2,7 @@
 define([
   'tmpl!./setup_fix_gmail_imap.html',
   'mail_common'
-], function (templateNode, common) {
+], function(templateNode, common) {
 
 var Cards = common.Cards;
 
@@ -39,5 +39,5 @@ Cards.defineCardWithDefaultMode(
     templateNode
 );
 
-
+return SetupFixGmailImap;
 });

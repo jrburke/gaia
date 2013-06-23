@@ -2,8 +2,8 @@
 define([
   'tmpl!./account_picker.html',
   'tmpl!./fld/account_item.html',
-  'mail_common',
-], function (templateNode, fldAccountItemNode, common) {
+  'mail_common'
+], function(templateNode, fldAccountItemNode, common) {
 
 var Cards = common.Cards,
     bindContainerHandler = common.bindContainerHandler;
@@ -132,4 +132,5 @@ Cards.defineCard({
   templateNode: templateNode
 });
 
+return AccountPickerCard;
 });

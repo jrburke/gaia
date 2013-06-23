@@ -712,4 +712,5 @@ ComposeCard.prototype = {
 };
 Cards.defineCardWithDefaultMode('compose', {}, ComposeCard, templateNode);
 
+return ComposeCard;
 });

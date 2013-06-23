@@ -3,7 +3,7 @@ define([
   'tmpl!./setup_fix_gmail_twofactor.html',
   'mail_common',
   './setup_fix_password'
-], function (templateNode, common, SetupFixPassword) {
+], function(templateNode, common, SetupFixPassword) {
 
 var Cards = common.Cards;
 
@@ -15,5 +15,5 @@ Cards.defineCardWithDefaultMode(
     templateNode
 );
 
-
+return SetupFixPassword;
 });

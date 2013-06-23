@@ -7,7 +7,7 @@ define([
   'mail_app',
   './setup_l10n_map',
   'l10n'
-], function (templateNode, tngAccountSettingsServerNode,
+], function(templateNode, tngAccountSettingsServerNode,
    tngAccountDeleteConfirmNode, common, App, SETUP_ERROR_L10N_ID_MAP, mozL10n) {
 
 var Cards = common.Cards,
@@ -149,4 +149,5 @@ Cards.defineCardWithDefaultMode(
     templateNode
 );
 
+return SettingsAccountCard;
 });

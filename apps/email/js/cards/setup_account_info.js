@@ -5,7 +5,7 @@ define([
   'mail_app',
   './setup_l10n_map',
   'l10n'
-], function (templateNode, common, App, SETUP_ERROR_L10N_ID_MAP, mozL10n) {
+], function(templateNode, common, App, SETUP_ERROR_L10N_ID_MAP, mozL10n) {
 
 var Cards = common.Cards,
     FormNavigation = common.FormNavigation;
@@ -139,4 +139,5 @@ Cards.defineCardWithDefaultMode(
     templateNode
 );
 
+return SetupAccountInfoCard;
 });

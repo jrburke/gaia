@@ -6,7 +6,7 @@
 /*jshint browser: true */
 /*global define, require, console, confirm */
 
- setTimeout(function () {
+ setTimeout(function() {
   var prop,
       t = performance.timing,
       start = t.fetchStart,
@@ -16,7 +16,7 @@
   }
 
   text += '\n\nSCRIPT LIST:';
-  [].slice.call(document.querySelectorAll('script'), 0).forEach(function (node) {
+  [].slice.call(document.querySelectorAll('script'), 0).forEach(function(node) {
     text += '\n' + node.src;
   });
   console.log(text);
@@ -59,7 +59,7 @@ define('mail_app', [
   'cards/folder_picker',
   'cards/setup_account_info'
 ],
-function (require, htmlCache, common, MailAPI, mozL10n) {
+function(require, htmlCache, common, MailAPI, mozL10n) {
 
 var Cards = common.Cards,
     initialCardInsertion = true,
@@ -156,7 +156,7 @@ var App = {
               folder: inboxFolder,
               isCacheabledFolder: account === acctsSlice.defaultAccount,
               waitForData: initialCardInsertion,
-              onPushed: function () {
+              onPushed: function() {
                 // Add navigation, but before the message list.
                 Cards.pushCard(
                   'folder_picker', 'navigation', 'none',
@@ -206,8 +206,8 @@ var App = {
             'setup_account_info', 'default', 'immediate',
             {
               allowBack: false,
-              onPushed: function (impl) {
-                htmlCache.delayedSaveFromNode(impl.domNode);
+              onPushed: function(impl) {
+                htmlCache.delayedSaveFromNode(impl.domNode.cloneNode(true));
               }
             });
         }

@@ -3,7 +3,7 @@ define([
   'tmpl!./setup_progress.html',
   'mail_common',
   'api'
-], function (templateNode, common, MailAPI) {
+], function(templateNode, common, MailAPI) {
 
 var Cards = common.Cards;
 
@@ -72,4 +72,5 @@ Cards.defineCardWithDefaultMode(
     templateNode
 );
 
+return SetupProgressCard;
 });

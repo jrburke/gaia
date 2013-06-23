@@ -1170,5 +1170,6 @@ Cards.defineCard({
   templateNode: templateNode
 });
 
+return MessageListCard;
 });
 
