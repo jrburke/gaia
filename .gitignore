@@ -7,9 +7,9 @@
 manifest.appcache
 
 
-apps/email/style/mail_built.css
-apps/email/js/mail_app_built.js
 /apps/calendar/js/presets.js
+/apps/email/style/mail_built.css
+/apps/email/js/mail_app_built.js
 /apps/homescreen/js/init.json
 /apps/homescreen/js/hiddenapps.js
 /apps/settings/js/hiddenapps.js
