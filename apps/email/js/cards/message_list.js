@@ -880,13 +880,21 @@ MessageListCard.prototype = {
     }
 
     if (this.isCacheabledFolder && this.messagesSlice.atTop) {
-      // Save this card node, but trim the message list
       var cacheNode = this.domNode.cloneNode(true);
-      if (this.messagesContainer.children.length > 10) {
+      // Make sure card will be visible: if user clicks on "search" or some
+      // other card is showing when atTop is received, then this card could
+      // technically be off-screen when this function fires.
+      var cl = cacheNode.classList;
+      cl.remove('before');
+      cl.remove('after');
+      cl.add('center');
+
+      // Trim the message list to just 7 entries.
+      if (this.messagesContainer.children.length > 7) {
         var msgContainer = cacheNode
                           .getElementsByClassName('msg-messages-container')[0];
         for (var childIndex = msgContainer.children.length - 1;
-                              childIndex > 9;
+                              childIndex > 6;
                               childIndex--) {
           var childNode = msgContainer.children[childIndex];
           childNode.parentNode.removeChild(childNode);
