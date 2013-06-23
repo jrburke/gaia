@@ -49,7 +49,7 @@ require.config({
 // Named module, so it is the same before and after build.
 define('mail_app', [
   'require',
-  'htmlCache',
+  'html_cache',
   'mail_common',
   'api',
   'l10n',

@@ -6,7 +6,7 @@ define([
   'mail_common',
   'mail_app',
   'api',
-  'htmlCache',
+  'html_cache',
   'message_list_topbar',
   'l10n'
 ], function(templateNode, msgHeaderItemNode, deleteConfirmMsgNode,
