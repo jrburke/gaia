@@ -222,6 +222,7 @@ function MessageListCard(domNode, mode, args) {
     this.showSearch(args.folder, args.phrase || '', args.filter || 'all');
 
   this.isCacheabledFolder = !!args.isCacheabledFolder;
+  this.ignoreAtTopForCache = args.ignoreAtTopForCache;
   this._onDataInserted = args.onDataInserted;
 }
 MessageListCard.prototype = {
@@ -879,15 +880,9 @@ MessageListCard.prototype = {
         (this.messagesContainer.clientHeight - prevHeight);
     }
 
-    if (this.isCacheabledFolder && this.messagesSlice.atTop) {
+    if (this.isCacheabledFolder &&
+       (this.messagesSlice.atTop || this.ignoreAtTopForCache)) {
       var cacheNode = this.domNode.cloneNode(true);
-      // Make sure card will be visible: if user clicks on "search" or some
-      // other card is showing when atTop is received, then this card could
-      // technically be off-screen when this function fires.
-      var cl = cacheNode.classList;
-      cl.remove('before');
-      cl.remove('after');
-      cl.add('center');
 
       // Trim the message list to just 7 entries.
       if (this.messagesContainer.children.length > 7) {

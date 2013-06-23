@@ -73,6 +73,14 @@ var delayedHtml = '';
  * @param  {Node} node Node to serialize to storage.
  */
 exports.delayedSaveFromNode = function delayedSaveFromNode(node) {
+  // Make sure card will be visible: if user clicks on "search" or some
+  // other card is showing when atTop is received, then this card could
+  // technically be off-screen when this function fires.
+  var cl = node.classList;
+  cl.remove('before');
+  cl.remove('after');
+  cl.add('center');
+
   // Make sure input nodes are disabled since this is just
   // a pretty picture, a visual cache, not usable.
   var nodes = node.querySelectorAll('input');
@@ -84,7 +92,7 @@ exports.delayedSaveFromNode = function delayedSaveFromNode(node) {
 
   delayedHtml = node.outerHTML;
   if (!delayedSaveId) {
-    setTimeout(function() {
+    delayedSaveId = setTimeout(function() {
       delayedSaveId = 0;
       exports.save(delayedHtml);
     }, 500);

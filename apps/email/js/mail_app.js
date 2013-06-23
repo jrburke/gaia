@@ -6,7 +6,7 @@
 /*jshint browser: true */
 /*global define, require, console, confirm */
 
- setTimeout(function() {
+setTimeout(function() {
   var prop,
       t = performance.timing,
       start = t.fetchStart,
@@ -20,7 +20,7 @@
     text += '\n' + node.src;
   });
   console.log(text);
- }, 10000);
+}, 10000);
 
 
 // set up loading of scripts.
@@ -124,7 +124,7 @@ var App = {
    * Show the best inbox we have (unified if >1 account, just the inbox if 1) or
    * start the setup process if we have no accounts.
    */
-  showMessageViewOrSetup: function(showLatest) {
+  showMessageViewOrSetup: function(showLatest, firstAccountLoad) {
     // Get the list of accounts including the unified account (if it exists)
 
     var acctsSlice = MailAPI.viewAccounts(false);
@@ -155,6 +155,7 @@ var App = {
             {
               folder: inboxFolder,
               isCacheabledFolder: account === acctsSlice.defaultAccount,
+              ignoreAtTopForCache: !!firstAccountLoad,
               waitForData: initialCardInsertion,
               onPushed: function() {
                 // Add navigation, but before the message list.
