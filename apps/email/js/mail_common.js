@@ -891,8 +891,10 @@ console.log('pushCard for type: ' + type);
       // nextCards can result in smoother transitions to new cards on first
       // navigation to that new card type, but loading the extra module may
       // also compete with current card and data model performance.
-      if (activeCard.cardImpl.nextCards) {
-        require(activeCard.cardImpl.nextCards.map(function(id) {
+      var nextCards = activeCard.cardImpl.nextCards;
+      if (nextCards) {
+        console.log('Preloading cards: ' + nextCards);
+        require(nextCards.map(function(id) {
           return 'cards/' + id;
         }));
       }
