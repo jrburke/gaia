@@ -582,7 +582,7 @@ MessageListCard.prototype = {
 
     // Show empty layout, unless this is a slice with fake data that
     // will get changed soon.
-    if (this.messagesSlice.items.length === 0 && !this.messagesSlice._fake) {
+    if (this.messagesSlice.items.length === 0) {
       this.showEmptyLayout();
     }
 
@@ -786,8 +786,6 @@ MessageListCard.prototype = {
 
   },
 
-  _fakeRemoveElements: [],
-
   onMessagesSplice: function(index, howMany, addedItems,
                              requested, moreExpected, fake) {
     // If no work to do, just skip it. This is particularly important during
@@ -796,22 +794,11 @@ MessageListCard.prototype = {
     if (index === 0 && howMany === 0 && !addedItems.length)
       return;
 
-    if (this._fakeRemoveElements.length) {
-      this._fakeRemoveElements.forEach(function(element) {
-        element.parentNode.removeChild(element);
-      });
-      this._fakeRemoveElements = [];
-    }
-
     var prevHeight;
     // - removed messages
     if (howMany) {
       if (fake && index === 0 && this.messagesSlice.items.length === howMany &&
           !addedItems.length) {
-        // If this is a call to remove the fake data, hold onto it until the
-        // next splice call, to avoid flickering.
-        this._fakeRemoveElements = this.messagesSlice.items.map(
-              function(item) { return item.element; });
       } else {
         // Regular remove for current call.
         // Plan to fixup the scroll position if we are deleting a message that
