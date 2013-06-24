@@ -47,6 +47,8 @@ function FolderPickerCard(domNode, mode, args) {
   this.onFoldersSplice(0, 0, this.foldersSlice.items, true, false);
 }
 FolderPickerCard.prototype = {
+  nextCards: ['settings_main', 'account_picker'],
+
   onShowSettings: function() {
     Cards.pushCard(
       'settings_main', 'default', 'animate', {}, 'left');

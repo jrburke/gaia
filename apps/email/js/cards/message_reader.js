@@ -19,8 +19,6 @@ define([
             common, require, MailAPI, iframeShims,
             Marquee, mozL10n) {
 
-console.log('MESSAGE CARD GOT: ' + MailAPI);
-
 var MimeMapper,
     Cards = common.Cards,
     Toaster = common.Toaster,

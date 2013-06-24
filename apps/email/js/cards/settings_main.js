@@ -40,6 +40,8 @@ console.log('  CONFIG CURRENTLY:', JSON.stringify(MailAPI.config));//HACK
     .addEventListener('click', this.onClickSecretButton.bind(this), false);
 }
 SettingsMainCard.prototype = {
+  nextCards: ['setup_account_info', 'settings_account'],
+
   onClose: function() {
     Cards.removeCardAndSuccessors(this.domNode, 'animate', 1, 1);
   },

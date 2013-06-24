@@ -226,6 +226,8 @@ function MessageListCard(domNode, mode, args) {
   this._onDataInserted = args.onDataInserted;
 }
 MessageListCard.prototype = {
+  nextCards: ['message_reader'],
+
   /**
    * How many milliseconds since our last progress update event before we put
    * the progressbar in the indeterminate "candybar" state?

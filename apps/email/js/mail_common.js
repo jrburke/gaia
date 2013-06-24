@@ -5,7 +5,7 @@
 /*global define, console, hookupInputAreaResetButtons */
 define(['require', 'exports', 'api', 'l10n', 'tmpl!./cards/toaster.html',
         'value_selector', 'input_areas'],
-function (require, exports, MailAPI, mozL10n, toasterNode, ValueSelector) {
+function(require, exports, MailAPI, mozL10n, toasterNode, ValueSelector) {
 
 var Cards, Toaster;
 
@@ -344,7 +344,8 @@ Cards = {
     }
   },
 
-  defineCardWithDefaultMode: function(name, defaultMode, constructor, templateNode) {
+  defineCardWithDefaultMode: function(name, defaultMode, constructor,
+                                      templateNode) {
     var cardDef = {
       name: name,
       modes: {},
@@ -414,7 +415,7 @@ console.log('pushCard for type: ' + type);
 
     var domNode = cardDef.templateNode.cloneNode(true);
 
-    var boundShowCard = function () {
+    var boundShowCard = (function() {
       if (initialCardInsertion) {
         initialCardInsertion = false;
         this._cardsNode.innerHTML = '';
@@ -443,7 +444,7 @@ console.log('pushCard for type: ' + type);
 
       if (args.onPushed)
         args.onPushed(cardImpl);
-    }.bind(this);
+    }).bind(this);
 
     if (args.waitForData) {
       args.onDataInserted = boundShowCard;
@@ -536,8 +537,8 @@ console.log('pushCard for type: ' + type);
     var self = this;
 
     require(['value_selector'], function() {
-      // XXX: Unified folders will require us to make sure we get the folder list
-      //      for the account the message originates from.
+      // XXX: Unified folders will require us to make sure we get the folder
+      //      list for the account the message originates from.
       if (!self.folderPrompt) {
         var selectorTitle = mozL10n.get('messages-folder-select');
         self.folderPrompt = new ValueSelector(selectorTitle);
@@ -838,9 +839,10 @@ console.log('pushCard for type: ' + type);
   },
 
   _onTransitionEnd: function(event) {
+    var activeCard = this._cardStack[this.activeCardIndex];
     // If no current card, this could be initial setup from cache, no valid
     // cards yet, so bail.
-    if (!this._cardStack[this.activeCardIndex])
+    if (!activeCard)
       return;
 
     // Multiple cards can animate, so there can be multiple transitionend
@@ -864,7 +866,7 @@ console.log('pushCard for type: ' + type);
 
       // If an vertical overlay transition was was disabled, if
       // current node index is an overlay, enable it again.
-      var endNode = this._cardStack[this.activeCardIndex].domNode;
+      var endNode = activeCard.domNode;
       if (endNode.classList.contains('disabled-anim-vertical')) {
         removeClass(endNode, 'disabled-anim-vertical');
         addClass(endNode, 'anim-vertical');
@@ -882,6 +884,17 @@ console.log('pushCard for type: ' + type);
         var afterTransitionAction = this._afterTransitionAction;
         this._afterTransitionAction = null;
         afterTransitionAction();
+      }
+
+      // If the card has next cards that can be preloaded, load them now.
+      // Use of nextCards should be balanced with startup performance.
+      // nextCards can result in smoother transitions to new cards on first
+      // navigation to that new card type, but loading the extra module may
+      // also compete with current card and data model performance.
+      if (activeCard.cardImpl.nextCards) {
+        require(activeCard.cardImpl.nextCards.map(function(id) {
+          return 'cards/' + id;
+        }));
       }
     }
   },

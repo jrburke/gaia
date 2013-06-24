@@ -36,6 +36,8 @@ function AccountPickerCard(domNode, mode, args) {
 }
 
 AccountPickerCard.prototype = {
+  nextCards: ['settings_main'],
+
   die: function() {
     // Since this card is destroyed when hidden,
     // detach listeners from the acctSlice.
