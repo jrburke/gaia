@@ -1,6 +1,6 @@
 'use strict';
 
-define([], function() {
+define(function() {
 
 /**
  * HTML Marquee in JavaScript/CSS

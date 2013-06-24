@@ -1,11 +1,10 @@
 /*global define*/
-define([
-  'tmpl!./setup_progress.html',
-  'mail_common',
-  'api'
-], function(templateNode, common, MailAPI) {
+define(function(require) {
 
-var Cards = common.Cards;
+var templateNode = require('tmpl!./setup_progress.html'),
+    common = require('mail_common'),
+    MailAPI = require('api'),
+    Cards = common.Cards;
 
 /**
  * Show a spinner until the tryToCreateAccount returns; on success we

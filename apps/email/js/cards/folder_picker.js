@@ -1,15 +1,13 @@
 /*global define, navigator */
-define([
-  'tmpl!./folder_picker.html',
-  'tmpl!./fld/folder_item.html',
-  'folder_depth_classes',
-  'mail_common',
-  'api',
-  'l10n'
-], function(templateNode, fldFolderItemNode, FOLDER_DEPTH_CLASSES,
-             common, MailAPI, mozL10n) {
+define(function(require) {
 
-var Cards = common.Cards,
+var templateNode = require('tmpl!./folder_picker.html'),
+    fldFolderItemNode = require('tmpl!./fld/folder_item.html'),
+    FOLDER_DEPTH_CLASSES = require('folder_depth_classes'),
+    common = require('mail_common'),
+    MailAPI = require('api'),
+    mozL10n = require('l10n'),
+    Cards = common.Cards,
     bindContainerHandler = common.bindContainerHandler;
 
 function FolderPickerCard(domNode, mode, args) {

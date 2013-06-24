@@ -1,11 +1,10 @@
 /*global define*/
-define([
-  'tmpl!./setup_fix_gmail_twofactor.html',
-  'mail_common',
-  './setup_fix_password'
-], function(templateNode, common, SetupFixPassword) {
+define(function(require) {
 
-var Cards = common.Cards;
+var templateNode = require('tmpl!./setup_fix_gmail_twofactor.html'),
+    common = require('mail_common'),
+    SetupFixPassword = require('./setup_fix_password'),
+    Cards = common.Cards;
 
 // The app password card is just the bad password card with different text
 Cards.defineCardWithDefaultMode(

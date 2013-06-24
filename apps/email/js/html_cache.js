@@ -1,6 +1,6 @@
 /*global document, console, setTimeout, define: true */
 
-define(['exports'], function(exports) {
+define(function(require, exports) {
 
 /**
  * Version number for cache, allows expiring

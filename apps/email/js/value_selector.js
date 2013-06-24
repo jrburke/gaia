@@ -19,8 +19,10 @@ How to:
 */
 /*jshint browser: true */
 /*global alert, define */
-define(['folder_depth_classes', 'l10n'],
-function (FOLDER_DEPTH_CLASSES, mozL10n) {
+define(function(require) {
+
+var FOLDER_DEPTH_CLASSES = require('folder_depth_classes'),
+    mozL10n = require('l10n');
 
 function ValueSelector(title, list) {
   var init, show, hide, render, setTitle, emptyList, addToList,

@@ -1,18 +1,16 @@
 /*global define, console, window, setTimeout */
-define([
-  'tmpl!./message_list.html',
-  'tmpl!./msg/header_item.html',
-  'tmpl!./msg/delete_confirm.html',
-  'mail_common',
-  'mail_app',
-  'api',
-  'html_cache',
-  'message_list_topbar',
-  'l10n'
-], function(templateNode, msgHeaderItemNode, deleteConfirmMsgNode,
-   common, App, MailAPI, htmlCache, MessageListTopbar, mozL10n) {
+define(function(require) {
 
-var Cards = common.Cards,
+var templateNode = require('tmpl!./message_list.html'),
+    msgHeaderItemNode = require('tmpl!./msg/header_item.html'),
+    deleteConfirmMsgNode = require('tmpl!./msg/delete_confirm.html'),
+    common = require('mail_common'),
+    App = require('mail_app'),
+    MailAPI = require('api'),
+    htmlCache = require('html_cache'),
+    MessageListTopbar = require('message_list_topbar'),
+    mozL10n = require('l10n'),
+    Cards = common.Cards,
     Toaster = common.Toaster,
     ConfirmDialog = common.ConfirmDialog,
     batchAddClass = common.batchAddClass,
@@ -226,8 +224,6 @@ function MessageListCard(domNode, mode, args) {
   this._onDataInserted = args.onDataInserted;
 }
 MessageListCard.prototype = {
-  nextCards: ['message_reader'],
-
   /**
    * How many milliseconds since our last progress update event before we put
    * the progressbar in the indeterminate "candybar" state?

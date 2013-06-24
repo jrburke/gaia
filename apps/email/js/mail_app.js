@@ -47,16 +47,13 @@ require.config({
 });
 
 // Named module, so it is the same before and after build.
-define('mail_app', [
-  'require',
-  'html_cache',
-  'mail_common',
-  'api',
-  'l10n'
-],
-function(require, htmlCache, common, MailAPI, mozL10n) {
+define('mail_app', function(require) {
 
-var Cards = common.Cards,
+var htmlCache = require('html_cache'),
+    common = require('mail_common'),
+    MailAPI = require('api'),
+    mozL10n = require('l10n'),
+    Cards = common.Cards,
     initialCardInsertion = true,
     hasCardsPushed = false,
     activityCallback = null;

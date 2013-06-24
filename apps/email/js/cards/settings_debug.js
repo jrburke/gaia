@@ -1,11 +1,10 @@
 /*global define*/
-define([
-  'tmpl!./settings_debug.html',
-  'mail_common',
-  'api'
-], function(templateNode, common, MailAPI) {
+define(function(require) {
 
-var Cards = common.Cards;
+var templateNode = require('tmpl!./settings_debug.html'),
+    common = require('mail_common'),
+    MailAPI = require('api'),
+    Cards = common.Cards;
 
 
 /**

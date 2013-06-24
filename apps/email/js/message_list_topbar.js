@@ -166,7 +166,7 @@ MessageListTopbar.prototype = {
 // message_list_topbar_test.js test still wants the global, and
 // this file has no other module dependencies.
 if (typeof define === 'function' && define.amd) {
-  define([], function() {
+  define(function() {
     return MessageListTopbar;
   });
 }

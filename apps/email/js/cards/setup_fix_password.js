@@ -1,10 +1,9 @@
 /*global define*/
-define([
-  'tmpl!./setup_fix_password.html',
-  'mail_common'
-], function(templateNode, common) {
+define(function(require) {
 
-var Cards = common.Cards;
+var templateNode = require('tmpl!./setup_fix_password.html'),
+    common = require('mail_common'),
+    Cards = common.Cards;
 
 /**
  * Asks the user to re-enter their password for the account

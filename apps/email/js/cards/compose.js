@@ -6,27 +6,22 @@
 
 /*jshint browser: true */
 /*global define, console, MozActivity, alert */
-define([
-  'require',
-  'tmpl!./compose.html',
-  'tmpl!./cmp/attachment_item.html',
-  'tmpl!./cmp/contact_menu.html',
-  'tmpl!./cmp/draft_menu.html',
-  'tmpl!./cmp/peep_bubble.html',
-  'tmpl!./cmp/send_failed_confirm.html',
-  'tmpl!./cmp/sending_container.html',
-  'tmpl!./msg/attach_confirm.html',
-  'mail_common',
-  'iframe_shims',
-  'marquee',
-  'l10n'
-],
-function(require, templateNode, cmpAttachmentItemNode, cmpContactMenuNode,
-         cmpDraftMenuNode, cmpPeepBubbleNode, cmpSendFailedConfirmNode,
-         cmpSendingContainerNode, msgAttachConfirmNode, common, iframeShims,
-         Marquee, mozL10n) {
+define(function(require) {
 
-var prettyFileSize = common.prettyFileSize,
+var templateNode = require('tmpl!./compose.html'),
+    cmpAttachmentItemNode = require('tmpl!./cmp/attachment_item.html'),
+    cmpContactMenuNode = require('tmpl!./cmp/contact_menu.html'),
+    cmpDraftMenuNode = require('tmpl!./cmp/draft_menu.html'),
+    cmpPeepBubbleNode = require('tmpl!./cmp/peep_bubble.html'),
+    cmpSendFailedConfirmNode = require('tmpl!./cmp/send_failed_confirm.html'),
+    cmpSendingContainerNode = require('tmpl!./cmp/sending_container.html'),
+    msgAttachConfirmNode = require('tmpl!./msg/attach_confirm.html'),
+    common = require('mail_common'),
+    iframeShims = require('iframe_shims'),
+    Marquee = require('marquee'),
+    mozL10n = require('l10n'),
+
+    prettyFileSize = common.prettyFileSize,
     Cards = common.Cards,
     ConfirmDialog = common.ConfirmDialog;
 

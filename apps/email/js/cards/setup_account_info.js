@@ -1,13 +1,12 @@
 /*global define*/
-define([
-  'tmpl!./setup_account_info.html',
-  'mail_common',
-  'mail_app',
-  './setup_l10n_map',
-  'l10n'
-], function(templateNode, common, App, SETUP_ERROR_L10N_ID_MAP, mozL10n) {
+define(function(require) {
 
-var Cards = common.Cards,
+var templateNode = require('tmpl!./setup_account_info.html'),
+    common = require('mail_common'),
+    App = require('mail_app'),
+    SETUP_ERROR_L10N_ID_MAP = require('./setup_l10n_map'),
+    mozL10n = require('l10n'),
+    Cards = common.Cards,
     FormNavigation = common.FormNavigation;
 
 /**

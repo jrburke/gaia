@@ -1,25 +1,21 @@
 /*global define, console, window, navigator, document, MozActivity */
-define([
-  'tmpl!./message_reader.html',
-  'tmpl!./msg/delete_confirm.html',
-  'tmpl!./msg/contact_menu.html',
-  'tmpl!./msg/browse_confirm.html',
-  'tmpl!./msg/peep_bubble.html',
-  'tmpl!./msg/attachment_item.html',
-  'tmpl!./msg/attachment_disabled_confirm.html',
-  'mail_common',
-  'require',
-  'api',
-  'iframe_shims',
-  'marquee',
-  'l10n'
-], function(templateNode, msgDeleteConfirmNode, msgContactMenuNode,
-            msgBrowseConfirmNode, msgPeepBubbleNode, msgAttachmentItemNode,
-            msgAttachmentDisabledConfirmNode,
-            common, require, MailAPI, iframeShims,
-            Marquee, mozL10n) {
+define(function(require) {
 
 var MimeMapper,
+    templateNode = require('tmpl!./message_reader.html'),
+    msgDeleteConfirmNode = require('tmpl!./msg/delete_confirm.html'),
+    msgContactMenuNode = require('tmpl!./msg/contact_menu.html'),
+    msgBrowseConfirmNode = require('tmpl!./msg/browse_confirm.html'),
+    msgPeepBubbleNode = require('tmpl!./msg/peep_bubble.html'),
+    msgAttachmentItemNode = require('tmpl!./msg/attachment_item.html'),
+    msgAttachmentDisabledConfirmNode =
+                         require('tmpl!./msg/attachment_disabled_confirm.html'),
+    common = require('mail_common'),
+    MailAPI = require('api'),
+    iframeShims = require('iframe_shims'),
+    Marquee = require('marquee'),
+    mozL10n = require('l10n'),
+
     Cards = common.Cards,
     Toaster = common.Toaster,
     ConfirmDialog = common.ConfirmDialog,

@@ -1,11 +1,10 @@
 /*global define*/
-define([
-  'tmpl!./setting_account_credentials.html',
-  'mail_common',
-  'l10n'
-], function(templateNode, common, mozL10n) {
+define(function(require) {
 
-var Cards = common.Cards;
+var templateNode = require('tmpl!./setting_account_credentials.html'),
+    common = require('mail_common'),
+    mozL10n = require('l10n'),
+    Cards = common.Cards;
 
 /**
  * Per-account credentials settings, it can be activesync or imap+smtp

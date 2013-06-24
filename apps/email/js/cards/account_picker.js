@@ -1,13 +1,11 @@
 /*global define */
-define([
-  'tmpl!./account_picker.html',
-  'tmpl!./fld/account_item.html',
-  'mail_common'
-], function(templateNode, fldAccountItemNode, common) {
+define(function(require) {
 
-var Cards = common.Cards,
+var templateNode = require('tmpl!./account_picker.html'),
+    fldAccountItemNode = require('tmpl!./fld/account_item.html'),
+    common = require('mail_common'),
+    Cards = common.Cards,
     bindContainerHandler = common.bindContainerHandler;
-
 
 /**
  * Account picker card

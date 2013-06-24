@@ -1,16 +1,15 @@
 /*global define*/
-define([
-  'tmpl!./settings_account.html',
-  'tmpl!./tng/account_settings_server.html',
-  'tmpl!./tng/account_delete_confirm.html',
-  'mail_common',
-  'mail_app',
-  './setup_l10n_map',
-  'l10n'
-], function(templateNode, tngAccountSettingsServerNode,
-   tngAccountDeleteConfirmNode, common, App, SETUP_ERROR_L10N_ID_MAP, mozL10n) {
+define(function(require) {
 
-var Cards = common.Cards,
+var templateNode = require('tmpl!./settings_account.html'),
+    tngAccountSettingsServerNode =
+                             require('tmpl!./tng/account_settings_server.html'),
+    tngAccountDeleteConfirmNode =
+                              require('tmpl!./tng/account_delete_confirm.html'),
+    common = require('mail_common'),
+    App = require('mail_app'),
+    mozL10n = require('l10n'),
+    Cards = common.Cards,
     ConfirmDialog = common.ConfirmDialog;
 
 /**

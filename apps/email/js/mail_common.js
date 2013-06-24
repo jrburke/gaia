@@ -3,13 +3,16 @@
  **/
 /*jshint browser: true */
 /*global define, console, hookupInputAreaResetButtons */
-define(['require', 'exports', 'api', 'l10n', 'tmpl!./cards/toaster.html',
-        'value_selector', 'input_areas'],
-function(require, exports, MailAPI, mozL10n, toasterNode, ValueSelector) {
+define(function(require, exports) {
 
-var Cards, Toaster;
+var Cards, Toaster,
+    initialCardInsertion = true,
+    mozL10n = require('l10n'),
+    toasterNode = require('tmpl!./cards/toaster.html'),
+    ValueSelector = require('value_selector');
 
-var initialCardInsertion = true;
+// Does not return a module value, just need it to make globals
+require('input_areas');
 
 function dieOnFatalError(msg) {
   console.error('FATAL:', msg);

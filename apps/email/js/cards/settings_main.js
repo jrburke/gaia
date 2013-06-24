@@ -1,12 +1,11 @@
 /*global define*/
-define([
-  'tmpl!./settings_main.html',
-  'tmpl!./tng/account_item.html',
-  'mail_common',
-  'api'
-], function(templateNode, tngAccountItemNode, common, MailAPI) {
+define(function(require) {
 
-var Cards = common.Cards;
+var templateNode = require('tmpl!./settings_main.html'),
+    tngAccountItemNode = require('tmpl!./tng/account_item.html'),
+    common = require('mail_common'),
+    MailAPI = require('api'),
+    Cards = common.Cards;
 
 /**
  * Global settings, list of accounts.

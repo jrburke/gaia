@@ -1,10 +1,9 @@
 /*global define*/
-define([
-  'tmpl!./setup_fix_gmail_imap.html',
-  'mail_common'
-], function(templateNode, common) {
+define(function(require) {
 
-var Cards = common.Cards;
+var templateNode = require('tmpl!./setup_fix_gmail_imap.html'),
+    common = require('mail_common'),
+    Cards = common.Cards;
 
 /**
  * Tells the user how to enable IMAP for Gmail

@@ -1,5 +1,5 @@
 /*global define */
-define([], function () {
+define(function() {
 
 return [
   'fld-folder-depth0',

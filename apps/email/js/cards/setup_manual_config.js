@@ -1,12 +1,10 @@
 /*global define*/
-define([
-  'tmpl!./setup_manual_config.html',
-  'mail_common',
-  'mail_app',
-  './setup_account_info'
-], function(templateNode, common, App, SetupAccountInfoCard) {
+define(function(require) {
 
-var Cards = common.Cards,
+var templateNode = require('tmpl!./setup_manual_config.html'),
+    common = require('mail_common'),
+    SetupAccountInfoCard = require('./setup_account_info'),
+    Cards = common.Cards,
     FormNavigation = common.FormNavigation;
 
 /**
