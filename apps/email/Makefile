@@ -15,5 +15,5 @@ endif
 concatenated_scripts:
 	rm -rf ./shared
 	cp -r ../../shared ./shared
-	$(XULRUNNERSDK) $(XPCSHELLSDK) ../../build/r.js -o build/email.build.js logLevel=4
+	$(XULRUNNERSDK) $(XPCSHELLSDK) ../../build/r.js -o build/email.build.json logLevel=4
 	$(XULRUNNERSDK) $(XPCSHELLSDK) ../../build/r.js -o cssIn=style/mail.css out=style/mail_built.css logLevel=4

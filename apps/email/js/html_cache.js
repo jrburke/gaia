@@ -73,9 +73,10 @@ var delayedHtml = '';
  * @param  {Node} node Node to serialize to storage.
  */
 exports.delayedSaveFromNode = function delayedSaveFromNode(node) {
-  // Make sure card will be visible: if user clicks on "search" or some
-  // other card is showing when atTop is received, then this card could
-  // technically be off-screen when this function fires.
+  // Make sure card will be visible in center of window. For example,
+  // if user clicks on "search" or some other card is showing when
+  // message list's atTop is received, then the node could be
+  // off-screen when it is passed to this function.
   var cl = node.classList;
   cl.remove('before');
   cl.remove('after');

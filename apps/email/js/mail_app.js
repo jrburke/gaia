@@ -52,17 +52,13 @@ define('mail_app', [
   'html_cache',
   'mail_common',
   'api',
-  'l10n',
-  // Preload some cards, but do not worry about creating
-  // local variables for them.
-  'cards/message_list',
-  'cards/folder_picker',
-  'cards/setup_account_info'
+  'l10n'
 ],
 function(require, htmlCache, common, MailAPI, mozL10n) {
 
 var Cards = common.Cards,
     initialCardInsertion = true,
+    hasCardsPushed = false,
     activityCallback = null;
 
 var App = {
@@ -165,15 +161,18 @@ var App = {
                     acctsSlice: acctsSlice,
                     curAccount: account,
                     foldersSlice: foldersSlice,
-                    curFolder: inboxFolder
+                    curFolder: inboxFolder,
+                    onPushed: function() {
+                      hasCardsPushed = true;
+
+                      if (activityCallback) {
+                        activityCallback();
+                        activityCallback = null;
+                      }
+                    }
                   },
                   // Place to left of message list
                   'left');
-
-                if (activityCallback) {
-                  activityCallback();
-                  activityCallback = null;
-                }
               }
             });
 
@@ -208,6 +207,7 @@ var App = {
             {
               allowBack: false,
               onPushed: function(impl) {
+                hasCardsPushed = true;
                 htmlCache.delayedSaveFromNode(impl.domNode.cloneNode(true));
               }
             });
@@ -338,7 +338,7 @@ if ('mozSetMessageHandler' in window.navigator) {
         });
     };
 
-    if (MailAPI && !MailAPI._fake) {
+    if (hasCardsPushed) {
       console.log('activity', activityName, 'triggering compose now');
       sendMail();
     } else {
