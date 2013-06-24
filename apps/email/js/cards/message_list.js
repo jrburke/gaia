@@ -221,7 +221,7 @@ function MessageListCard(domNode, mode, args) {
   else
     this.showSearch(args.folder, args.phrase || '', args.filter || 'all');
 
-  this.isCacheabledFolder = !!args.isCacheabledFolder;
+  this.cacheableFolderId = args.cacheableFolderId;
   this.ignoreAtTopForCache = args.ignoreAtTopForCache;
   this._onDataInserted = args.onDataInserted;
 }
@@ -867,7 +867,7 @@ MessageListCard.prototype = {
         (this.messagesContainer.clientHeight - prevHeight);
     }
 
-    if (this.isCacheabledFolder &&
+    if (this.cacheableFolderId === this.curFolder.id &&
        (this.messagesSlice.atTop || this.ignoreAtTopForCache)) {
       var cacheNode = this.domNode.cloneNode(true);
 

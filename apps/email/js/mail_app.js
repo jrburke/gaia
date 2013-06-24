@@ -150,7 +150,8 @@ var App = {
             'message_list', 'nonsearch', 'immediate',
             {
               folder: inboxFolder,
-              isCacheabledFolder: account === acctsSlice.defaultAccount,
+              cacheableFolderId: account === acctsSlice.defaultAccount ?
+                                 inboxFolder.id : null,
               ignoreAtTopForCache: !!firstAccountLoad,
               waitForData: initialCardInsertion,
               onPushed: function() {
