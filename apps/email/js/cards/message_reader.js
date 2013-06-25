@@ -49,6 +49,7 @@ var MAX_QUOTE_CLASS_NAME = 'msg-body-qmax';
 function MessageReaderCard(domNode, mode, args) {
   this.domNode = domNode;
   this.header = args.header.makeCopy();
+  this.hackMutationHeader = args.header;
   // The body elements for the (potentially multiple) iframes we created to hold
   // HTML email content.
   this.htmlBodyNodes = [];
@@ -86,7 +87,7 @@ function MessageReaderCard(domNode, mode, args) {
   if (!this.header.isRead)
     this.header.setRead(true);
 
-  if (this.header.isStarred)
+  if (this.hackMutationHeader.isStarred)
     domNode.getElementsByClassName('msg-star-btn')[0].classList
            .add('msg-btn-active');
 
@@ -211,12 +212,13 @@ MessageReaderCard.prototype = {
 
   onToggleStar: function() {
     var button = this.domNode.getElementsByClassName('msg-star-btn')[0];
-    if (!this.header.isStarred)
+    if (!this.hackMutationHeader.isStarred)
       button.classList.add('msg-btn-active');
     else
       button.classList.remove('msg-btn-active');
 
-    this.header.setStarred(!this.header.isStarred);
+    this.hackMutationHeader.isStarred = !this.hackMutationHeader.isStarred;
+    this.header.setStarred(this.hackMutationHeader.isStarred);
   },
 
   onMove: function() {

@@ -156,8 +156,9 @@ FolderPickerCard.prototype = {
     if (this.mostRecentSyncTimestamp) {
       this.lastSyncedAtNode.dataset.time =
         this.mostRecentSyncTimestamp.valueOf();
+      this.lastSyncedAtNode.dataset.compactFormat = true;
       this.lastSyncedAtNode.textContent =
-        common.prettyDate(this.mostRecentSyncTimestamp);
+        common.prettyDate(this.mostRecentSyncTimestamp, true);
     }
     else {
       this.lastSyncedAtNode.textContent = mozL10n.get('account-never-synced');
