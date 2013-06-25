@@ -50,7 +50,7 @@
 
   window.addEventListener('load', function(evt) {
     var scriptNode = document.createElement('script');
-    scriptNode.src = 'js/mail_app_built.js';
+    scriptNode.src = 'built/mail_app.js';
     document.head.appendChild(scriptNode);
   }, false);
 }());
