@@ -47,11 +47,12 @@
   var cardsNode = document.getElementById('cards');
 
   cardsNode.innerHTML = retrieve();
-
+/*
   window.addEventListener('load', function(evt) {
     var scriptNode = document.createElement('script');
     scriptNode.src = 'built/mail_app.js';
     document.head.appendChild(scriptNode);
   }, false);
+  */
 }());
 
