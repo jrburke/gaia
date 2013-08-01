@@ -3,7 +3,9 @@ define(function(require) {
 
 var templateNode = require('tmpl!./account_picker.html'),
     fldAccountItemNode = require('tmpl!./fld/account_item.html'),
+    date = require('date'),
     common = require('mail_common'),
+    model = require('model'),
     Cards = common.Cards,
     bindContainerHandler = common.bindContainerHandler;
 
@@ -15,7 +17,12 @@ function AccountPickerCard(domNode, mode, args) {
 
   this.curAccount = args.curAccount;
   this.acctsSlice = args.acctsSlice;
+
+  // Revisit if slices become event emitters that support
+  // multiple listeners.
+  this.oldOnSplice = this.acctsSlice.onsplice;
   this.acctsSlice.onsplice = this.onAccountsSplice.bind(this);
+  this.oldOnChange = this.acctsSlice.onchange;
   this.acctsSlice.onchange = this.onAccountsChange.bind(this);
 
   this.accountsContainer =
@@ -40,8 +47,10 @@ AccountPickerCard.prototype = {
     // Since this card is destroyed when hidden,
     // detach listeners from the acctSlice.
     if (this.acctsSlice) {
-      this.acctsSlice.onsplice = null;
-      this.acctsSlice.onchange = null;
+      this.acctsSlice.onsplice = this.oldOnSplice;
+      this.acctsSlice.onchange = this.oldOnChange;
+      this.oldOnSplice = null;
+      this.oldOnChange = null;
     }
   },
 
@@ -52,6 +61,9 @@ AccountPickerCard.prototype = {
 
   onAccountsSplice: function(index, howMany, addedItems,
                              requested, moreExpected) {
+    if (this.oldOnSplice)
+      this.oldOnSplice.apply(this.acctsSlice, arguments);
+
     var accountsContainer = this.accountsContainer;
 
     var account;
@@ -63,15 +75,32 @@ AccountPickerCard.prototype = {
     }
 
     var insertBuddy = (index >= accountsContainer.childElementCount) ?
-                        null : accountsContainer.children[index],
-        self = this;
+                        null : accountsContainer.children[index];
+
     addedItems.forEach(function(account) {
       var accountNode = account.element =
         fldAccountItemNode.cloneNode(true);
       accountNode.account = account;
-      self.updateAccountDom(account, true);
+      this.updateAccountDom(account, true);
       accountsContainer.insertBefore(accountNode, insertBuddy);
-    });
+
+      //fetch last sync date for display
+      this.fetchLastSyncDate(account,
+                   accountNode.querySelector('.fld-account-lastsync-value'));
+    }.bind(this));
+  },
+
+  fetchLastSyncDate: function(account, node) {
+    var foldersSlice = model.api.viewFolders('account', account);
+    foldersSlice.oncomplete = (function() {
+      var inbox = foldersSlice.getFirstFolderWithType('inbox'),
+          lastSyncTime = inbox && inbox.lastSyncedAt;
+
+      if (lastSyncTime) {
+        date.setPrettyNodeDate(node, lastSyncTime);
+      }
+      foldersSlice.die();
+    }).bind(this);
   },
 
   onHideAccounts: function() {
@@ -80,6 +109,9 @@ AccountPickerCard.prototype = {
   },
 
   onAccountsChange: function(account) {
+    if (this.oldOnChange)
+      this.oldOnChange.apply(this.acctsSlice, arguments);
+
     this.updateAccountDom(account, false);
   },
 
@@ -109,8 +141,7 @@ AccountPickerCard.prototype = {
         account = this.curAccount = accountNode.account;
 
     if (oldAccount !== account) {
-      var folderCard = Cards.findCardObject(['folder_picker', 'navigation']);
-      folderCard.cardImpl.updateAccount(account);
+      model.changeAccount(account);
     }
 
     this.onHideAccounts();
