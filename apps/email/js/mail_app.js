@@ -186,7 +186,7 @@ if (cachedNode) {
  * wipe out the cards and start fresh.
  * @param  {String} cardId the desired card ID.
  */
-function resetCards(cardId) {
+function resetCards(cardId, args) {
   cachedNode = null;
 
   var startArgs = startCardArgs[cardId],
@@ -194,7 +194,7 @@ function resetCards(cardId) {
 
   if (!Cards.hasCard(query)) {
     Cards.removeAllCards();
-    pushStartCard(cardId);
+    pushStartCard(cardId, args);
   }
 }
 
@@ -216,9 +216,9 @@ function showFinalCardState(fn) {
  * Shows the message list. Assumes that the correct
  * account and inbox have already been selected.
  */
-function showMessageList() {
+function showMessageList(args) {
   showFinalCardState(function() {
-    resetCards('message_list');
+    resetCards('message_list', args);
   });
 }
 
@@ -374,20 +374,28 @@ appMessages.on('notification', function(data) {
 
   model.latestOnce('foldersSlice', function latestFolderSlice() {
     function onCorrectFolder() {
-      waitForAppMessage = false;
+      function onPushed() {
+        waitForAppMessage = false;
+      }
 
       if (type === 'message_list') {
-        showMessageList();
+        showMessageList({
+          onPushed: onPushed
+        });
       } else if (type === 'message_reader') {
         if (!data.messageSuid) {
           console.error('Message reader notification does not ' +
                                'have messageSuid. Ignoring.');
-          return showMessageList();
+
+          return showMessageList({
+            onPushed: onPushed
+          });
         }
 
         Cards.pushCard(data.type, 'default', 'immediate', {
           messageSuid: data.messageSuid,
-          backOnMissingMessage: true
+          backOnMissingMessage: true,
+          onPushed: onPushed
         });
       } else {
         console.error('unhandled notification type: ' + type);

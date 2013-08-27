@@ -60,15 +60,25 @@ function MessageReaderCard(domNode, mode, args) {
     // This assumes latest folder is the one of interest.
     model.latestOnce('folder', function(folder) {
       var messagesSlice = model.api.viewFolderMessages(folder);
+
+      function clear() {
+        messagesSlice.die();
+        messagesSlice = null;
+      }
+
       messagesSlice.onsplice = (function(index, howMany, addedItems,
                                          requested, moreExpected) {
+
+        // Avoid doing work if get called while in the process of
+        // shutting down.
+        if (!messagesSlice)
+          return;
 
         if (!this.header && addedItems && addedItems.length) {
           addedItems.some(function(item) {
               if (item.id === this.messageSuid) {
                 this._setHeader(item);
-                messagesSlice.die();
-                messagesSlice = null;
+                clear();
                 return true;
               }
           }.bind(this));
@@ -82,10 +92,10 @@ function MessageReaderCard(domNode, mode, args) {
           // at the top of the inbox in the HTML cache, or from a
           // notification for a new message, which would be near
           // the top.
-          if (messagesSlice.atTop &&
+          if (messagesSlice && messagesSlice.atTop &&
               !this.header &&
               args.backOnMissingMessage) {
-            messagesSlice.die();
+            clear();
             this.onBack();
           }
         }
