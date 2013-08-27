@@ -41,6 +41,7 @@ define(function(require) {
       sendNotification = function() {};
     } else {
       sendNotification = function(notificationId, title, body, iconUrl) {
+        console.log('Notification sent for ' + notificationId);
         notificationHelper.send(title, body, iconUrl);
 
         /*
@@ -151,7 +152,6 @@ define(function(require) {
                   });
                 }
               }
-              console.log('NEW MESSAGE: ' + JSON.stringify(result, null, '  '));
             });
           }
         });
