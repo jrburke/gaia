@@ -57,10 +57,7 @@ function MessageReaderCard(domNode, mode, args) {
   if (args.header) {
     this._setHeader(args.header);
   } else {
-    // TODO: This assumes latest folder is the one of interest.
-    // Later, for direct linking from a notification, this may
-    // not be true. But this is good for now, and probably
-    // need MailAPI changes to just fetch a single message.
+    // This assumes latest folder is the one of interest.
     model.latestOnce('folder', function(folder) {
       var messagesSlice = model.api.viewFolderMessages(folder);
       messagesSlice.onsplice = (function(index, howMany, addedItems,
@@ -75,6 +72,22 @@ function MessageReaderCard(domNode, mode, args) {
                 return true;
               }
           }.bind(this));
+
+          // If at the top, and no message was found, then if the UI
+          // wants to go back on missing message, do that now. This
+          // card may have been created from obsolete data, like an
+          // old notification for a message that no longer exists.
+          // This stops atTop since the most likely case for this
+          // entry point is either clicking on a message that is
+          // at the top of the inbox in the HTML cache, or from a
+          // notification for a new message, which would be near
+          // the top.
+          if (messagesSlice.atTop &&
+              !this.header &&
+              args.backOnMissingMessage) {
+            messagesSlice.die();
+            this.onBack();
+          }
         }
 
       }).bind(this);
