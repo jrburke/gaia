@@ -10,7 +10,8 @@ const Selector = {
   setupNameInput: '.card-setup-account-info .sup-info-name',
   setupEmailInput: '.card-setup-account-info .sup-info-email',
   setupPasswordInput: '.card-setup-account-info .sup-info-password',
-  nextButton: '.sup-account-header .sup-info-next-btn',
+  nextButton: '.card-setup-account-info .sup-info-next-btn',
+  prefsNextButton: '.card-setup-account-prefs .sup-info-next-btn',
   manualSetupNameInput: '.sup-manual-form .sup-info-name',
   manualSetupEmailInput: '.sup-manual-form .sup-info-email',
   manualSetupPasswordInput: '.sup-manual-form .sup-info-password',
@@ -30,7 +31,11 @@ const Selector = {
   composeSubjectInput: '.card-compose .cmp-subject-text',
   composeBodyInput: '.card-compose .cmp-body-text',
   composeSendButton: '.card-compose .cmp-send-btn',
-  refreshButton: '.card.center .msg-refresh-btn'
+  refreshButton: '.card.center .msg-refresh-btn',
+  folderListButton: '.msg-list-header .msg-folder-list-btn',
+  settingsButton: '.fld-nav-toolbar .fld-nav-settings-btn',
+  addAccountButton: '.tng-accounts-container .tng-account-add',
+  accountListButton: '.fld-folders-header .fld-accounts-btn'
 };
 
 Email.prototype = {
@@ -59,6 +64,7 @@ Email.prototype = {
     this.client.helper.
       waitForElement(Selector.manualConfigButton).
       tap();
+    this._waitForTransitionEnd();
     // setup a IMAP email account
     var email = server.imap.username + '@' + server.imap.hostname;
     this._manualSetupTypeName(server.imap.username);
@@ -76,8 +82,39 @@ Email.prototype = {
     this._manualSetupUpdateSocket('manualSetupSmtpSocket');
 
     this._manualSetupTapNext();
+    this._waitForSettingUpAccount();
+    this._prefsTapNext();
     this._waitForSetupCompleted();
     this._tapContinue();
+  },
+
+  tapFolderListButton: function() {
+    this.client.findElement(Selector.folderListButton).tap();
+    this.client.helper.waitForElement(Selector.settingsButton);
+    this._waitForTransitionEnd();
+  },
+
+  tapAccountListButton: function() {
+    this.client.helper.wait(500);
+    this.client.findElement(Selector.accountListButton).tap();
+    this._waitForTransitionEnd();
+  },
+
+  switchAccount: function(number) {
+    var accountSelector = '.acct-list-container ' +
+                          'a:nth-child(' + number + ')';
+    this.client.findElement(accountSelector).tap();
+    this._waitForTransitionEnd();
+  },
+
+  tapSettingsButton: function() {
+    this.client.findElement(Selector.settingsButton).tap();
+    this._waitForTransitionEnd();
+  },
+
+  tapAddAccountButton: function() {
+    this.client.findElement(Selector.addAccountButton).tap();
+    this._waitForTransitionEnd();
   },
 
   tapCompose: function() {
@@ -124,13 +161,14 @@ Email.prototype = {
     this._waitForTransitionEnd();
   },
 
-  waitForNewEmail: function() {
-    var client = this.client;
-    client.
+  tapRefreshButton: function() {
+    this.client.
       findElement(Selector.refreshButton).
       tap();
-    // show a new email notification
-    client.helper.waitForElement(Selector.notificationBar);
+  },
+
+  waitForNewEmail: function() {
+    this.client.helper.waitForElement(Selector.notificationBar);
   },
 
   launch: function() {
@@ -185,6 +223,13 @@ Email.prototype = {
     this.client.
       findElement(Selector.nextButton).
       tap();
+  },
+
+  _prefsTapNext: function() {
+    this.client.
+      findElement(Selector.prefsNextButton).
+      tap();
+    this._waitForTransitionEnd();
   },
 
   _manualSetupTypeName: function(name) {
@@ -268,6 +313,11 @@ Email.prototype = {
     this.client.
       findElement(Selector.manualNextButton).
       tap();
+  },
+
+  _waitForSettingUpAccount: function() {
+    this.client.helper.waitForElement(Selector.prefsNextButton);
+    this._waitForTransitionEnd();
   },
 
   _waitForSetupCompleted: function() {
