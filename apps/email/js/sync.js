@@ -131,7 +131,8 @@ define(function(require) {
 
                   sendNotification(
                     result.id,
-                    mozL10n.get('new-emails', { n: result.count }),
+                    mozL10n.get('new-emails', { n: result.count }) + ' - ' +
+                      result.address,
                     makeNotificationDesc(result.latestMessageInfos),
                     iconUrl + '#' + dataString
                   );

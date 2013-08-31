@@ -13641,7 +13641,7 @@ CronSync.prototype = {
           if (result) {
             this._synced.push({
               id: account.id,
-              name: account.name,
+              address: account.identities[0].address,
               count: result[0],
               latestMessageInfos: result[1]
             });
