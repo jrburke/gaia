@@ -205,6 +205,9 @@ function MessageListCard(domNode, mode, args) {
 
   this._boundFolderChanged = this._folderChanged.bind(this);
   model.latest('folder', this._boundFolderChanged);
+
+  this._boundOnNewMail = this.onNewMail.bind(this);
+  model.on('newInboxMessages', this._boundOnNewMail);
 }
 MessageListCard.prototype = {
   /**
@@ -591,7 +594,24 @@ MessageListCard.prototype = {
       this.showEmptyLayout();
     }
 
-    if (newEmailCount && newEmailCount !== NaN && newEmailCount !== 0) {
+    this.onNewMail(newEmailCount);
+
+    // Consider requesting more data or discarding data based on scrolling that
+    // has happened since we issued the request.  (While requests were pending,
+    // onScroll ignored scroll events.)
+    this._onScroll(null);
+  },
+
+  onNewMail: function(newEmailCount) {
+    var inboxFolder = model.foldersSlice.getFirstFolderWithType('inbox');
+
+    if (inboxFolder.id === this.curFolder.id &&
+        newEmailCount && newEmailCount !== NaN && newEmailCount !== 0) {
+      if (!Cards.isVisible(this)) {
+        this._whenVisible = this.onNewMail.bind(this, newEmailCount);
+        return;
+      }
+
       // Decorate or update the little notification bar that tells the user
       // how many new emails they've received after a sync.
       if (this._topbar && this._topbar.getElement() !== null) {
@@ -607,13 +627,7 @@ MessageListCard.prototype = {
         this._topbar.render();
       }
     }
-
-    // Consider requesting more data or discarding data based on scrolling that
-    // has happened since we issued the request.  (While requests were pending,
-    // onScroll ignored scroll events.)
-    this._onScroll(null);
   },
-
 
   onScroll: function(evt) {
     if (this._pendingScrollEvent) {
@@ -1118,6 +1132,18 @@ MessageListCard.prototype = {
       starNode.classList.remove('msg-header-star-starred');
   },
 
+  /**
+   * Called by Cards when the instance of this card type is the
+   * visible card.
+   */
+  onCardVisible: function() {
+    if (this._whenVisible) {
+      var fn = this._whenVisible;
+      this._whenVisible = null;
+      fn();
+    }
+  },
+
   onClickMessage: function(messageNode, event) {
     var header = messageNode.message;
     if (this.editMode) {
@@ -1264,6 +1290,7 @@ MessageListCard.prototype = {
       this.messagesSlice = null;
     }
     model.removeListener('folder', this._boundFolderChanged);
+    model.removeListener('newInboxMessages', this._boundOnNewMail);
   }
 };
 Cards.defineCard({

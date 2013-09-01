@@ -198,6 +198,18 @@ define(function(require) {
       }
     },
 
+    /**
+     * Called by other code when it knows the current account
+     * has received new inbox messages. Just triggers an
+     * event with the count for now.
+     * @param  {Object} accountUpdate update object from
+     * sync.js accountResults object structure.
+     */
+    notifyInboxMessages: function(accountUpdate) {
+      if (accountUpdate.id === this.account.id)
+        model.emit('newInboxMessages', accountUpdate.count);
+    },
+
     _dieFolders: function() {
       if (this.foldersSlice)
         this.foldersSlice.die();
