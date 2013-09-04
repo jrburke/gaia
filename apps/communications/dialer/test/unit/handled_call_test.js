@@ -102,6 +102,10 @@ suite('dialer/handled_call', function() {
         assert.equal(subject.node.id, '');
       });
 
+      test('should have the handled-call class', function() {
+        assert.isTrue(subject.node.classList.contains('handled-call'));
+      });
+
       test('should not be hidden', function() {
         assert.isFalse(subject.node.hidden);
       });
@@ -648,6 +652,22 @@ suite('dialer/handled_call', function() {
       subject.node.hidden = false;
       subject.hide();
       assert.isTrue(subject.node.hidden);
+    });
+
+    suite('when the node got nullified', function() {
+      setup(function() {
+        subject.node = null;
+      });
+
+      test('show() should handle it', function() {
+        subject.show();
+        assert.isTrue(true); // We'll get a JS error otherwise
+      });
+
+      test('hide() should handle it', function() {
+        subject.hide();
+        assert.isTrue(true); // We'll get a JS error otherwise
+      });
     });
   });
 

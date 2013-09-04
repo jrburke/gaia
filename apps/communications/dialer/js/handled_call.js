@@ -31,6 +31,7 @@ function HandledCall(aCall) {
 
   this.node = document.getElementById('handled-call-template').cloneNode(true);
   this.node.id = '';
+  this.node.classList.add('handled-call');
   this.node.hidden = false;
 
   this.durationNode = this.node.querySelector('.duration');
@@ -295,9 +296,13 @@ HandledCall.prototype.disconnected = function hc_disconnected() {
 };
 
 HandledCall.prototype.show = function hc_show() {
-  this.node.hidden = false;
+  if (this.node) {
+    this.node.hidden = false;
+  }
 };
 
 HandledCall.prototype.hide = function hc_hide() {
-  this.node.hidden = true;
+  if (this.node) {
+    this.node.hidden = true;
+  }
 };
