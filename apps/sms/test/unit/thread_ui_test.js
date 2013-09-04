@@ -861,10 +861,6 @@ suite('thread_ui.js >', function() {
 
         assert.ok(visible.called);
         assert.equal(visible.args[0][0], 'singleline');
-        assert.include(visible.args[0][1], 'refocus');
-        assert.include(visible.args[0][1], 'noPreserve');
-        assert.equal(visible.args[0][1].refocus, ThreadUI.input);
-        assert.isTrue(visible.args[0][1].noPreserve);
 
         assert.ok(add.called);
         assert.deepEqual(add.args[0][0], {
@@ -1322,7 +1318,7 @@ suite('thread_ui.js >', function() {
 
   suite('buildMessageDOM >', function() {
     setup(function() {
-      this.sinon.spy(MockUtils, 'escapeHTML');
+      this.sinon.spy(Template, 'escape');
       this.sinon.stub(MockSMIL, 'parse');
     });
 
@@ -1339,14 +1335,14 @@ suite('thread_ui.js >', function() {
     test('escapes the body for SMS', function() {
       var payload = 'hello <a href="world">world</a>';
       ThreadUI.buildMessageDOM(buildSMS(payload));
-      assert.ok(MockUtils.escapeHTML.calledWith(payload));
+      assert.ok(Template.escape.calledWith(payload));
     });
 
     test('escapes all text for MMS', function() {
       var payload = 'hello <a href="world">world</a>';
       MockSMIL.parse.yields([{ text: payload }]);
       ThreadUI.buildMessageDOM(buildMMS(payload));
-      assert.ok(MockUtils.escapeHTML.calledWith(payload));
+      assert.ok(Template.escape.calledWith(payload));
     });
   });
 

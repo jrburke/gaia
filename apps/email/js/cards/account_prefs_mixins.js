@@ -21,7 +21,8 @@ define(function(require) {
       if (checkIntervalClassName) {
         // Wire up the sync interval select box.
         var checkIntervalNode = this.nodeFromClass(checkIntervalClassName),
-            syncIntervalString = String(this.account.syncInterval),
+            currentInterval = this.account.syncInterval,
+            syncIntervalString = String(currentInterval),
             extraOptions = [];
 
         // Allow for fast sync options set via the settings_debug
@@ -36,8 +37,8 @@ define(function(require) {
                         .some(function(option) {
                           return syncIntervalString === option.value;
                         });
-        if (!hasOption)
-          extraOptions.push(this.account.syncInterval);
+        if (!hasOption && extraOptions.indexOf(currentInterval) === -1)
+          extraOptions.push(currentInterval);
 
         // Add any extra sync interval options.
         extraOptions.forEach(function(interval) {
@@ -45,8 +46,7 @@ define(function(require) {
               seconds = interval / 1000;
 
           node.value = String(interval);
-          node.textContent = mozL10n.get('settings-check-dynamic',
-                             { n: seconds });
+          mozL10n.localize(node, 'settings-check-dynamic', { n: seconds });
           checkIntervalNode.appendChild(node);
         });
 

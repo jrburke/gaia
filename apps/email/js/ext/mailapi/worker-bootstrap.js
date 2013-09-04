@@ -5908,13 +5908,6 @@ FolderStorage.prototype = {
   },
 
   /**
-   * Function that we call with header whenever addMessageHeader gets called.
-   * @type {Function}
-   * @private
-   */
-  _onAddingHeader: null,
-
-  /**
    * Reset all active slices.
    */
   resetAndRefreshActiveSlices: function() {
@@ -7526,7 +7519,7 @@ FolderStorage.prototype = {
        * 2. and this hasn't already been seen.
        * @param {HeaderInfo} header The header being added.
        */
-      this._onAddingHeader = function(header) {
+      slice._onAddingHeader = function(header, currentSlice) {
         if (SINCE(header.date, prevTS) &&
             (!header.flags || header.flags.indexOf('\\Seen') === -1)) {
           newEmailCount += 1;
@@ -7565,7 +7558,7 @@ FolderStorage.prototype = {
 
     var doneCallback = function refreshDoneCallback(err, bisectInfo,
                                                     numMessages) {
-      this._onAddingHeader = null;
+      slice._onAddingHeader = null;
 
       var reportSyncStatusAs = 'synced';
       switch (err) {
@@ -8541,9 +8534,9 @@ FolderStorage.prototype = {
           slice.desiredHeaders++;
         }
 
-        if (this._onAddingHeader !== null) {
-          this._onAddingHeader(header);
-        }
+        if (slice._onAddingHeader)
+          slice._onAddingHeader(header);
+
         slice.onHeaderAdded(header, false, true);
       }
     }
@@ -13506,11 +13499,19 @@ CronSync.prototype = {
       return;
     }
 
-    function done(result) {
-      account.runAfterSaves(function() {
-        doneCallback(result);
+    var done = function(result) {
+      // Wait for any in-process job operations to complete, so
+      // that the app is not killed in the middle of a sync.
+      this._universe.waitForAccountOps(account, function() {
+        // Also wait for any account save to finish. Most
+        // likely failure will be new message headers not
+        // getting saved if the callback is not fired
+        // until after account saves.
+        account.runAfterSaves(function() {
+          doneCallback(result);
+        });
       });
-    }
+    }.bind(this);
 
     var inboxFolder = account.getFirstFolderWithType('inbox');
     var storage = account.getFolderStorageForFolderId(inboxFolder.id);
@@ -13641,7 +13642,7 @@ CronSync.prototype = {
           if (result) {
             this._synced.push({
               id: account.id,
-              name: account.name,
+              address: account.identities[0].address,
               count: result[0],
               latestMessageInfos: result[1]
             });
@@ -14899,7 +14900,7 @@ MailUniverse.prototype = {
   },
 
   setInteractive: function() {
-    this._mode = 'interactive'
+    this._mode = 'interactive';
   },
 
   //////////////////////////////////////////////////////////////////////////////
@@ -15127,12 +15128,10 @@ MailUniverse.prototype = {
 
       this.__notifyAddedAccount(account);
 
-      if (!accountDef.syncInterval) {
-        // - issue a (non-persisted) syncFolderList if needed
-        var timeSinceLastFolderSync = Date.now() - account.meta.lastFolderSyncAt;
-        if (timeSinceLastFolderSync >= $syncbase.SYNC_FOLDER_LIST_EVERY_MS)
-          this.syncFolderList(account);
-      }
+      // - issue a (non-persisted) syncFolderList if needed
+      var timeSinceLastFolderSync = Date.now() - account.meta.lastFolderSyncAt;
+      if (timeSinceLastFolderSync >= $syncbase.SYNC_FOLDER_LIST_EVERY_MS)
+        this.syncFolderList(account);
 
       // - check for mutations that still need to be processed
       // This will take care of deferred mutations too because they are still
@@ -15796,7 +15795,7 @@ MailUniverse.prototype = {
   waitForAccountOps: function(account, callback) {
     var queues = this._opsByAccount[account.id];
     if (queues.local.length === 0 &&
-        queues.server.length === 0)
+       (queues.server.length === 0 || !this.online || !account.enabled))
       callback();
     else
       this._opCompletionListenersByAccount[account.id] = callback;

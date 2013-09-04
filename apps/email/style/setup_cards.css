@@ -166,11 +166,15 @@ li a:active {
 }
 
 .list-text-with-sub {
-  padding: 1.2rem 0;
+  padding: 2rem 0 1rem 0;
 }
 
 .list-text-with-sub .list-text {
-  line-height: 3rem;
+  line-height: 2.2rem;
+}
+
+li.select-item {
+  padding: 1rem 0 1rem 0;
 }
 
 .list-text {
@@ -301,6 +305,10 @@ section.card-settings-account-common li span.button select {
   text-indent: -0.22rem;
   /** Need to push the little select arrow off the page */
   width: calc(100% + 10rem) !important;
+}
+
+section.card-settings-account-common li .pack-checkbox {
+  margin-top: 0.2rem;
 }
 
 .tng-account-check-interval,

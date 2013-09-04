@@ -383,15 +383,6 @@ appMessages.on('notification', function(data) {
           onPushed: onPushed
         });
       } else if (type === 'message_reader') {
-        if (!data.messageSuid) {
-          console.error('Message reader notification does not ' +
-                               'have messageSuid. Ignoring.');
-
-          return showMessageList({
-            onPushed: onPushed
-          });
-        }
-
         Cards.pushCard(data.type, 'default', 'immediate', {
           messageSuid: data.messageSuid,
           backOnMissingMessage: true,

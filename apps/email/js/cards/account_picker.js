@@ -15,14 +15,10 @@ var templateNode = require('tmpl!./account_picker.html'),
 function AccountPickerCard(domNode, mode, args) {
   this.domNode = domNode;
 
-  this.curAccount = args.curAccount;
-  this.acctsSlice = args.acctsSlice;
+  this.curAccountId = args.curAccountId;
 
-  // Revisit if slices become event emitters that support
-  // multiple listeners.
-  this.oldOnSplice = this.acctsSlice.onsplice;
+  this.acctsSlice = model.api.viewAccounts(false);
   this.acctsSlice.onsplice = this.onAccountsSplice.bind(this);
-  this.oldOnChange = this.acctsSlice.onchange;
   this.acctsSlice.onchange = this.onAccountsChange.bind(this);
 
   this.accountsContainer =
@@ -35,23 +31,13 @@ function AccountPickerCard(domNode, mode, args) {
 
   domNode.getElementsByClassName('fld-nav-settings-btn')[0]
     .addEventListener('click', this.onShowSettings.bind(this), false);
-
-  // since the slice is already populated, generate a fake notification
-  this.onAccountsSplice(0, 0, this.acctsSlice.items, true, false);
 }
 
 AccountPickerCard.prototype = {
   nextCards: ['settings_main'],
 
   die: function() {
-    // Since this card is destroyed when hidden,
-    // detach listeners from the acctSlice.
-    if (this.acctsSlice) {
-      this.acctsSlice.onsplice = this.oldOnSplice;
-      this.acctsSlice.onchange = this.oldOnChange;
-      this.oldOnSplice = null;
-      this.oldOnChange = null;
-    }
+    this.acctsSlice.die();
   },
 
   onShowSettings: function() {
@@ -61,9 +47,6 @@ AccountPickerCard.prototype = {
 
   onAccountsSplice: function(index, howMany, addedItems,
                              requested, moreExpected) {
-    if (this.oldOnSplice)
-      this.oldOnSplice.apply(this.acctsSlice, arguments);
-
     var accountsContainer = this.accountsContainer;
 
     var account;
@@ -109,9 +92,6 @@ AccountPickerCard.prototype = {
   },
 
   onAccountsChange: function(account) {
-    if (this.oldOnChange)
-      this.oldOnChange.apply(this.acctsSlice, arguments);
-
     this.updateAccountDom(account, false);
   },
 
@@ -123,7 +103,7 @@ AccountPickerCard.prototype = {
         .textContent = account.name;
     }
 
-    if (account === this.curAccount) {
+    if (account.id === this.curAccountId) {
       accountNode.classList.add('fld-account-selected');
     }
     else {
@@ -137,11 +117,11 @@ AccountPickerCard.prototype = {
    * things get permutationally complex.
    */
   onClickAccount: function(accountNode, event) {
-    var oldAccount = this.curAccount,
-        account = this.curAccount = accountNode.account;
+    var oldAccountId = this.curAccountId,
+        accountId = this.curAccountId = accountNode.account.id;
 
-    if (oldAccount !== account) {
-      model.changeAccount(account);
+    if (oldAccountId !== accountId) {
+      model.changeAccountFromId(accountId);
     }
 
     this.onHideAccounts();

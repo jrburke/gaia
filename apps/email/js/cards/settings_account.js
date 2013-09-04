@@ -57,10 +57,14 @@ function SettingsAccountCard(domNode, mode, args) {
                                   false);
   }
 
-  var synchronizeNode = this.nodeFromClass('tng-account-synchronize');
-  synchronizeNode.value = this.account.syncRange;
-  synchronizeNode.addEventListener(
-    'change', this.onChangeSynchronize.bind(this), false);
+  if (this.account.type === 'activesync') {
+    var synchronizeNode = this.nodeFromClass('tng-account-synchronize');
+    synchronizeNode.value = this.account.syncRange;
+    synchronizeNode.addEventListener(
+      'change', this.onChangeSynchronize.bind(this), false);
+  } else {
+   this.nodeFromClass('synchronize-setting').style.display = 'none';
+  }
 
   this.account.servers.forEach(function(server, index) {
     var serverNode = tngAccountSettingsServerNode.cloneNode(true);

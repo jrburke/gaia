@@ -105,8 +105,7 @@ FolderPickerCard.prototype = {
     Cards.pushCard(
       'account_picker', 'navigation', 'animate',
       {
-        acctsSlice: model.acctsSlice,
-        curAccount: this.curAccount
+        curAccountId: this.curAccount.id
       },
       // Place to left of message list
       'left');

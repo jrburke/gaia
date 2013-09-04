@@ -7,6 +7,7 @@ import json
 import re
 from optparse import OptionParser
 import logging
+import platform
 
 section_line = re.compile('\[(?P<section>.*)\]')
 import_line = re.compile('@import url\((?P<filename>.*)\)')
@@ -185,6 +186,8 @@ def setup_logging(volume=1, console=True, filename=None):
 
 
 def make_relative(path, gaia):
+    if platform.system() is 'Windows':
+        gaia = gaia.replace('\\\\', '\\')
     return path[len(gaia)+1:]
 
 

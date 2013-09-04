@@ -108,13 +108,14 @@ define(function(require) {
           var iconUrl = notificationHelper.getIconURI(app);
           if (accountsResults.updates) {
             accountsResults.updates.forEach(function(result) {
-              // If the current account is being shown, then do not
-              // send notifications.
-              // TODO: this may become more complicated when this
-              // story is implemented:
-              // https://bugzilla.mozilla.org/show_bug.cgi?id=892521
-              if (currentAccount.id === result.id && !document.hidden)
+              // If the current account is being shown, then just send
+              // an update to the model to indicate new messages, as
+              // the notification will happen within the app for that
+              // case.
+              if (currentAccount.id === result.id && !document.hidden) {
+                model.notifyInboxMessages(result);
                 return;
+              }
 
               // If this account does not want notifications of new messages
               // stop doing work.
@@ -131,7 +132,10 @@ define(function(require) {
 
                   sendNotification(
                     result.id,
-                    mozL10n.get('new-emails', { n: result.count }),
+                    mozL10n.get('new-emails-notify', {
+                      n: result.count,
+                      accountName: result.address
+                    }),
                     makeNotificationDesc(result.latestMessageInfos),
                     iconUrl + '#' + dataString
                   );
