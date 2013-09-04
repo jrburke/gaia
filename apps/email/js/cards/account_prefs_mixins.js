@@ -46,8 +46,7 @@ define(function(require) {
               seconds = interval / 1000;
 
           node.value = String(interval);
-          node.textContent = mozL10n.get('settings-check-dynamic',
-                             { n: seconds });
+          mozL10n.localize(node, 'settings-check-dynamic', { n: seconds });
           checkIntervalNode.appendChild(node);
         });
 

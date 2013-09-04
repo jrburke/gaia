@@ -11,10 +11,9 @@ define(function() {
       if (!value)
         return null;
 
-      var result = {},
-          separator = value.indexOf('&amp;') === -1 ? '&' : '&amp;';
+      var result = {};
 
-      value.split(separator).forEach(function(keyValue) {
+      value.split('&').forEach(function(keyValue) {
         var pair = keyValue.split('=');
         result[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
       });

@@ -102,7 +102,7 @@ define(function(require) {
      * per the lifetime of an app. The usual use case for multiple calls
      * is when a new account has been added.
      * @param  {boolean} showLatest Choose the latest account in the
-     * acctSlice. Otherwise it choose the account marked as the default
+     * acctsSlice. Otherwise it choose the account marked as the default
      * account.
      */
     init: function(showLatest, callback) {
@@ -145,8 +145,11 @@ define(function(require) {
      */
     changeAccount: function(account, callback) {
       // Do not bother if account is the same.
-      if (this.account && this.account.id === account.id)
+      if (this.account && this.account.id === account.id) {
+        if (callback)
+          callback();
         return;
+      }
 
       this._dieFolders();
 
@@ -159,6 +162,23 @@ define(function(require) {
         this.selectInbox(callback);
         this._callEmit('foldersSlice');
       }).bind(this);
+    },
+
+    /**
+     * Given an account ID, change the current account to that account.
+     * @param  {String} accountId
+     * @return {Function} callback
+     */
+    changeAccountFromId: function(accountId, callback) {
+      if (!this.acctsSlice || !this.acctsSlice.items.length)
+        throw new Error('No accounts available');
+
+      this.acctsSlice.items.some(function(account) {
+        if (account.id === accountId) {
+          this.changeAccount(account, callback);
+          return true;
+        }
+      }.bind(this));
     },
 
     /**

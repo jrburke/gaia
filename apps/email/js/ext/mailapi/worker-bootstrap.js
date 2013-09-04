@@ -13506,11 +13506,19 @@ CronSync.prototype = {
       return;
     }
 
-    function done(result) {
-      account.runAfterSaves(function() {
-        doneCallback(result);
+    var done = function(result) {
+      // Wait for any in-process job operations to complete, so
+      // that the app is not killed in the middle of a sync.
+      this._universe.waitForAccountOps(account, function() {
+        // Also wait for any account save to finish. Most
+        // likely failure will be new message headers not
+        // getting saved if the callback is not fired
+        // until after account saves.
+        account.runAfterSaves(function() {
+          doneCallback(result);
+        });
       });
-    }
+    }.bind(this);
 
     var inboxFolder = account.getFirstFolderWithType('inbox');
     var storage = account.getFolderStorageForFolderId(inboxFolder.id);
@@ -14899,7 +14907,7 @@ MailUniverse.prototype = {
   },
 
   setInteractive: function() {
-    this._mode = 'interactive'
+    this._mode = 'interactive';
   },
 
   //////////////////////////////////////////////////////////////////////////////
@@ -15127,12 +15135,10 @@ MailUniverse.prototype = {
 
       this.__notifyAddedAccount(account);
 
-      if (!accountDef.syncInterval) {
-        // - issue a (non-persisted) syncFolderList if needed
-        var timeSinceLastFolderSync = Date.now() - account.meta.lastFolderSyncAt;
-        if (timeSinceLastFolderSync >= $syncbase.SYNC_FOLDER_LIST_EVERY_MS)
-          this.syncFolderList(account);
-      }
+      // - issue a (non-persisted) syncFolderList if needed
+      var timeSinceLastFolderSync = Date.now() - account.meta.lastFolderSyncAt;
+      if (timeSinceLastFolderSync >= $syncbase.SYNC_FOLDER_LIST_EVERY_MS)
+        this.syncFolderList(account);
 
       // - check for mutations that still need to be processed
       // This will take care of deferred mutations too because they are still
@@ -15796,7 +15802,7 @@ MailUniverse.prototype = {
   waitForAccountOps: function(account, callback) {
     var queues = this._opsByAccount[account.id];
     if (queues.local.length === 0 &&
-        queues.server.length === 0)
+       (queues.server.length === 0 || !this.online || !account.enabled))
       callback();
     else
       this._opCompletionListenersByAccount[account.id] = callback;
