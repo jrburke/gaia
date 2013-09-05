@@ -383,3 +383,21 @@ Email.prototype = {
       tap();
   }
 };
+
+// Optionally log all calls done to prototype methods. Uncomment this
+// section to get traces when trying to debug where flow gets stuck.
+Object.keys(Email.prototype).forEach(function(key) {
+  var desc = Object.getOwnPropertyDescriptor(Email.prototype, key);
+  if (!desc.get && !desc.set && typeof Email.prototype[key] === 'function') {
+    var oldMethod = Email.prototype[key];
+    Email.prototype[key] = function() {
+
+      var args = Array.prototype.slice.call(arguments, 0).map(function(arg) {
+        return String(arg);
+      }).join(', ');
+
+      console.log('Email.' + key + '(' + args + ')');
+      return oldMethod.apply(this, arguments);
+    };
+  }
+});

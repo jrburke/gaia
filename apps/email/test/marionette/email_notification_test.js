@@ -4,7 +4,6 @@ var serverHelper = require('./lib/server_helper');
 
 marionette('receive a email via SMTP', function() {
   var app,
-      notificationContainer,
       client = marionette.client({
         settings: {
           // disable keyboard ftu because it blocks our display
@@ -16,7 +15,7 @@ marionette('receive a email via SMTP', function() {
                     username: 'testy1',
                     password: 'testy1'
                   }
-                }, this);
+                }, this),
       server2 = serverHelper.use({
                   credentials: {
                     username: 'testy2',
@@ -34,8 +33,6 @@ marionette('receive a email via SMTP', function() {
   }
 
   setup(function() {
-    notificationContainer =
-      client.findElement('#desktop-notifications-container');
     app = new Email(client);
 
     client.contentScript.inject(__dirname +
@@ -70,12 +67,19 @@ marionette('receive a email via SMTP', function() {
     // wait for the sync process to complete
     client.helper.wait(2000);
 
-    notificationContainer.findElement('div', function(error, element) {
-      if (error) {
-        assert.ok(false);
-      } else {
-        assert.ok(true);
-      }
+    client.switchToFrame();
+
+    client.findElement('#desktop-notifications-container',
+    function(error, element) {
+  console.log('FIRST TEST HAS ERROR? ' + error);
+      element.findElement('div', function(error, element) {
+  console.log('FIRST TEST HAS ERROR? ' + error);
+        if (error) {
+          assert.ok(false);
+        } else {
+          assert.ok(true);
+        }
+      });
     });
   });
 
@@ -88,12 +92,19 @@ marionette('receive a email via SMTP', function() {
     app.tapFolderListButton();
     app.tapRefreshButton();
 
-    notificationContainer.findElement('div', function(error, element) {
-      if (error) {
-        assert.ok(true);
-      } else if (element) {
-        assert.ok(false);
-      }
+    client.switchToFrame();
+
+    client.findElement('#desktop-notifications-container',
+    function(error, element) {
+console.log('SECOND TEST HAS ERROR? ' + error);
+      element.findElement('div', function(error, element) {
+console.log('SECOND TEST HAS ERROR? ' + error);
+        if (error) {
+          assert.ok(true);
+        } else if (element) {
+          assert.ok(false);
+        }
+      });
     });
   });
 });
