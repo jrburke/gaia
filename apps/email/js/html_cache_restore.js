@@ -6,7 +6,6 @@ function plog(msg) {
   console.log(msg + ' ' + (performance.now() - _xstart));
 }
 
-
 // Use a global to work around issue with
 // navigator.mozHasPendingMessage only returning
 // true to the first call made to it.
@@ -31,18 +30,9 @@ window.htmlCacheRestorePendingMessage = [];
    * Be prepared.
    */
   function retrieve() {
-    var value = document.cookie;
-    var pairRegExp = /htmlc(\d+)=([^;]+)/g;
-    var segments = [];
-    var match, index, version;
-
-    while ((match = pairRegExp.exec(value))) {
-      segments[parseInt(match[1], 10)] = match[2] || '';
-    }
-
-    value = decodeURIComponent(segments.join(''));
-
-    index = value.indexOf(':');
+    var version,
+        value = localStorage.getItem('CACHE') || '',
+        index = value.indexOf(':');
 
     if (index === -1) {
       value = '';
@@ -93,6 +83,7 @@ window.htmlCacheRestorePendingMessage = [];
     startApp();
   } else {
     cardsNode.innerHTML = retrieve();
+plog('INNERHTML DONE');
     window.addEventListener('load', startApp, false);
   }
 }());
