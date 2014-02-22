@@ -499,6 +499,8 @@ apps/email/js/cards/compose.js
 apps/email/js/cards/folder_picker.js
 apps/email/js/cards/message_list.js
 apps/email/js/cards/message_reader.js
+apps/email/js/cards/scroll_test.js
+
 apps/email/js/cards/settings_account.js
 apps/email/js/cards/settings_account_credentials.js
 apps/email/js/cards/settings_account_servers.js

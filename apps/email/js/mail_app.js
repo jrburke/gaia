@@ -43,6 +43,10 @@ if (typeof TestUrlResolver === 'undefined') {
 // in the require at the end of this file.
 define('mail_app', function(require, exports, module) {
 
+//var FIRSTCARDID = 'message_list';
+var FIRSTCARDID = 'scroll_test';
+
+
 var appMessages = require('app_messages'),
     htmlCache = require('html_cache'),
     mozL10n = require('l10n!'),
@@ -108,7 +112,7 @@ model.latestOnce('api', function(api) {
 // after a non-default entry point (like an activity) is triggered.
 Cards.pushDefaultCard = function(onPushed) {
   model.latestOnce('foldersSlice', function() {
-    Cards.pushCard('message_list', 'nonsearch', 'none', {
+    Cards.pushCard(FIRSTCARDID, 'nonsearch', 'none', {
       onPushed: onPushed
     },
     // Default to "before" placement.
@@ -135,6 +139,9 @@ var startCardArgs = {
   ],
   'message_list': [
     'message_list', 'nonsearch', 'immediate', {}
+  ],
+  'scroll_test': [
+    'scroll_test', 'nonsearch', 'immediate', {}
   ]
 };
 
@@ -220,7 +227,7 @@ function showFinalCardState(fn) {
  */
 function showMessageList(args) {
   showFinalCardState(function() {
-    resetCards('message_list', args);
+    resetCards(FIRSTCARDID, args);
   });
 }
 
@@ -286,7 +293,7 @@ evt.on('showLatestAccount', function() {
     var account = acctsSlice.items[acctsSlice.items.length - 1];
 
     model.changeAccount(account, function() {
-      pushStartCard('message_list', {
+      pushStartCard(FIRSTCARDID, {
         // If waiting to complete an activity, do so after pushing the
         // message list card.
         onPushed: activityContinued
@@ -388,7 +395,7 @@ appMessages.on('notification', function(data) {
         waitForAppMessage = false;
       }
 
-      if (type === 'message_list') {
+      if (type === FIRSTCARDID) {
         showMessageList({
           onPushed: onPushed
         });
@@ -432,4 +439,4 @@ model.init();
 });
 
 // Run the app module, bring in fancy logging
-requirejs(['console_hook', 'cards/message_list', 'mail_app']);
+requirejs(['console_hook', 'cards/scroll_test', 'mail_app']);

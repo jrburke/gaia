@@ -61,12 +61,19 @@ input.msg-search-text-tease {
   font-style: italic;
 }
 
+.vscroll-cachelist {
+  position: absolute;
+  width: 100%;
+  overflow: hidden;
+}
+
 /* Sections horizontally chop up the item: unread, details, icons, avatar.
  * We have 320 horizontal pixels to play with.
  */
 .msg-header-item {
   display: block;
-  position: relative;
+  position: absolute;
+  width: 100%;
   height: 8rem;
 }
 .msg-header-item:active {
@@ -455,7 +462,9 @@ input.msg-search-text-tease {
   * opaque background to optimize Gecko.
   * See Bug 962699. */
 .msg-messages-container {
+   position: relative;
    background-color: #fff;
+   overflow: hidden;
 }
 
 .msg-delete-btn {

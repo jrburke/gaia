@@ -1,4 +1,5 @@
 // when running in B2G, send output to the console, ANSI-style
+/*
 if ('mozTCPSocket' in window.navigator) {
   function consoleHelper() {
     var msg = arguments[0] + ':';
@@ -15,6 +16,7 @@ if ('mozTCPSocket' in window.navigator) {
     warn: consoleHelper.bind(null, '\x1b[33mWAR')
   };
 }
+*/
 window.onerror = function errHandler(msg, url, line) {
   console.error('onerror reporting:', msg, '@', url, ':', line);
   return false;

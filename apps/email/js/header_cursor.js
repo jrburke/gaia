@@ -224,6 +224,26 @@ define(function(require) {
         return;
       }
 
+// console.log('-------');
+// var items = addedItems.map(function(item) {
+//   return {
+//     id: item.id,
+//     author: item.author,
+//     to: item.to,
+//     cc: item.cc,
+//     bcc: item.bcc,
+//     date: item.date,
+//     hasAttachments: item.hasAttachments,
+//     snippet: item.snippet,
+//     isRead: item.isRead,
+//     isStarred: item.isStarred
+//   }
+// });
+
+// console.log(JSON.stringify(items, null, '  '));
+
+// console.log('-------');
+
       // If there was a messageSuid expected and at the top, then
       // check to see if it was received. This is really just nice
       // for when a new message notification comes in, as the atTop
