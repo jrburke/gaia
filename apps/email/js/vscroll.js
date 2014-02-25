@@ -9,11 +9,20 @@ define(function(require) {
   var slice = Array.prototype.slice,
       nodeCacheIdCounter = 0;
 
-  function NodeCache() {
+  function setTop(node, value, useTransform) {
+    if (useTransform) {
+      node.style.transform = 'translateY(' + value + 'px)';
+    } else {
+      node.style.top = value + 'px';
+    }
+  }
+
+  function NodeCache(useTransform) {
     this.container = new VScroll.NodeCache.Node();
     this.id = nodeCacheIdCounter++;
     this.container.dataset.cacheid = this.id;
     this.nodes = [];
+    this.useTransform = useTransform;
 
     // Used by VScroll to track position so DOM
     // does not have to be queried for it.
@@ -28,7 +37,7 @@ define(function(require) {
 
   NodeCache.prototype = {
     setTop: function(top) {
-      this.container.style.top = top + 'px';
+      setTop(this.container, top, this.useTransform);
       this.topPx = top;
     }
   };
@@ -44,11 +53,7 @@ define(function(require) {
     this._limited = false;
 
     // Stores the list of DOM nodes to reuse.
-    this.nodeCacheList = [
-      new NodeCache(),
-      new NodeCache(),
-      new NodeCache()
-    ];
+    this.nodeCacheList = [];
     this.nodeCacheId = 0;
 
     // Bind to this to make reuse in functional APIs easier.
@@ -59,6 +64,27 @@ define(function(require) {
   VScroll.NodeCache = NodeCache;
 
   VScroll.prototype = {
+    // rate limit for event handler, in milliseconds, so that
+    // it does not do work for every event received.
+    eventRateLimit: 0,
+
+    // How much to multiply the visible node range by to allow for
+    // smoother scrolling transitions without white gaps.
+    rangeMultipler: 3,
+
+    // What fraction of the height to use to trigger the render of
+    // the next node cache
+    heightFractionTrigger: 1 / 2,
+
+    // Detach cache dom when doing item updates and reattach when done
+    detachForUpdates: false,
+
+    // number of NodeCache objects to use
+    nodeCacheListSize: 6,
+
+    // Use transformY instead of top to position node caches.
+    useTransform: false,
+
     activate: function(index) {
       // Populate the initial view
       this._render(index);
@@ -71,21 +97,13 @@ define(function(require) {
       this.scrollingContainer.removeEventListener('resize', this.onEvent);
     },
 
-    // rate limit for event handler, in milliseconds, so that
-    // it does not do work for every event received.
-    eventRateLimit: 50,
-
-    // How much to multiply the visible node range by to allow for
-    // smoother scrolling transitions without white gaps.
-    rangeMultipler: 3,
-
-    // What fraction of the height to use to trigger the render of
-    // the next node cache
-    heightFractionTrigger: 1 / 2,
-
     // Handles events fired, but only limits actual work, in
     // onChange, to be done on a rate-limited value.
     onEvent: function() {
+      if (!this.eventRateLimit) {
+        return this.onChange();
+      }
+
       if (this._limited) {
         return;
       }
@@ -162,7 +180,9 @@ define(function(require) {
       // Pull the node cache container out of the DOM to
       // allow for the updates to happen quicker without
       // triggering reflows in the middle.
-      //this.container.removeChild(cache.container);
+      if (this.detachForUpdates) {
+        this.container.removeChild(cache.container);
+      }
 
       var length = index + nodes.length;
       for (i = startIndex; i < length; i++) {
@@ -176,10 +196,16 @@ define(function(require) {
       // Reposition the cache at the new location and insert
       // back into the DOM
       cache.setTop(index * this.itemHeight);
-      //this.container.appendChild(cache.container);
+      if (this.detachForUpdates) {
+        this.container.appendChild(cache.container);
+      }
     },
 
     _init: function(index) {
+      for (var i = 0; i < this.nodeCacheListSize; i++) {
+        this.nodeCacheList.push(new NodeCache(this.useTransform));
+      }
+
       // Render the data item at index, to get sizes of things,
       // and create the cache of nodes.
       var node = this.template.cloneNode(true),
@@ -201,7 +227,7 @@ define(function(require) {
       // majority of the display area.
       this.itemsPerDisplay = Math.ceil(window.innerHeight /
                                        this.itemHeight);
-      this.nodeRange = Math.ceil(this.itemsPerDisplay * this.rangeMultipler);
+      this.nodeRange = Math.floor(this.itemsPerDisplay * this.rangeMultipler);
       this.cacheContainerHeight = this.nodeRange * this.itemHeight;
 
       this.cacheTriggerHeight = this.cacheContainerHeight *
@@ -209,7 +235,7 @@ define(function(require) {
       this.cacheHalfHeight = this.cacheContainerHeight / 2;
 
       if (index > 0) {
-        node.style.top = (index * this.itemHeight) + 'px';
+        setTop(node, (index * this.itemHeight), this.useTransform);
       }
 
       // Generate as set of DOM nodes to reuse.
@@ -239,7 +265,7 @@ define(function(require) {
         // Set up the cache nodes inside the container.
         for (; i < length; i++) {
           var newNode = this.template.cloneNode(true);
-          newNode.style.top = (i * this.itemHeight) + 'px';
+          setTop(newNode, (i * this.itemHeight), this.useTransform);
           cache.container.appendChild(newNode);
           nodes.push(newNode);
         }
@@ -252,8 +278,6 @@ define(function(require) {
       this.container.style.height = this.totalHeight + 'px';
 
       this._inited = true;
-console.log('INITED');
-console.log(this);
     },
 
     _dataBind: function(model, node, top) {
