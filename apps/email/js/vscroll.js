@@ -1,13 +1,50 @@
+/*global performance */
 'use strict';
 
 /*
 TODO: a reset method for when folders are switched
  */
 
-define(function(require) {
+define(function(require, exports, module) {
 
   var slice = Array.prototype.slice,
-      nodeCacheIdCounter = 0;
+      nodeCacheIdCounter = 0,
+      usePerfLog = module.config().usePerfLog || false,
+      // 16 ms threshold for 60 fps, should be lower though
+      perfThreshold = module.config().perfThreshold || 16;
+
+  var logQueue = [],
+      logTimeoutId = 0;
+
+  function logPerf() {
+    logQueue.forEach(function(msg) {
+      console.log(msg);
+    });
+    logQueue = [];
+    logTimeoutId = 0;
+  }
+
+  function queueLog(prop, time) {
+    logQueue.push(module.id + ': ' + prop + ': ' + time);
+    if (!logTimeoutId) {
+      logTimeoutId = setTimeout(logPerf, 2000);
+    }
+  }
+
+  function perfWrap(prop, fn) {
+    return function() {
+      var start = performance.now();
+      var result = fn.apply(this, arguments);
+      var end = performance.now();
+
+      var time = end - start;
+      if (time > perfThreshold) {
+        queueLog(prop, end - start);
+      }
+      return result;
+    };
+  }
+
 
   function setTop(node, value, useTransform) {
     if (useTransform) {
@@ -56,6 +93,8 @@ define(function(require) {
     this.nodeCacheList = [];
     this.nodeCacheId = 0;
 
+    this.prevScrollTop = 0;
+
     // Bind to this to make reuse in functional APIs easier.
     this.onEvent = this.onEvent.bind(this);
     this.onChange = this.onChange.bind(this);
@@ -65,22 +104,25 @@ define(function(require) {
 
   VScroll.prototype = {
     // rate limit for event handler, in milliseconds, so that
-    // it does not do work for every event received.
+    // it does not do work for every event received. If set to
+    // zero, it means always do the work for every scroll event.
+    // Setting to a value though does not help, ends up with
+    // white scrolling.
     eventRateLimit: 0,
 
     // How much to multiply the visible node range by to allow for
     // smoother scrolling transitions without white gaps.
-    rangeMultipler: 3,
+    rangeMultipler: 2,
 
     // What fraction of the height to use to trigger the render of
     // the next node cache
-    heightFractionTrigger: 1 / 2,
+    heightFractionTrigger: 8 / 10,
 
     // Detach cache dom when doing item updates and reattach when done
     detachForUpdates: false,
 
     // number of NodeCache objects to use
-    nodeCacheListSize: 6,
+    nodeCacheListSize: 3,
 
     // Use transformY instead of top to position node caches.
     useTransform: false,
@@ -118,15 +160,25 @@ define(function(require) {
       var startDataIndex,
           cache = this.currentNodeCache,
           scrollTop = this.scrollingContainer.scrollTop,
-          topDistance = scrollTop - cache.topPx;
+          topDistance = scrollTop - cache.topPx,
+          bottomDistance = (cache.topPx + this.cacheContainerHeight) -
+                            scrollTop,
+          scrollDown = scrollTop >= this.prevScrollTop;
 
       // If topDistance is less than half, trigger a "we need more data above"
       // event. If more than half, a d "we need more data below" event.
       // TODO
 
-      // If less than a third in one of the directions, render the next
-      // nodeCache. Otherwise, all it good, do not do anything.
-      if (topDistance < this.cacheTriggerHeight) {
+      if (scrollDown && (topDistance > 0 &&
+          topDistance > this.cacheTriggerHeight)) {
+        startDataIndex = cache.dataIndex + this.nodeRange;
+
+        // Render next cache segment but only if not already at the end.
+        if (startDataIndex < this.list.length) {
+          this._render(startDataIndex);
+        }
+      } else if (!scrollDown && (bottomDistance > 0 &&
+                 bottomDistance > this.cacheTriggerHeight)) {
         startDataIndex = cache.dataIndex - this.nodeRange;
         if (startDataIndex < 0) {
           startDataIndex = 0;
@@ -136,14 +188,8 @@ define(function(require) {
         if (startDataIndex !== 0 || cache.topPx !== 0) {
           this._render(startDataIndex);
         }
-      } else if (topDistance > this.cacheTriggerHeight) {
-        startDataIndex = cache.dataIndex + this.nodeRange;
-
-        // Render next cache segment but only if not already at the end.
-        if (startDataIndex < this.list.length) {
-          this._render(startDataIndex);
-        }
       }
+      this.prevScrollTop = scrollTop;
     },
 
     _render: function(index) {
@@ -157,7 +203,8 @@ define(function(require) {
         // Disregard the render request an existing cache set already has
         // that index generated.
         for (i = 0; i < this.nodeCacheList.length; i++) {
-          if (this.nodeCacheList[i].dataIndex === index) {
+          if (i !== this.nodeCacheId &&
+              this.nodeCacheList[i].dataIndex === index) {
             this.currentNodeCache = this.nodeCacheList[i];
             this.nodeCacheId = i;
             return;
@@ -230,8 +277,9 @@ define(function(require) {
       this.nodeRange = Math.floor(this.itemsPerDisplay * this.rangeMultipler);
       this.cacheContainerHeight = this.nodeRange * this.itemHeight;
 
-      this.cacheTriggerHeight = this.cacheContainerHeight *
-                              this.heightFractionTrigger;
+      this.cacheTriggerHeight = this.cacheContainerHeight -
+                                (this.cacheContainerHeight *
+                                 this.heightFractionTrigger);
       this.cacheHalfHeight = this.cacheContainerHeight / 2;
 
       if (index > 0) {
@@ -287,6 +335,15 @@ define(function(require) {
       });
     }
   };
+
+  if (usePerfLog) {
+    Object.keys(VScroll.prototype).forEach(function (prop) {
+      var proto = VScroll.prototype;
+      if (typeof proto[prop] === 'function') {
+        proto[prop] = perfWrap(prop, proto[prop]);
+      }
+    });
+  }
 
   return VScroll;
 });
