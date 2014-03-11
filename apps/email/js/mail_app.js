@@ -4,6 +4,7 @@
  **/
 /*jshint browser: true */
 /*global define, requirejs, confirm, console, TestUrlResolver */
+'use strict';
 
 // Set up loading of scripts, but only if not in tests, which set up
 // their own config.
@@ -153,8 +154,9 @@ var startCardArgs = {
 
 function pushStartCard(id, addedArgs) {
   var args = startCardArgs[id];
-  if (!args)
+  if (!args) {
     throw new Error('Invalid start card: ' + id);
+  }
 
   //Add in cached node to use (could be null)
   args[3].cachedNode = cachedNode;
@@ -263,8 +265,9 @@ document.addEventListener('visibilitychange', function onVisibilityChange() {
 evt.on('accountModified', function(accountId, data) {
   model.latestOnce('acctsSlice', function() {
     var account = model.getAccount(accountId);
-    if (account)
+    if (account) {
       account.modifyAccount(data);
+    }
   });
 });
 
@@ -324,8 +327,9 @@ model.on('acctsSlice', function() {
     resetCards('setup_account_info');
   } else {
     model.latestOnce('foldersSlice', function() {
-      if (waitForAppMessage)
+      if (waitForAppMessage) {
         return;
+      }
 
       // If an activity was waiting for an account, trigger it now.
       if (activityContinued()) {
@@ -347,16 +351,21 @@ appMessages.on('activity', function(type, data, rawActivity) {
           var attachmentBlobs = data.attachmentBlobs;
           /* to/cc/bcc/subject/body all have default values that shouldn't
           be clobbered if they are not specified in the URI*/
-          if (data.to)
+          if (data.to) {
             composer.to = data.to;
-          if (data.subject)
+          }
+          if (data.subject) {
             composer.subject = data.subject;
-          if (data.body)
+          }
+          if (data.body) {
             composer.body = { text: data.body };
-          if (data.cc)
+          }
+          if (data.cc) {
             composer.cc = data.cc;
-          if (data.bcc)
+          }
+          if (data.bcc) {
             composer.bcc = data.bcc;
+          }
           if (attachmentBlobs) {
             for (var iBlob = 0; iBlob < attachmentBlobs.length; iBlob++) {
               composer.addAttachment({
