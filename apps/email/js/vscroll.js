@@ -86,6 +86,8 @@ define(function(require, exports, module) {
     this.template = template;
     this.defaultData = defaultData;
 
+    this.currentIndex = 0;
+
     this._limited = false;
 
     // Stores the list of DOM nodes to reuse.
@@ -164,9 +166,8 @@ define(function(require, exports, module) {
                             scrollTop,
           scrollDown = scrollTop >= this.prevScrollTop;
 
-      // If topDistance is less than half, trigger a "we need more data above"
-      // event. If more than half, a d "we need more data below" event.
-      // TODO
+      // If topDistance is past the triggerHeight, send out an event
+      // about needing more data, in the appropriate direction.
 
       if (scrollDown && (topDistance > 0 &&
           topDistance > this.cacheTriggerHeight)) {
@@ -174,6 +175,14 @@ define(function(require, exports, module) {
 
         // Render next cache segment but only if not already at the end.
         if (startDataIndex < this.list.size()) {
+          // Do not ask for data past the size of the data list.
+          var totalCount = this.list.size();
+          var count = this.nodeRange;
+          if (startDataIndex + count > totalCount) {
+            count = totalCount - startDataIndex;
+          }
+          this.onNeedData(startDataIndex, count);
+
           this._render(startDataIndex);
         }
       } else if (!scrollDown && (bottomDistance > 0 &&
@@ -185,15 +194,30 @@ define(function(require, exports, module) {
 
         // Render next segment but only if not already at the top.
         if (startDataIndex !== 0 || cache.topPx !== 0) {
+          this.onNeedData(startDataIndex, this.nodeRange);
           this._render(startDataIndex);
         }
       }
       this.prevScrollTop = scrollTop;
     },
 
+    onNeedData: function() {},
+
+    // can return null, the index could be more than
+    // what is in that segment
+    getNodeForListIndex: function(index) {
+      var cache = this.currentNodeCache,
+          nodes = cache.nodes;
+      index -= cache.startIndex;
+
+      return nodes[index];
+    },
+
     _render: function(index) {
       var i,
           startIndex = index;
+
+      this.currentIndex = index;
 
       if (!this._inited) {
         this._init(index);
@@ -222,6 +246,7 @@ define(function(require, exports, module) {
 
       cache.dataIndex = index;
       this.currentNodeCache = cache;
+      this.currentNodeCache.startIndex = this.currentIndex;
 
       // Pull the node cache container out of the DOM to
       // allow for the updates to happen quicker without

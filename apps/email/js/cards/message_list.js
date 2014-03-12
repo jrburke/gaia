@@ -7,8 +7,8 @@ define(function(require) {
 var defaultData = {
   'id': 'INVALID',
   'author': {
-    'name': '...',
-    'address': '...',
+    'name': '',
+    'address': '',
     'contactId': null
   },
   'to': [
@@ -20,11 +20,12 @@ var defaultData = {
   ],
   'cc': null,
   'bcc': null,
-  'date': '0',
+  'date': '',
   'hasAttachments': false,
   'snippet': ' ',
-  'isRead': false,
-  'isStarred': false
+  'isRead': true,
+  'isStarred': false,
+  'subject': '...'
 };
 
 var templateNode = require('tmpl!./message_list.html'),
@@ -167,6 +168,25 @@ function MessageListCard(domNode, mode, args) {
     model.element = node;
     this.updateMessageDom(true, model, top);
   }).bind(this);
+
+  this.vScroll.onNeedData = (function(index, amount) {
+    var items = headerCursor.messagesSlice && headerCursor.messagesSlice.items;
+    if (!items || (items[index] && items[index + amount])) {
+      return;
+    }
+
+    // Do not bother asking for more than what is already
+    // fetched
+    while (items[index]) {
+      index += 1;
+      amount -= 1;
+    }
+    console.log('VSCROLL ONNEEDDATA growing: ' + index + ', ' + amount);
+
+    if (amount !== 0) {
+      headerCursor.messagesSlice.requestGrowth(amount, true);
+    }
+  }.bind(this));
 
   this.messageEmptyContainer =
     domNode.getElementsByClassName('msg-list-empty-container')[0];
@@ -587,8 +607,9 @@ MessageListCard.prototype = {
   },
 
   onGetMoreMessages: function() {
-    if (!headerCursor.messagesSlice)
+    if (!headerCursor.messagesSlice) {
       return;
+    }
 
     headerCursor.messagesSlice.requestGrowth(1, true);
     // Provide instant feedback that they pressed the button by hiding the
@@ -993,6 +1014,10 @@ MessageListCard.prototype = {
     //      absolutely necessary.  Touching thins like scrollTop, offsetTop,
     //      getBoundingClientRect(), can trigger sync reflows.
 
+    if (!this.vScroll._inited) {
+      this.vScroll.activate(0);
+    }
+
 /* SCROLL TODO
     var prevHeight;
     // - removed messages
@@ -1044,6 +1069,19 @@ MessageListCard.prototype = {
     else
       prevHeight = null;
 */
+
+    var baseSliceIndex = index - howMany;
+    addedItems.forEach(function(message, i) {
+      var startIndex = baseSliceIndex + i,
+          node = this.vScroll.getNodeForListIndex(startIndex);
+
+      if (node) {
+        this.vScroll._dataBind(message, node,
+                               // TODO: may not need this now
+                               startIndex + this.vScroll.itemIndex);
+      }
+    }.bind(this));
+
     // Remove the no message text while new messages added:
     if (addedItems.length > 0) {
       this.hideEmptyLayout();
@@ -1071,10 +1109,6 @@ MessageListCard.prototype = {
         (this.messagesContainer.clientHeight - prevHeight);
     }
 */
-
-    if (!this.vScroll._inited) {
-      this.vScroll.activate(0);
-    }
 
     // Only cache if it is an add or remove of items
     if (addedItems.length || howMany) {
@@ -1139,8 +1173,11 @@ MessageListCard.prototype = {
       listPerson.onchange = this._updatePeepDom;
       listPerson.onchange(listPerson);
       // date
-      dateNode.dataset.time = message.date.valueOf();
-      dateNode.textContent = prettyDate(message.date);
+      var dateTime = message.date.valueOf();
+      dateNode.dataset.time = dateTime;
+      if (dateTime) {
+        dateNode.textContent = prettyDate(message.date);
+      }
       // subject
       displaySubject(msgNode.getElementsByClassName('msg-header-subject')[0],
                      message);
