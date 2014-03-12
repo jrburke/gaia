@@ -155,7 +155,11 @@ function MessageListCard(domNode, mode, args) {
   }.bind(this));
 
   listFunc.size = function() {
-    return headerCursor.messagesSlice.headerCount;
+    // SCROLL TODO: right now headerCount does not update
+    // on new slice updates, like when fetching more
+    // messages from the server. So this max thing is a hack
+    var slice = headerCursor.messagesSlice;
+    return Math.max(slice.headerCount, slice.items.length);
   };
 
   this.vScroll = new VScroll(this.messagesContainer,
@@ -1070,6 +1074,8 @@ MessageListCard.prototype = {
       prevHeight = null;
 */
 
+    this.vScroll.calculateTotalHeight(true);
+
     var baseSliceIndex = index - howMany;
     addedItems.forEach(function(message, i) {
       var startIndex = baseSliceIndex + i,
@@ -1077,7 +1083,9 @@ MessageListCard.prototype = {
 
       if (node) {
         this.vScroll._dataBind(message, node,
-                               // TODO: may not need this now
+                               // TODO: may not need this now?
+                               // hmm, still do for positioning
+                               // within a cache block. Hrm.
                                startIndex + this.vScroll.itemIndex);
       }
     }.bind(this));

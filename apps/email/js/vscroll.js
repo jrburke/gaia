@@ -10,7 +10,7 @@ define(function(require, exports, module) {
   var slice = Array.prototype.slice,
       nodeCacheIdCounter = 0,
       usePerfLog = module.config().usePerfLog || false,
-      // 16 ms threshold for 60 fps, should be lower though
+      // 16 ms threshold for 60 fps
       perfThreshold = module.config().perfThreshold || 16;
 
   var logQueue = [],
@@ -95,6 +95,8 @@ define(function(require, exports, module) {
     this.nodeCacheId = 0;
 
     this.prevScrollTop = 0;
+
+    this.oldListSize = 0;
 
     // Bind to this to make reuse in functional APIs easier.
     this.onEvent = this.onEvent.bind(this);
@@ -206,14 +208,16 @@ define(function(require, exports, module) {
     // can return null, the index could be more than
     // what is in that segment
     getNodeForListIndex: function(index) {
+console.log('getNodeForListIndex: ' + index);
       var cache = this.currentNodeCache,
           nodes = cache.nodes;
       index -= cache.startIndex;
+console.log('getNodeForListIndex, using: ' + index);
 
       return nodes[index];
     },
 
-    _render: function(index) {
+    _render: function(index, keepCurrentCache) {
       var i,
           startIndex = index;
 
@@ -235,9 +239,11 @@ define(function(require, exports, module) {
         }
 
         // Not the first render, update nodeCache to use.
-        this.nodeCacheId += 1;
-        if (this.nodeCacheId > this.nodeCacheList.length - 1) {
-          this.nodeCacheId = 0;
+        if (!keepCurrentCache) {
+          this.nodeCacheId += 1;
+          if (this.nodeCacheId > this.nodeCacheList.length - 1) {
+            this.nodeCacheId = 0;
+          }
         }
       }
 
@@ -250,7 +256,7 @@ define(function(require, exports, module) {
 
       // Pull the node cache container out of the DOM to
       // allow for the updates to happen quicker without
-      // triggering reflows in the middle.
+      // triggering reflows in the middle? Experimental.
       if (this.detachForUpdates) {
         this.container.removeChild(cache.container);
       }
@@ -291,7 +297,6 @@ define(function(require, exports, module) {
       this.container.appendChild(cache.container);
 
       this.itemHeight = node.clientHeight;
-      this.totalHeight = this.itemHeight * this.list.size();
       // Using window here because asking for this.container.clientHeight
       // will be zero since it has not children that are in the flow.
       // innerHeight is fairly close though as the list content is the
@@ -343,13 +348,25 @@ define(function(require, exports, module) {
         }
       }.bind(this));
 
+      this.calculateTotalHeight();
+      this._inited = true;
+    },
+
+    calculateTotalHeight: function(runRender) {
       // Size the scrollable area to the full height if all items
       // were rendered inside of it, so that there is no weird
       // scroll bar grow/shrink effects and so that inertia
       // scrolling is not artificially truncated.
-      this.container.style.height = this.totalHeight + 'px';
+      var newListSize = this.list.size();
+      if (this.oldListSize !== newListSize) {
+        this.totalHeight = this.itemHeight * this.list.size();
+        this.container.style.height = this.totalHeight + 'px';
+        this.oldListSize = newListSize;
 
-      this._inited = true;
+        if (runRender) {
+          this._render(this.currentIndex, true);
+        }
+      }
     },
 
     _dataBind: function(model, node, top) {
