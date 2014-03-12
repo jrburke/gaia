@@ -5206,8 +5206,8 @@ var SYNC_START_MINIMUM_PROGRESS = 0.02;
  * Headers are removed, added, or modified using the onHeader* methods.
  * The updates are sent to 'SliceBridgeProxy' which batches updates and
  * puts them on the event loop. We batch so that we can minimize the number of
- * reflows and painting on the DOM side. This also enables us to batch data 
- * received in network packets around the smae time without having to handle it in 
+ * reflows and painting on the DOM side. This also enables us to batch data
+ * received in network packets around the smae time without having to handle it in
  * each protocol's logic.
  *
  * Currently, we only batch updates that are done between 'now' and the next time
@@ -5249,6 +5249,8 @@ function MailSlice(bridgeHandle, storage, _parentLog) {
    */
   this.headers = [];
   this.desiredHeaders = $sync.INITIAL_FILL_SIZE;
+
+  this.headerCount = storage.headerCount;
 }
 exports.MailSlice = MailSlice;
 MailSlice.prototype = {
@@ -5270,6 +5272,11 @@ MailSlice.prototype = {
   set userCanGrowDownwards(val) {
     if (this._bridgeHandle)
       this._bridgeHandle.userCanGrowDownwards = val;
+    return val;
+  },
+  set headerCount(val) {
+    if (this._bridgeHandle)
+      this._bridgeHandle.headerCount = val;
     return val;
   },
 
@@ -5932,6 +5939,15 @@ function FolderStorage(account, folderId, persistedFolderInfo, dbConn,
    * }
    */
   this._headerBlockInfos = persistedFolderInfo.headerBlocks;
+
+  // Calculate total number of messages
+  this.headerCount = 0;
+  if (this._headerBlockInfos) {
+    this._headerBlockInfos.forEach(function(headerBlockInfo) {
+      this.headerCount += headerBlockInfo.count;
+    }.bind(this));
+  }
+
   /**
    * @listof[FolderBlockInfo]{
    *   Newest-to-oldest (numerically decreasing time and ID) sorted list of
@@ -8716,8 +8732,12 @@ FolderStorage.prototype = {
     }
     this._LOG.addMessageHeader(header.date, header.id, header.srvid);
 
-    if (this._curSyncSlice && !this._curSyncSlice.ignoreHeaders)
+    this.headerCount += 1;
+
+    if (this._curSyncSlice && !this._curSyncSlice.ignoreHeaders) {
       this._curSyncSlice.onHeaderAdded(header, true, true);
+    }
+
     // - Generate notifications for (other) interested slices
     if (this._slices.length > (this._curSyncSlice ? 1 : 0)) {
       var date = header.date, uid = header.id;
@@ -8760,6 +8780,8 @@ FolderStorage.prototype = {
           // truncating heuristic won't rule the header out.
           slice.desiredHeaders++;
         }
+
+        slice.headerCount = this.headerCount;
 
         if (slice._onAddingHeader)
           slice._onAddingHeader(header);
@@ -8946,11 +8968,19 @@ FolderStorage.prototype = {
       return;
     }
 
+    this.headerCount -= 1;
+
     if (this._curSyncSlice && !this._curSyncSlice.ignoreHeaders)
       this._curSyncSlice.onHeaderRemoved(header);
     if (this._slices.length > (this._curSyncSlice ? 1 : 0)) {
       for (var iSlice = 0; iSlice < this._slices.length; iSlice++) {
         var slice = this._slices[iSlice];
+
+        // TODO: this section continues over some slices that
+        // should at least get a notification of new headerCount
+        // and header positions.
+        slice.headerCount = this.headerCount;
+
         if (slice === this._curSyncSlice)
           continue;
         if (BEFORE(header.date, slice.startTS) ||
@@ -8961,6 +8991,7 @@ FolderStorage.prototype = {
             (header.date === slice.endTS &&
              header.id > slice.endUID))
           continue;
+
         slice.onHeaderRemoved(header);
       }
     }
@@ -13249,6 +13280,8 @@ function SliceBridgeProxy(bridge, ns, handle) {
   this.progress = 0.0;
   this.atTop = false;
   this.atBottom = false;
+  this.headerCount = 0;
+
   /**
    * Can we potentially grow the slice in the negative direction if explicitly
    * desired by the user or UI desires to be up-to-date?  For example,
@@ -13287,7 +13320,7 @@ SliceBridgeProxy.prototype = {
       requested: requested,
       moreExpected: moreExpected,
       newEmailCount: newEmailCount,
-      type: 'slice',
+      type: 'slice'
     };
     this.addUpdate(updateSplice);
   },
@@ -13347,7 +13380,8 @@ SliceBridgeProxy.prototype = {
       atBottom: this.atBottom,
       userCanGrowUpwards: this.userCanGrowUpwards,
       userCanGrowDownwards: this.userCanGrowDownwards,
-      sliceUpdates: this.pendingUpdates
+      sliceUpdates: this.pendingUpdates,
+      headerCount: this.headerCount
     });
 
     this.pendingUpdates = [];

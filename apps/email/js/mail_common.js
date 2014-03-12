@@ -881,8 +881,8 @@ Cards = {
       removeClass(beginNode, 'no-anim');
       removeClass(endNode, 'no-anim');
 
-      if (cardInst && cardInst.onCardVisible)
-        cardInst.onCardVisible();
+      if (cardInst && cardInst.cardImpl.onCardVisible)
+        cardInst.cardImpl.onCardVisible();
     }
 
     // Hide toaster while active card index changed:

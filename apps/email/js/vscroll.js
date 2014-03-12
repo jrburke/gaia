@@ -85,7 +85,6 @@ define(function(require, exports, module) {
     this.list = list;
     this.template = template;
     this.defaultData = defaultData;
-    this.size = this.list.length;
 
     this._limited = false;
 
@@ -174,7 +173,7 @@ define(function(require, exports, module) {
         startDataIndex = cache.dataIndex + this.nodeRange;
 
         // Render next cache segment but only if not already at the end.
-        if (startDataIndex < this.list.length) {
+        if (startDataIndex < this.list.size()) {
           this._render(startDataIndex);
         }
       } else if (!scrollDown && (bottomDistance > 0 &&
@@ -234,8 +233,8 @@ define(function(require, exports, module) {
       var length = index + nodes.length;
       for (i = startIndex; i < length; i++) {
         var node = nodes[i - index];
-        if (i < this.list.length) {
-          var data = this.list[i] || this.defaultData;
+        if (i < this.list.size()) {
+          var data = this.list(i) || this.defaultData;
           this._dataBind(data, node, i * this.itemHeight);
         }
       }
@@ -260,14 +259,14 @@ define(function(require, exports, module) {
 
       cache.nodes.push(node);
 
-      this._dataBind(this.list[index], node, 0);
+      this._dataBind(this.list(index) || this.defaultData, node, 0);
 
       cache.container.appendChild(node);
       cache.setTop(0);
       this.container.appendChild(cache.container);
 
       this.itemHeight = node.clientHeight;
-      this.totalHeight = this.itemHeight * this.size;
+      this.totalHeight = this.itemHeight * this.list.size();
       // Using window here because asking for this.container.clientHeight
       // will be zero since it has not children that are in the flow.
       // innerHeight is fairly close though as the list content is the

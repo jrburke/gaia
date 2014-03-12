@@ -1,6 +1,31 @@
 /*jshint browser: true */
 /*global define, console */
+'use strict';
+
 define(function(require) {
+
+var defaultData = {
+  'id': 'INVALID',
+  'author': {
+    'name': '...',
+    'address': '...',
+    'contactId': null
+  },
+  'to': [
+    {
+      'name': '...',
+      'address': '...',
+      'contactId': null
+    }
+  ],
+  'cc': null,
+  'bcc': null,
+  'date': '0',
+  'hasAttachments': false,
+  'snippet': ' ',
+  'isRead': false,
+  'isStarred': false
+};
 
 var templateNode = require('tmpl!./message_list.html'),
     msgHeaderItemNode = require('tmpl!./msg/header_item.html'),
@@ -12,6 +37,7 @@ var templateNode = require('tmpl!./message_list.html'),
     htmlCache = require('html_cache'),
     MessageListTopbar = require('message_list_topbar'),
     mozL10n = require('l10n!'),
+    VScroll = require('vscroll'),
     Cards = common.Cards,
     Toaster = common.Toaster,
     ConfirmDialog = common.ConfirmDialog,
@@ -114,13 +140,33 @@ function MessageListCard(domNode, mode, args) {
   this.mode = mode;
   this.scrollNode = domNode.getElementsByClassName('msg-list-scrollouter')[0];
 
-  if (mode === 'nonsearch')
+  if (mode === 'nonsearch') {
     batchAddClass(domNode, 'msg-search-only', 'collapsed');
-  else
+  } else {
     batchAddClass(domNode, 'msg-nonsearch-only', 'collapsed');
+  }
 
   this.messagesContainer =
     domNode.getElementsByClassName('msg-messages-container')[0];
+
+  var listFunc = (function(index) {
+     return headerCursor.messagesSlice.items[index];
+  }.bind(this));
+
+  listFunc.size = function() {
+    return headerCursor.messagesSlice.headerCount;
+  };
+
+  this.vScroll = new VScroll(this.messagesContainer,
+                             this.scrollNode,
+                             listFunc,
+                             msgHeaderItemNode,
+                             defaultData);
+
+  this.vScroll._dataBind = (function(model, node, top) {
+    model.element = node;
+    this.updateMessageDom(true, model, top);
+  }).bind(this);
 
   this.messageEmptyContainer =
     domNode.getElementsByClassName('msg-list-empty-container')[0];
@@ -132,11 +178,9 @@ function MessageListCard(domNode, mode, args) {
     // press-and-hold shows the single-message mutation options
     this.onHoldMessage.bind(this));
 
-  // - less-than-infinite scrolling
   this.scrollContainer =
     domNode.getElementsByClassName('msg-list-scrollouter')[0];
-  this.scrollContainer.addEventListener('scroll', this.onScroll.bind(this),
-                                        false);
+
   this.syncingNode =
     domNode.getElementsByClassName('msg-messages-syncing')[0];
   this.syncMoreNode =
@@ -198,9 +242,6 @@ function MessageListCard(domNode, mode, args) {
     this.searchInput.addEventListener(
       'input', this.onSearchTextChange.bind(this), false);
   }
-
-  // convenience wrapper for context.
-  this._onScroll = this._onScroll.bind(this);
 
   this.editMode = false;
   this.selectedMessages = null;
@@ -634,7 +675,7 @@ MessageListCard.prototype = {
     // Consider requesting more data or discarding data based on scrolling that
     // has happened since we issued the request.  (While requests were pending,
     // onScroll ignored scroll events.)
-    this.onScroll(null);
+    //this.onScroll(null);
   },
 
   onNewMail: function(newEmailCount) {
@@ -664,15 +705,6 @@ MessageListCard.prototype = {
     }
   },
 
-  onScroll: function(evt) {
-    if (this._pendingScrollEvent) {
-      return;
-    }
-
-    this._pendingScrollEvent = true;
-    this._scrollTimer = setTimeout(this._onScroll, SCROLL_DELAY, evt);
-  },
-
   /**
    * Handle scrolling by requesting more messages when we have less than the
    * minimum buffer space and trimming messages when we have more than the max.
@@ -682,7 +714,7 @@ MessageListCard.prototype = {
    * to us.  (It does, however, open the door to foolishness where we request
    * data and then immediately discard some of it.)
    */
-  _onScroll: function(event) {
+  onScroll: function(event) {
     if (this._pendingScrollEvent) {
       this._pendingScrollEvent = false;
     }
@@ -867,6 +899,10 @@ MessageListCard.prototype = {
    * Caches the DOM for this card, but trims it down a bit first.
    */
   _cacheDom: function() {
+
+    // TODO: need to change cache logic
+    htmlCache.save('');
+    /*
     this._cacheDomTimeoutId = 0;
     if (!this._isCacheableCardState()) {
       return;
@@ -899,6 +935,7 @@ MessageListCard.prototype = {
       }
     }
     htmlCache.saveFromNode(cacheNode);
+    */
   },
 
   /**
@@ -956,6 +993,7 @@ MessageListCard.prototype = {
     //      absolutely necessary.  Touching thins like scrollTop, offsetTop,
     //      getBoundingClientRect(), can trigger sync reflows.
 
+/* SCROLL TODO
     var prevHeight;
     // - removed messages
     if (howMany) {
@@ -1005,12 +1043,13 @@ MessageListCard.prototype = {
       prevHeight = this.messagesContainer.clientHeight;
     else
       prevHeight = null;
-
+*/
     // Remove the no message text while new messages added:
     if (addedItems.length > 0) {
       this.hideEmptyLayout();
     }
 
+/* SCROLL TODO
     addedItems.forEach(function(message, i) {
       var domMessage;
       domMessage = message.element = msgHeaderItemNode.cloneNode(true);
@@ -1030,6 +1069,11 @@ MessageListCard.prototype = {
     if (prevHeight) {
       this.scrollContainer.scrollTop +=
         (this.messagesContainer.clientHeight - prevHeight);
+    }
+*/
+
+    if (!this.vScroll._inited) {
+      this.vScroll.activate(0);
     }
 
     // Only cache if it is an add or remove of items

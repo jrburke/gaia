@@ -1899,6 +1899,13 @@ Object.defineProperty(AccountsViewSlice.prototype, 'defaultAccount', {
 
 function FoldersViewSlice(api, handle) {
   BridgedViewSlice.call(this, api, 'folders', handle);
+
+  /**
+   * The total count of headers that this slice
+   * could fetch.
+   * @type {Number}
+   */
+  this.headerCount = 0;
 }
 FoldersViewSlice.prototype = Object.create(BridgedViewSlice.prototype);
 
@@ -2593,6 +2600,7 @@ MailAPI.prototype = {
     slice.atBottom = msg.atBottom;
     slice.userCanGrowUpwards = msg.userCanGrowUpwards;
     slice.userCanGrowDownwards = msg.userCanGrowDownwards;
+    slice.headerCount = msg.headerCount;
 
     // Have to update slice status before we actually do the work
     var generatedStatusChange = (msg.status &&
