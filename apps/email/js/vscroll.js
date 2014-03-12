@@ -208,11 +208,9 @@ define(function(require, exports, module) {
     // can return null, the index could be more than
     // what is in that segment
     getNodeForListIndex: function(index) {
-console.log('getNodeForListIndex: ' + index);
       var cache = this.currentNodeCache,
           nodes = cache.nodes;
       index -= cache.startIndex;
-console.log('getNodeForListIndex, using: ' + index);
 
       return nodes[index];
     },
