@@ -225,6 +225,13 @@ define(function(require, exports, module) {
         this._init(index);
         startIndex += 1;
       } else {
+        if (this._cleared) {
+          this.nodeCacheList.forEach(function(cache, cacheIndex) {
+            this.container.appendChild(cache.container);
+          }.bind(this));
+          this._cleared = false;
+        }
+
         // Disregard the render request an existing cache set already has
         // that index generated.
         for (i = 0; i < this.nodeCacheList.length; i++) {
@@ -348,6 +355,19 @@ define(function(require, exports, module) {
 
       this.calculateTotalHeight();
       this._inited = true;
+    },
+
+    clearDisplay: function() {
+      this.container.innerHTML = '';
+      this.container.style.height = '0px';
+      this._cleared = true;
+    },
+
+    setData: function(list) {
+      this.list = list;
+      if (this._inited) {
+        this.calculateTotalHeight(true);
+      }
     },
 
     calculateTotalHeight: function(runRender) {

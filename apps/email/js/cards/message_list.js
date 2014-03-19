@@ -161,6 +161,7 @@ function MessageListCard(domNode, mode, args) {
     var slice = headerCursor.messagesSlice;
     return Math.max(slice.headerCount, slice.items.length);
   };
+  this.listFunc = listFunc;
 
   this.vScroll = new VScroll(this.messagesContainer,
                              this.scrollNode,
@@ -520,10 +521,11 @@ MessageListCard.prototype = {
     // If using a cache, do not clear the HTML as it will
     // be cleared once real data has been fetched.
     if (!this.usingCachedNode) {
-      this.messagesContainer.innerHTML = '';
+      this.vScroll.clearDisplay();
     }
 
     this.curFolder = folder;
+    this.needVScrollData = true;
 
     switch (folder.type) {
       case 'drafts':
@@ -1008,6 +1010,11 @@ MessageListCard.prototype = {
   // messagesSlice events in headerCursor using a naming convention.
   messages_splice: function(index, howMany, addedItems,
                              requested, moreExpected, fake) {
+    if (this.needVScrollData) {
+      this.vScroll.setData(this.listFunc);
+      this.needVScrollData = false;
+    }
+
     // If no work to do, just skip it.
     if (index === 0 && howMany === 0 && !addedItems.length)
       return;
