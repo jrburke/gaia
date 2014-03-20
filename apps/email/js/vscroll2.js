@@ -52,16 +52,6 @@ define(function() {
         return;
       }
 
-      // Expected to be provided by app code:
-      //  * DOM element with id='template' with fixed height
-      //  * numItems variable
-      //  * displayPortMarginMultiplier variable
-      //  * scrolledChild variable
-      //  * scrollEventNode variable
-      //  * prepareItemModel(index, callback) function
-      //  * cancelItem(index) function
-      //  * populateItem(element, model) function
-
       this.itemHeight = this.template.clientHeight;
       // The template should not be rendered, so take it out of the document.
       this.template.parentNode.removeChild(this.template);
@@ -194,6 +184,9 @@ define(function() {
 
 
       var toAppend = [];
+      var prepareStartIndex = -1;
+      //TODO: renable: var prepareCount = 0;
+
       for (i = startIndex; i < endIndex; ++i) {
         if (this._itemsInDOM[i]) {
           continue;
@@ -201,9 +194,18 @@ define(function() {
           continue;
         } else if (!this._itemsAlreadyPrepared[i]) {
           this._itemsBeingPrepared[i] = true;
+          // If already gathering a list to prepare
+          if (prepareStartIndex !== -1) {
+            // If i is not sequential, send off?
+            // Need to build up lists and then send off to prepareItemModels
+            // since slices work in batch sizes...
+            // TODO
+          }
           this.prepareItemModel(i, this._itemPrepared);
           continue;
         }
+
+
 
         delete this._itemsAlreadyPrepared[i];
         var item;
@@ -252,20 +254,8 @@ define(function() {
       this._scheduleGenerateItems();
     },
 
-    // Change this function to control what gets created for each item.
-    // 'element' is a copy of the template element (which may have been
-    // previously used with another index, so make sure you reset any contents
-    // which may have been set by a previous call to populateItem).
-    // You could do almost anything you want here. You could even dynamically
-    // create additional child elements (but don't forget to remove them when
-    // the element is reused for another index). You could make fields editable,
-    // or load images, etc etc etc.
-    // In a more realistic example, this would fetch data from an in-memory
-    // database. Or, you could replace the item fields with placeholders (e.g.
-    // 'loading...'), issue an async database query to get the data, and fill in
-    // the item DOM when the query completes.
-    prepareItemModel: function(index, callback) {
-      setTimeout(callback.bind(null, index, true));
+    prepareItemModels: function(index, count, callback) {
+      setTimeout(callback.bind(null, index, count, true));
     },
 
     populateItem: function(element, model) {
