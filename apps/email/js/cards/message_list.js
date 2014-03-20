@@ -38,7 +38,7 @@ var templateNode = require('tmpl!./message_list.html'),
     htmlCache = require('html_cache'),
     MessageListTopbar = require('message_list_topbar'),
     mozL10n = require('l10n!'),
-    VScroll = require('vscroll'),
+    VScroll = require('vscroll2'),
     Cards = common.Cards,
     Toaster = common.Toaster,
     ConfirmDialog = common.ConfirmDialog,
@@ -163,15 +163,16 @@ function MessageListCard(domNode, mode, args) {
   };
   this.listFunc = listFunc;
 
+  this.messagesContainer.appendChild(msgHeaderItemNode);
   this.vScroll = new VScroll(this.messagesContainer,
                              this.scrollNode,
                              listFunc,
                              msgHeaderItemNode,
                              defaultData);
 
-  this.vScroll._dataBind = (function(model, node, top) {
+  this.vScroll.populateItem = (function(model, node) {
     model.element = node;
-    this.updateMessageDom(true, model, top);
+    this.updateMessageDom(true, model);
   }).bind(this);
 
   this.vScroll.onNeedData = (function(index, amount) {
