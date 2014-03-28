@@ -214,16 +214,13 @@ function MessageListCard(domNode, mode, args) {
   // event listeners.
   this._folderChanged = this._folderChanged.bind(this);
   this.onNewMail = this.onNewMail.bind(this);
-  this.messages_splice = this.messages_splice.bind(this);
-  this.messages_change = this.messages_change.bind(this);
-  this.messages_status = this.messages_status.bind(this);
-  this.messages_complete = this.messages_complete.bind(this);
 
   model.latest('folder', this._folderChanged);
   model.on('newInboxMessages', this.onNewMail);
 
   this.sliceEvents.forEach(function(type) {
     var name = 'messages_' + type;
+    this[name] = this[name].bind(this);
     headerCursor.on(name, this[name]);
   }.bind(this));
 
@@ -559,6 +556,10 @@ MessageListCard.prototype = {
   // The funny name because it is auto-bound as a listener for
   // messagesSlice events in headerCursor using a naming convention.
   messages_status: function(newStatus) {
+    if (headerCursor.searchMode !== this.mode) {
+      return;
+    }
+
     switch (newStatus) {
       case 'synchronizing':
       case 'syncblocked':
@@ -618,6 +619,10 @@ MessageListCard.prototype = {
    * messagesSlice events in headerCursor using a naming convention.
    */
   messages_complete: function(newEmailCount) {
+    if (headerCursor.searchMode !== this.mode) {
+      return;
+    }
+
     if (headerCursor.messagesSlice.userCanGrowDownwards)
       this.syncMoreNode.classList.remove('collapsed');
     else
@@ -946,6 +951,10 @@ MessageListCard.prototype = {
   // messagesSlice events in headerCursor using a naming convention.
   messages_splice: function(index, howMany, addedItems,
                              requested, moreExpected, fake) {
+    if (headerCursor.searchMode !== this.mode) {
+      return;
+    }
+
     // If no work to do, just skip it.
     if (index === 0 && howMany === 0 && !addedItems.length)
       return;
@@ -1041,6 +1050,10 @@ MessageListCard.prototype = {
   // The funny name because it is auto-bound as a listener for
   // messagesSlice events in headerCursor using a naming convention.
   messages_change: function(message, index) {
+    if (headerCursor.searchMode !== this.mode) {
+      return;
+    }
+
     if (this.mode === 'nonsearch') {
       this.onMessagesChange(message, index);
     } else {

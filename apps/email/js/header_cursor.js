@@ -43,6 +43,11 @@ define(function(require) {
 
   HeaderCursor.prototype = evt.mix({
     /**
+     * @type {String}
+     */
+    searchMode: null,
+
+    /**
      * @type {CurrentMessage}
      */
     currentMessage: null,
@@ -189,9 +194,10 @@ define(function(require) {
     },
 
     startSearch: function(phrase, whatToSearch) {
+
       this.bindToSlice(model.api.searchFolderMessages(model.folder,
                                                       phrase,
-                                                      whatToSearch));
+                                                      whatToSearch), 'search');
     },
 
     endSearch: function() {
@@ -200,15 +206,17 @@ define(function(require) {
     },
 
     freshMessagesSlice: function() {
-      this.bindToSlice(model.api.viewFolderMessages(model.folder));
+      this.bindToSlice(model.api.viewFolderMessages(model.folder), 'nonsearch');
     },
 
     /**
      * holds on to messagesSlice and binds some events to it.
      * @param  {Slice} messagesSlice the new messagesSlice.
      */
-    bindToSlice: function(messagesSlice) {
+    bindToSlice: function(messagesSlice, searchMode) {
       this.die();
+
+      this.searchMode = searchMode;
 
       this.messagesSlice = messagesSlice;
       this.sliceEvents.forEach(function(type) {
