@@ -85,6 +85,27 @@ input.msg-search-text-tease {
 .msg-header-item:active {
   background-color: #b1f1ff;
 }
+
+/*
+Default data placeholder items. To limit scrolling
+impact, these styles should not be ones that trigger
+reflows. Foreground/background colors should be safe.
+ */
+.msg-header-item.default-data .msg-header-author {
+  background-color: #808080;
+  color: #808080;
+}
+.msg-header-item.default-data .msg-header-subject {
+  color: white;
+}
+.msg-header-item.default-data .msg-header-snippet {
+  background-color: #e7e7e7;
+  color: #e7e7e7;
+}
+.msg-header-item.default-data .msg-header-date {
+  color: white;
+}
+
 .msg-header-unread-section {
   position: absolute;
   top: 50%;

@@ -32,7 +32,7 @@ var defaultVScrollData = {
   'isPlaceholderData': true,
   'id': 'INVALID',
   'author': {
-    'name': '',
+    'name': '.',
     'address': '',
     'contactId': null
   },
@@ -45,12 +45,12 @@ var defaultVScrollData = {
   ],
   'cc': null,
   'bcc': null,
-  'date': '',
+  'date': '0',
   'hasAttachments': false,
-  'snippet': ' ',
+  'snippet': '.',
   'isRead': true,
   'isStarred': false,
-  'subject': '...'
+  'subject': '.'
 };
 
 /**
