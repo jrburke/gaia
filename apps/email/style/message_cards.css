@@ -92,15 +92,15 @@ impact, these styles should not be ones that trigger
 reflows. Foreground/background colors should be safe.
  */
 .msg-header-item.default-data .msg-header-author {
-  background-color: #808080;
-  color: #808080;
+  background-color: #e7e7e7;
+  color: #e7e7e7;
 }
 .msg-header-item.default-data .msg-header-subject {
   color: white;
 }
 .msg-header-item.default-data .msg-header-snippet {
-  background-color: #e7e7e7;
-  color: #e7e7e7;
+  background-color: #eeeeee;
+  color: #eeeeee;
 }
 .msg-header-item.default-data .msg-header-date {
   color: white;
