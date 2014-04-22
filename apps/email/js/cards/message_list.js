@@ -32,7 +32,7 @@ var defaultVScrollData = {
   'isPlaceholderData': true,
   'id': 'INVALID',
   'author': {
-    'name': '.',
+    'name': '\u2583\u2583\u2583\u2583\u2583\u2583\u2583\u2583',
     'address': '',
     'contactId': null
   },
@@ -47,10 +47,14 @@ var defaultVScrollData = {
   'bcc': null,
   'date': '0',
   'hasAttachments': false,
-  'snippet': '.',
+  'snippet': '\u2583\u2583\u2583\u2583\u2583\u2583\u2583\u2583' +
+             '\u2583\u2583\u2583\u2583\u2583\u2583\u2583\u2583' +
+             '\u2583\u2583\u2583\u2583\u2583\u2583\u2583\u2583',
   'isRead': true,
   'isStarred': false,
-  'subject': '.'
+  'subject': '\u2583\u2583\u2583\u2583\u2583\u2583\u2583\u2583' +
+             '\u2583\u2583\u2583\u2583\u2583\u2583\u2583\u2583' +
+             '\u2583\u2583\u2583\u2583\u2583\u2583\u2583\u2583'
 };
 
 /**
