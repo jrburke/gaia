@@ -236,9 +236,21 @@ Cards = {
   /**
    * Are we eating all click events we see until we transition to the next
    * card (possibly due to a call to pushCard that has not yet occurred?).
-   * Set by calling `eatEventsUntilNextCard`.
+   * Set by calling `eatEventsUntilNextCard`, and set to a time value.
    */
-  _eatingEventsUntilNextCard: false,
+  _eatingEventsUntilNextCard: 0,
+
+  /**
+   * In the case of eating events, if we have been eating them longer than what
+   * should have taken for a transition, then allow a reset of
+   * _eatingEventsUntilNextCard. If the user rapid-clicks a button, for example,
+   * while setting up an account and it transitions back to same setup card
+   * because of an offline state, some transitionend events may not fire. So
+   * there needs to be a way to reset in those cases.
+   *
+   * @type {Number}
+   */
+  _eatingTimeoutMillis: 1000,
 
   /**
    * Initialize and bind ourselves to the DOM which should now be fully loaded.
@@ -271,6 +283,15 @@ Cards = {
   _onMaybeIntercept: function(event) {
     // Contextmenu-derived click suppression wants to gobble an explicitly
     // expected event, and so takes priority over other types of suppression.
+
+    // Allow a reset of the click eating if transitionend events are lost, which
+    // normally reset this state.
+    if (this._eatingEventsUntilNextCard &&
+        this._eatingEventsUntilNextCard +
+        this._eatingTimeoutMillis < Date.now()) {
+      this.stopEatingEvents();
+    }
+
     if (event.type === 'click' && this._suppressClick) {
       this._suppressClick = false;
       event.stopPropagation();
@@ -707,6 +728,8 @@ Cards = {
       }.bind(this));
     }
 
+    this._transitionCount = 0;
+
     var firstIndex, iCard, cardInst;
     if (cardDomNode === undefined) {
       throw new Error('undefined is not a valid card spec!');
@@ -854,14 +877,14 @@ Cards = {
       // make sure the reflow sees the transition is turned off.
       cardsNode.clientWidth;
       // explicitly clear since there will be no animation
-      this._eatingEventsUntilNextCard = false;
+      this._eatingEventsUntilNextCard = 0;
     }
     else if (showMethod === 'none') {
       // do not set _eatingEventsUntilNextCard, but don't clear it either.
     }
     else {
       this._transitionCount = (beginNode && endNode) ? 2 : 1;
-      this._eatingEventsUntilNextCard = true;
+      this._eatingEventsUntilNextCard = Date.now();
     }
 
     if (this.activeCardIndex === cardIndex) {
@@ -919,7 +942,7 @@ Cards = {
 
     if (this._transitionCount === 0) {
       if (this._eatingEventsUntilNextCard) {
-        this._eatingEventsUntilNextCard = false;
+        this._eatingEventsUntilNextCard = 0;
       }
       if (this._animatingDeadDomNodes.length) {
         // Use a setTimeout to give the animation some space to settle.
@@ -987,7 +1010,7 @@ Cards = {
    * the first reader got displayed.
    */
   eatEventsUntilNextCard: function() {
-    this._eatingEventsUntilNextCard = true;
+    this._eatingEventsUntilNextCard = Date.now();
   },
 
   /**
@@ -996,7 +1019,7 @@ Cards = {
    * full well that we weren't going to show a card).
    */
   stopEatingEvents: function() {
-    this._eatingEventsUntilNextCard = false;
+    this._eatingEventsUntilNextCard = 0;
   },
 
   /**
