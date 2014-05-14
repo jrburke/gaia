@@ -63,6 +63,8 @@ define(function(require) {
                                         false);
         notifyMailNode.checked = this.account.notifyOnNew;
       }
+
+      // Need sentAudioEnabled like notifyOnNew
     },
 
     nodeFromClass: function(className) {

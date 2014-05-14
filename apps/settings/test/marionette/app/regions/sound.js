@@ -28,8 +28,6 @@ SoundPanel.Selectors = {
   'videoRecordingCheckbox':
               '#sound input[name="camera.recordingsound.enabled"]',
   'videoRecordingSpan': '#sound span[data-l10n-id="camera-recordingsound"]',
-  'sentMailCheckbox': '#sound input[name="mail.sent-sound.enabled"]',
-  'sentMailSpan': '#sound span[data-l10n-id="sent-mail"]',
   'sentMessageCheckbox':
               '#sound input[name="message.sent-sound.enabled"]',
   'sentMessageSpan': '#sound span[data-l10n-id="sent-message"]',
@@ -106,16 +104,6 @@ SoundPanel.prototype = {
 
   tapOnVideoRecording: function() {
     this.waitForElement('videoRecordingSpan').tap();
-  },
-
-  get isSentMailChecked() {
-    return this.findElement('sentMailCheckbox')
-      .getAttribute('checked') &&
-      this.client.settings.get('mail.sent-sound.enabled');
-  },
-
-  tapOnSentMail: function() {
-    this.waitForElement('sentMailSpan').tap();
   },
 
   get isSentMessageChecked() {
