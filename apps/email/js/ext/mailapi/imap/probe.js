@@ -560,9 +560,16 @@ ImapConnection.prototype.connect = function(loginCb) {
   };
 
   this._state.conn.on('data', function(buffer) {
+console.log('SYNC DEBUG:: RESPONSE: imap this._state.conn.on data step 1');
+
     try {
+console.log('SYNC DEBUG:: RESPONSE: imap this._state.conn.on data step 2');
+
       self._unprocessed.push(buffer);
+
+console.log('SYNC DEBUG:: RESPONSE: imap this._state.conn.on data step 3');
       while (self._unprocessed.length) {
+console.log('SYNC DEBUG:: RESPONSE: imap this._state.conn.on data step 4');
         processData(self._unprocessed.shift());
       }
     }
@@ -1033,57 +1040,71 @@ console.log('SYNC DEBUG:: imap processResponse step 1AU');
    * - If we are not in a literal, we buffer until we have one newline.
    */
   function processData(data) {
+console.log('SYNC DEBUG:: processData start, length: ' + data.length);
     if (data.length === 0) return;
     var idxCRLF = null, literalInfo, curReq;
 
+console.log('SYNC DEBUG:: processData step 1: ' + self._state.curExpected);
     // - Accumulate data until newlines when not in a literal
     if (self._state.curExpected === null) {
+console.log('SYNC DEBUG:: processData step 2');
       var indexFrom = 0;
       // If we have an inline literal requested then integrate it into our
       // buffer, then let the newline logic come into play.
       if (self._state.curDataMinLength) {
+console.log('SYNC DEBUG:: processData step 3');
         // not enough data, buffer and bail
         if (self._state.curData.length + data.length <
               self._state.curDataMinLength) {
           bufferStateData(data);
+console.log('SYNC DEBUG:: processData step 4: return');
           return;
         }
+console.log('SYNC DEBUG:: processData step 5');
         // enough data, do the CRLF check starting after the last byte of our
         // data.
         indexFrom = self._state.curDataMinLength - self._state.curData.length;
         self._state.curDataMinLength = 0;
       }
+console.log('SYNC DEBUG:: processData step 6');
 
       // Just buffer and bail if:
       // * there's no newline (we want a newline)
       // * there is a newline, but we're waiting for some minimal amount of data
       //   and this doesn't put us over that threshold.
       if ((idxCRLF = bufferIndexOfCRLF(data, indexFrom)) === -1) {
+console.log('SYNC DEBUG:: processData step 7: return');
         bufferStateData(data);
         return;
       }
       // Save everything after the newline off for the next call to this.  We
       // used to keep that extra data around, but it creates permutations that
       // require extra unit tests for no good reason.
+console.log('SYNC DEBUG:: processData step 8');
       if (data.length >= idxCRLF + 2) {
         self._unprocessed.unshift(data.slice(idxCRLF + 2));
       }
       data = data.slice(0, idxCRLF);
       // And buffer/unify the buffer
       data = bufferStateData(data);
+console.log('SYNC DEBUG:: processData step 9');
 
       // note: We are leaving all our data in self._state.curData, so consumers
       // of the data need to call resetStateData() if they process the entirety
       // of the line!
     }
+console.log('SYNC DEBUG:: processData step 10');
 
     // -- Literal
     // Don't mess with incoming data if it's part of a literal
     curReq = curReq || self._state.requests[0];
+console.log('SYNC DEBUG:: processData step 11');
     if (curReq && self._state.curExpected !== null) {
+console.log('SYNC DEBUG:: processData step 12');
       var chunk = data;
       self._state.curXferred += data.length;
       if (self._state.curXferred > self._state.curExpected) {
+console.log('SYNC DEBUG:: processData step 13');
         var pos = data.length
               - (self._state.curXferred - self._state.curExpected),
             extra = data.slice(pos);
@@ -1100,44 +1121,59 @@ console.log('SYNC DEBUG:: imap processResponse step 1AU');
         }
         curReq._done = 1;
         self._state.curExpected = null;
+console.log('SYNC DEBUG:: processData step 14');
       }
+console.log('SYNC DEBUG:: processData step 15');
 
       if (chunk && chunk.length) {
+console.log('SYNC DEBUG:: processData step 16');
         if (self._LOG) self._LOG.data(chunk.length, chunk);
         if (curReq._msgtype === 'headers') {
           chunk.copy(self._state.curData, curReq.curPos, 0);
           curReq.curPos += chunk.length;
         }
         else
+console.log('SYNC DEBUG:: processData step 17');
           curReq._msg.emit('data', chunk);
       }
 
+console.log('SYNC DEBUG:: processData step 18');
       if (curReq._done) {
+console.log('SYNC DEBUG:: processData step 19');
         // Save off the headers before we reset the state.
         if (curReq._msgtype === 'headers')
           curReq._headers = self._state.curData.toString('ascii');
+console.log('SYNC DEBUG:: processData step 20');
         resetStateData();
       }
+console.log('SYNC DEBUG:: processData step 21 return');
       return;
     }
+console.log('SYNC DEBUG:: processData step 22');
     // -- Done (post-literal)
     if (curReq && curReq._done === 1) {
-      var restDesc;
+ console.log('SYNC DEBUG:: processData step 23');
+     var restDesc;
 
       if (data[data.length - 1] === CHARCODE_RPAREN) {
+console.log('SYNC DEBUG:: processData step 24');
         // eat up to, but not including, the right paren
         restDesc = data.toString('ascii', 0, data.length - 1).trim();
         if (restDesc.length) {
           curReq._desc += ' ' + restDesc;
         }
+console.log('SYNC DEBUG:: processData step 25');
 
         parseFetch(curReq._desc, curReq._headers, curReq._msg);
         curReq._done = false;
         self._state.curXferred = 0;
         self._state.curExpected = null;
         resetStateData();
+console.log('SYNC DEBUG:: processData step 26');
         curReq._msg.emit('end', curReq._msg);
+console.log('SYNC DEBUG:: processData step 27');
       }
+console.log('SYNC DEBUG:: processData step 28 return');
       return;
     }
 
@@ -1164,12 +1200,14 @@ console.log('SYNC DEBUG:: imap processResponse step 1AU');
              (strdata = data.toString('ascii')) &&
              reFetchStart.test(strdata) &&
              (literalInfo = reEndsWithLiteral.exec(strdata))) {
+console.log('SYNC DEBUG:: processData step 29');
       var strdata; // this gets hoisted so our use above works, but is evil.
       var literalLength = parseInt(literalInfo[1], 10);
 
       var bodyInfo = reBodyFetch.exec(data);
       // - Case #2: inline literal
       if (!bodyInfo) {
+console.log('SYNC DEBUG:: processData step 30');
         // We want to accumulate the literal into our buffer. So:
         // Put a CRLF into our buffer; it has semantic meaning for parseExpr but
         // we stripped it off of data before.  (We could elide it, but then
@@ -1180,10 +1218,12 @@ console.log('SYNC DEBUG:: imap processResponse step 1AU');
         // again until we have received our requested data (and another CRLF
         // pair)
         self._state.curDataMinLength = data.length + literalLength;
+console.log('SYNC DEBUG:: processData step 31 return');
         return;
       }
 
       // - Case #1: body literal.
+console.log('SYNC DEBUG:: processData step 32');
 
       // At this point, the literal points to the FETCH body.
       self._state.curExpected = literalLength;
@@ -1191,11 +1231,13 @@ console.log('SYNC DEBUG:: imap processResponse step 1AU');
       var desc = strdata.substring(strdata.indexOf('(')+1).trim();
       var type = bodyInfo[1];
       var uid = reUid.exec(desc)[1];
+console.log('SYNC DEBUG:: processData step 33');
 
       // figure out which request this belongs to. If its not assigned to a
       // specific uid then send it to the first pending request...
       curReq = self._findFetchRequest(uid, type) || self._state.requests[0];
       var msg = new ImapMessage();
+console.log('SYNC DEBUG:: processData step 34');
 
       // because we push data onto the unprocessed queue for any literals and
       // processData lacks any context, we need to reorder the request to be
@@ -1206,13 +1248,16 @@ console.log('SYNC DEBUG:: imap processResponse step 1AU');
         self._state.requests.splice(self._state.requests.indexOf(curReq), 1);
         self._state.requests.unshift(curReq);
       }
+console.log('SYNC DEBUG:: processData step 35');
 
       msg.seqno = parseInt(literalInfo[1], 10);
       curReq._desc = desc;
       curReq._msg = msg;
       msg.size = self._state.curExpected;
+console.log('SYNC DEBUG:: processData step 361');
 
       curReq._fetcher.emit('message', msg);
+console.log('SYNC DEBUG:: processData step 37');
 
       curReq._msgtype = (type.indexOf('HEADER') === 0 ? 'headers' : 'body');
       // Headers get accumulated into self._state.curData, so we want to
@@ -1224,19 +1269,26 @@ console.log('SYNC DEBUG:: imap processResponse step 1AU');
         curReq.curPos = 0;
       }
       if (self._LOG) self._LOG.data(strdata.length, strdata);
+console.log('SYNC DEBUG:: processData step 38 return');
+
       return;
     }
+console.log('SYNC DEBUG:: processData step 39');
 
     // consume the data
     resetStateData();
+console.log('SYNC DEBUG:: processData step 40');
 
     // no need to process zero-length buffers
-    if (!data.length)
+    if (!data.length) {
+console.log('SYNC DEBUG:: processData step 41 return');
       return;
+    }
 
     var response = data.toString('ascii');
 
     if (self._LOG) self._LOG.data(response.length, response);
+console.log('SYNC DEBUG:: processData step 42, calling processResponse');
     processResponse(stringExplode(response, ' ', 3));
   };
 
