@@ -5316,6 +5316,8 @@ MailSlice.prototype = {
       flagHolder.userCanGrowDownwards = !this._storage.syncedToDawnOfTime();
     else
       flagHolder.userCanGrowDownwards = false;
+
+console.log('SYNC DEBUG:: _updateSliceFlags: ' + [flagHolder.atTop, flagHolder.atBottom, this._storage.syncedToToday(), this._storage.syncedToDawnOfTime()].join(', '));
   },
 
   /**
@@ -7437,6 +7439,7 @@ FolderStorage.prototype = {
   },
   _sliceOpenMostRecent: function fs__sliceOpenMostRecent(slice, forceRefresh,
                                                          releaseMutex) {
+console.log('SYNC DEBUG:: _sliceOpenMostRecent step 1');
     // We only put the slice in the list of slices now that we have the mutex
     // in order to avoid having the slice have data fed into it if there were
     // other synchronizations already in progress.
@@ -7458,6 +7461,7 @@ FolderStorage.prototype = {
 
       releaseMutex();
     }.bind(this);
+console.log('SYNC DEBUG:: _sliceOpenMostRecent step 2');
 
     // -- grab from database if we have ever synchronized this folder
     // OR if it's synthetic
@@ -7490,37 +7494,52 @@ FolderStorage.prototype = {
     }
     // (we have never synchronized this folder)
 
+console.log('SYNC DEBUG:: _sliceOpenMostRecent step 3');
+
     // -- no work to do if we are offline or synthetic folder
     if (!this._account.universe.online || this.folderMeta.type === 'localdrafts') {
+console.log('SYNC DEBUG:: _sliceOpenMostRecent step 3A');
       doneCallback();
       return;
     }
     // If the folder can't be synchronized right now, just report the sync as
     // blocked. We'll update it soon enough.
     if (!this.folderSyncer.syncable) {
+console.log('SYNC DEBUG:: _sliceOpenMostRecent step 3B');
       console.log('Synchronization is currently blocked; waiting...');
       doneCallback(null, 'syncblocked', true);
       return;
     }
 
+console.log('SYNC DEBUG:: _sliceOpenMostRecent step 4');
+
     // -- Bad existing data, issue a sync
     var progressCallback = slice.setSyncProgress.bind(slice);
+
     var syncCallback = function syncCallback(syncMode,
                                              ignoreHeaders) {
+console.log('SYNC DEBUG:: _sliceOpenMostRecent syncCallback step 1');
+
       slice.waitingOnData = syncMode;
       if (ignoreHeaders) {
         slice.ignoreHeaders = true;
       }
       this._curSyncSlice = slice;
+console.log('SYNC DEBUG:: _sliceOpenMostRecent syncCallback step 2, end');
     }.bind(this);
+console.log('SYNC DEBUG:: _sliceOpenMostRecent step 5');
 
     // The slice flags are not yet valid; we are primarily interested in having
     // atTop be true when splice notifications for generated as headers are
     // added.
     slice._updateSliceFlags();
+console.log('SYNC DEBUG:: _sliceOpenMostRecent step 6');
+
     this.folderSyncer.initialSync(
       slice, $sync.INITIAL_SYNC_DAYS,
       syncCallback, doneCallback, progressCallback);
+console.log('SYNC DEBUG:: _sliceOpenMostRecent step 7');
+
   },
 
   /**
@@ -7871,7 +7890,7 @@ FolderStorage.prototype = {
     // If the slice is dead, its startTS and endTS will be set to
     // null, so there is no range available to refresh. (See Bug 941991.)
     if (slice.isDead) {
-      console.log('MailSlice: Attempted to refresh a dead slice.');
+      throw new Error('MailSlice: Attempted to refresh a dead slice.');
       doneCallback('unknown');
       return;
     }
@@ -8212,6 +8231,7 @@ FolderStorage.prototype = {
    */
   getMessagesInImapDateRange: function ifs_getMessagesInDateRange(
       startTS, endTS, minDesired, maxDesired, messageCallback) {
+console.log('SYNC DEBUG:: getMessagesInImapDateRange called');
     var toFill = (minDesired != null) ? minDesired : $sync.TOO_MANY_MESSAGES,
         maxFill = (maxDesired != null) ? maxDesired : $sync.TOO_MANY_MESSAGES,
         self = this,
@@ -8224,6 +8244,8 @@ FolderStorage.prototype = {
     iHeadBlockInfo = headerPair[0];
     headBlockInfo = headerPair[1];
     if (!headBlockInfo) {
+console.log('SYNC DEBUG:: getMessagesInImapDateRange NO headBlockInfo, calling messageCallback');
+
       // no blocks equals no messages.
       messageCallback([], false);
       return;
@@ -8231,8 +8253,11 @@ FolderStorage.prototype = {
 
     function fetchMore() {
       while (true) {
+console.log('SYNC DEBUG:: getMessagesInImapDateRange fetchMore loop');
+
         // - load the header block if required
         if (!self._headerBlocks.hasOwnProperty(headBlockInfo.blockId)) {
+console.log('SYNC DEBUG:: getMessagesInImapDateRange fetchMore self_loadBlock return');
           self._loadBlock('header', headBlockInfo, fetchMore);
           return;
         }
@@ -8245,6 +8270,8 @@ FolderStorage.prototype = {
             iFirstHeader = headerTuple[0], header = headerTuple[1];
         // aw man, no usable messages?!
         if (!header) {
+console.log('SYNC DEBUG:: getMessagesInImapDateRange fetchMore no header, returning');
+
           messageCallback([], false);
           return;
         }
@@ -8279,8 +8306,12 @@ FolderStorage.prototype = {
             toFill = 0;
         }
         // generate the notifications fo what we did create
+console.log('SYNC DEBUG:: getMessagesInImapDateRange fetchMore calling messageCallback with header');
         messageCallback(headerBlock.headers.slice(iFirstHeader, iHeader),
                         Boolean(toFill));
+
+console.log('SYNC DEBUG:: getMessagesInImapDateRange fetchMore loop end, toFill? ' + toFill);
+
         if (!toFill)
           return;
         // (there must be some overlap, keep going)
@@ -8304,12 +8335,16 @@ FolderStorage.prototype = {
    */
   getAllMessagesInImapDateRange: function ifs_getAllMessagesInDateRange(
       startTS, endTS, allCallback) {
+console.log('SYNC DEBUG:: getAllMessagesInImapDateRange called');
     var allHeaders = null;
     function someMessages(headers, moreHeadersExpected) {
       if (allHeaders)
         allHeaders = allHeaders.concat(headers);
       else
         allHeaders = headers;
+
+console.log('SYNC DEBUG:: getAllMessagesInImapDateRange someMessages callback: ' + moreHeadersExpected);
+
       if (!moreHeadersExpected)
         allCallback(allHeaders);
     }
@@ -18302,10 +18337,18 @@ function makeSlice(storage, callback, parentLog) {
 
   proxy.sendStatus = function(status, requested, moreExpected,
                               progress, newEmailCount) {
+console.log('SYNC DEBUG:: makeSlice sendStatus step 1');
+
     oldStatus.apply(this, arguments);
+console.log('SYNC DEBUG:: makeSlice sendStatus step 2: ' + [requested, moreExpected, callback].join(', '));
     if (requested && !moreExpected && callback) {
+console.log('SYNC DEBUG:: makeSlice sendStatus step 3: now calling callback');
+
       callback(newHeaders);
+console.log('SYNC DEBUG:: makeSlice sendStatus step 4: killing slice');
+
       slice.die();
+console.log('SYNC DEBUG:: makeSlice sendStatus step 5: slice dead now, good');
     }
   };
 
@@ -18421,38 +18464,52 @@ CronSync.prototype = {
   syncAccount: function(account, doneCallback) {
     // - Skip syncing if we are offline or the account is disabled
     if (!this._universe.online || !account.enabled) {
-      debug('syncAcount early exit: online: ' +
+      console.log('syncAcount early exit: online: ' +
             this._universe.online + ', enabled: ' + account.enabled);
       doneCallback();
       return;
     }
 
     var done = function(result) {
+console.log('SYNC DEBUG:: syncAccount step 11');
+
       // Wait for any in-process job operations to complete, so
       // that the app is not killed in the middle of a sync.
       this._universe.waitForAccountOps(account, function() {
+console.log('SYNC DEBUG:: syncAccount step 12');
+
         // Also wait for any account save to finish. Most
         // likely failure will be new message headers not
         // getting saved if the callback is not fired
         // until after account saves.
         account.runAfterSaves(function() {
+console.log('SYNC DEBUG:: syncAccount step 13: ' + result);
+
           doneCallback(result);
         });
       });
     }.bind(this);
 
+console.log('SYNC DEBUG:: syncAccount step 1');
+
     var inboxFolder = account.getFirstFolderWithType('inbox');
     var storage = account.getFolderStorageForFolderId(inboxFolder.id);
+console.log('SYNC DEBUG:: syncAccount step 2');
 
     // XXX check when the folder was most recently synchronized and skip this
     // sync if it is sufficiently recent.
 
     // - Initiate a sync of the folder covering the desired time range.
     this._LOG.syncAccount_begin(account.id);
+console.log('SYNC DEBUG:: syncAccount step 3');
 
     var slice = makeSlice(storage, function(newHeaders) {
+
+console.log('SYNC DEBUG:: syncAccount step 7');
+
       this._LOG.syncAccount_end(account.id);
       this._activeSlices.splice(this._activeSlices.indexOf(slice), 1);
+console.log('SYNC DEBUG:: syncAccount step 8');
 
       // Reduce headers to the minimum number and data set needed for
       // notifications.
@@ -18469,30 +18526,46 @@ CronSync.prototype = {
         if (i === MAX_MESSAGES_TO_REPORT_PER_ACCOUNT - 1)
           return true;
       });
+console.log('SYNC DEBUG:: syncAccount step 9');
 
       if (newHeaders.length) {
-        debug('Asking for snippets for ' + notifyHeaders.length + ' headers');
+        console.log('Asking for snippets for ' + notifyHeaders.length + ' headers');
         if (this._universe.online){
+console.log('SYNC DEBUG:: syncAccount step 9A1');
+
           this._universe.downloadBodies(
             newHeaders.slice(0, MAX_MESSAGES_TO_REPORT_PER_ACCOUNT), {
               maximumBytesToFetch: MAX_SNIPPET_BYTES
             }, function() {
-              debug('Notifying for ' + newHeaders.length + ' headers');
+              console.log('Notifying for ' + newHeaders.length + ' headers');
+console.log('SYNC DEBUG:: syncAccount step 9A2');
+
               done([newHeaders.length, notifyHeaders]);
           }.bind(this));
         } else {
-          debug('UNIVERSE OFFLINE. Notifying for ' + newHeaders.length +
+          console.log('UNIVERSE OFFLINE. Notifying for ' + newHeaders.length +
                 ' headers');
+console.log('SYNC DEBUG:: syncAccount step 9B1');
           done([newHeaders.length, notifyHeaders]);
+console.log('SYNC DEBUG:: syncAccount step 9B2');
         }
       } else {
+console.log('SYNC DEBUG:: syncAccount step 9C1');
         done();
+console.log('SYNC DEBUG:: syncAccount step 9C2');
+
       }
+console.log('SYNC DEBUG:: syncAccount step 10');
     }.bind(this), this._LOG);
+console.log('SYNC DEBUG:: syncAccount step 4');
 
     this._activeSlices.push(slice);
     // Pass true to force contacting the server.
+console.log('SYNC DEBUG:: syncAccount step 5');
+
     storage.sliceOpenMostRecent(slice, true);
+console.log('SYNC DEBUG:: syncAccount step 6');
+
   },
 
   onAlarm: function(accountIds) {
@@ -18540,6 +18613,8 @@ CronSync.prototype = {
 
       var done = function() {
         syncCount += 1;
+
+console.log('SYNC DEBUG:: onAlarm done called: syncCount: ' + syncCount + ', syncMax: ' + syncMax);
         if (syncCount < syncMax)
           return;
 
@@ -18548,11 +18623,16 @@ CronSync.prototype = {
 
         // Wrap up the sync
         this._syncAccountsDone = true;
+
+console.log('SYNC DEBUG:: onAlarm _syncAccountsDone now true, attaching _onSyncDone now');
+
         this._onSyncDone = function() {
           if (this._synced.length) {
             accountsResults.updates = this._synced;
             this._synced = [];
           }
+
+console.log('SYNC DEBUG:: onAlarm _onSyncDone called, notifying universe');
 
           this._universe.__notifyStoppedCronSync(accountsResults);
         }.bind(this);
@@ -18563,11 +18643,17 @@ CronSync.prototype = {
       // Nothing new to sync, probably old accounts. Just return and indicate
       // that syncing is done.
       if (!ids.length) {
+console.log('SYNC DEBUG:: onAlarm ids.length is zero, just calling done()');
+
         return done();
       }
 
+console.log('SYNC DEBUG:: onAlarm targetAccounts.length is: ' + targetAccounts.length);
+
       targetAccounts.forEach(function(account) {
         this.syncAccount(account, function (result) {
+console.log('SYNC DEBUG:: onAlarm syncAccount called for account ID: ' + account.id);
+
           if (result) {
             this._synced.push({
               id: account.id,
@@ -18588,6 +18674,10 @@ CronSync.prototype = {
    * those two things are true, then notify the universe that the sync is done.
    */
   _checkSyncDone: function() {
+    console.log('SYNC DEBUG:: _checkSyncDone called: _completedEnsureSync: ' +
+                this._completedEnsureSync +
+                ',  _syncAccountsDone: ' + this._syncAccountsDone);
+
     if (!this._completedEnsureSync || !this._syncAccountsDone)
       return;
 
@@ -20803,12 +20893,25 @@ MailUniverse.prototype = {
   },
 
   waitForAccountOps: function(account, callback) {
+console.log('SYNC DEBUG:: waitForAccountOps');
     var queues = this._opsByAccount[account.id];
     if (queues.local.length === 0 &&
-       (queues.server.length === 0 || !this.online || !account.enabled))
+       (queues.server.length === 0 || !this.online || !account.enabled)) {
+console.log('SYNC DEBUG:: waitForAccountOps all done: ' + [queues.server.length, this.online, account.enabled].join(', '));
       callback();
-    else
+    } else {
+console.log('SYNC DEBUG:: waitForAccountOps: _opCompletionListenersByAccount: ' + queues.local.length + ', ' + queues.server.length);
+
+console.log('LOCAL JOBS');
+queues.local.forEach(function (op) {
+    console.log(JSON.stringify(op, null, '  '));
+});
+console.log('SERVER JOBS');
+queues.server.forEach(function (op) {
+    console.log(JSON.stringify(op, null, '  '));
+});
       this._opCompletionListenersByAccount[account.id] = callback;
+    }
   },
 
   syncFolderList: function(account, callback) {

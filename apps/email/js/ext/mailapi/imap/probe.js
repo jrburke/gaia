@@ -575,49 +575,82 @@ ImapConnection.prototype.connect = function(loginCb) {
   });
 
   function processResponse(data) {
+console.log('SYNC DEBUG:: imap processResponse: ' + data);
     var curReq = null;
     // -- Untagged server responses
     if (data[0] === '*') {
+console.log('SYNC DEBUG:: imap processResponse step 1A');
       // We haven't heard anything from the server yet, this should be the
       // greeting.
       if (self._state.status === STATES.NOGREET) {
+console.log('SYNC DEBUG:: imap processResponse step 1B');
         // The greeting is one of 3 things:
         // - Pre-authentication indication, jump to being authenticated.
         if (data[1] === 'PREAUTH') {
+console.log('SYNC DEBUG:: imap processResponse step 1C');
           self._state.status = STATES.AUTH;
           if (self._state.numCapRecvs === 0) {
             self._state.numCapRecvs = 1;
           }
+console.log('SYNC DEBUG:: imap processResponse step 1D');
+
           return;
         // - The server hates us, hang up.
         } else if (data[1] === 'NO' || data[1] === 'BAD' || data[1] === 'BYE') {
+console.log('SYNC DEBUG:: imap processResponse step 1E');
+
           if (self._LOG && data[1] === 'BAD')
             self._LOG.bad(data[2]);
+console.log('SYNC DEBUG:: imap processResponse step 1F');
+
           self._state.conn.end();
+console.log('SYNC DEBUG:: imap processResponse step 1G');
+
           return;
         }
+console.log('SYNC DEBUG:: imap processResponse step 1H');
+
         // - The server is okay with us
         // Check if we got an inline CAPABILITY like dovecot likes to do.
         if (data[2].startsWith('[CAPABILITY ')) {
+console.log('SYNC DEBUG:: imap processResponse step 1I');
+
           self._state.numCapRecvs = 1;
           self.capabilities = data[2].substring(12, data[2].lastIndexOf(']'))
                                      .split(' ').map(up);
         }
+console.log('SYNC DEBUG:: imap processResponse step 1J');
+
         // Advance to STARTTLS/CAPABILITY request
         self._state.status = STATES.NOAUTH;
+console.log('SYNC DEBUG:: imap processResponse step 1K');
+
         if (self._state.postGreetingCallback) {
+console.log('SYNC DEBUG:: imap processResponse step 1L');
+
           var callback = self._state.postGreetingCallback;
           self._state.postGreetingCallback = null;
+console.log('SYNC DEBUG:: imap processResponse step 1M');
+
           callback();
+console.log('SYNC DEBUG:: imap processResponse step 1N');
+
         }
         return;
       }
+console.log('SYNC DEBUG:: imap processResponse step 1P');
+
       if (self._state.status === STATES.NOAUTH) {
+console.log('SYNC DEBUG:: imap processResponse step 1Q');
         // Since we explicitly break out the pre-greeting state now, this
         // state really just exists to filter out weird unsolicited responses.
-        if (data[1] !== 'CAPABILITY' && data[1] !== 'ALERT')
+        if (data[1] !== 'CAPABILITY' && data[1] !== 'ALERT') {
+console.log('SYNC DEBUG:: imap processResponse step 1R');
           return;
+        }
       }
+console.log('SYNC DEBUG:: imap processResponse step 1T');
+
       switch (data[1]) {
         case 'CAPABILITY':
           if (self._state.numCapRecvs < 2)
@@ -751,10 +784,16 @@ ImapConnection.prototype.connect = function(loginCb) {
           self.emit('vanished', parseUIDListString(data[2]), earlier);
         break;
         default:
+console.log('SYNC DEBUG:: imap processResponse step 1U');
+
           if (/^\d+$/.test(data[1])) {
+console.log('SYNC DEBUG:: imap processResponse step 1V');
+
             var isUnsolicited = (self._state.requests[0] &&
                       self._state.requests[0].command.indexOf('NOOP') > -1) ||
                       (self._state.isIdle && self._state.ext.idle.state === IDLE_READY);
+console.log('SYNC DEBUG:: imap processResponse step 1W: ' + data[2]);
+
             switch (data[2]) {
               case 'EXISTS':
                 // mailbox total message count
@@ -800,14 +839,19 @@ ImapConnection.prototype.connect = function(loginCb) {
       }
     } else if (data[0][0] === 'A' || data[0] === '+') {
       // Tagged server response or continuation response
+console.log('SYNC DEBUG:: imap processResponse step 1X');
 
       if (data[0] === '+' && self._state.ext.idle.state === IDLE_WAIT) {
+console.log('SYNC DEBUG:: imap processResponse step 1Y');
+
         self._state.ext.idle.state = IDLE_READY;
         process.nextTick(function() { self._send(); });
         return;
       }
 
       var sendBox = false;
+
+console.log('SYNC DEBUG:: imap processResponse step 1Z: ' + self._state.status);
 
       if (self._state.status === STATES.BOXSELECTING) {
         if (data[1] === 'OK') {
@@ -819,14 +863,18 @@ ImapConnection.prototype.connect = function(loginCb) {
         }
       }
 
+console.log('SYNC DEBUG:: imap processResponse step 1AA');
+
       // XXX there is an edge case here where we LOGOUT and the server sends
       // "* BYE" "AXX LOGOUT OK" and the close event gets processed (probably
       // because of the BYE and the fact that we don't nextTick a lot for the
       // moz logic) and _reset() nukes the requests before we see the LOGOUT,
       // which we do end up seeing.  So just bail in that case.
       if (self._state.requests.length === 0) {
+console.log('SYNC DEBUG:: imap processResponse step 1AB');
         return;
       }
+console.log('SYNC DEBUG:: imap processResponse step 1AC');
 
       var recentReq = (data[0] !== '+') ?
         self._findAndShiftRequestByPrefix(data[0]) :
@@ -837,9 +885,12 @@ ImapConnection.prototype.connect = function(loginCb) {
         delete self._state.box._newName;
         sendBox = true;
       }
+console.log('SYNC DEBUG:: imap processResponse step 1AD');
 
 
       if (typeof recentReq.callback === 'function') {
+console.log('SYNC DEBUG:: imap processResponse step 1AE');
+
         var err = null;
         var args = recentReq.args,
             cmd = recentReq.command;
@@ -847,18 +898,28 @@ ImapConnection.prototype.connect = function(loginCb) {
           // continuation, put request back-on
           self._state.requests.unshift(recentReq);
           if (cmd.indexOf('APPEND') !== 0) {
+console.log('SYNC DEBUG:: imap processResponse step 1AF');
+
             err = new Error('Unexpected continuation');
             err.type = 'continuation';
             err.serverResponse = '';
             err.request = cmd;
-          } else
+          } else {
+            console.log('SYNC DEBUG:: imap processResponse step 1AG');
+
             return recentReq.callback();
+
+          }
         } else if (data[1] !== 'OK') {
+
+console.log('SYNC DEBUG:: imap processResponse step 1AH');
           err = new Error('Error while executing request: ' + data[2]);
           err.type = data[1];
           err.serverResponse = data[2];
           err.request = cmd;
         } else if (self._state.status === STATES.BOXSELECTED) {
+console.log('SYNC DEBUG:: imap processResponse step 1AI');
+
           if (sendBox) // SELECT, EXAMINE, RENAME
             args.unshift(self._state.box);
           // According to RFC 3501, UID commands do not give errors for
@@ -870,33 +931,56 @@ ImapConnection.prototype.connect = function(loginCb) {
             args.unshift([]);
         }
         args.unshift(err);
+console.log('SYNC DEBUG:: imap processResponse step 1AJ');
+
         recentReq.callback.apply(recentReq, args);
       }
+console.log('SYNC DEBUG:: imap processResponse step 1AK');
 
       if (recentReq) {
-        if (recentReq.active)
+console.log('SYNC DEBUG:: imap processResponse step 1AL');
+
+        if (recentReq.active) {
           self._state.activeRequests--;
+console.log('SYNC DEBUG:: imap processResponse step 1AM');
+
+        }
       }
       else {
+console.log('SYNC DEBUG:: imap processResponse step 1AN');
         // We expect this to happen in the case where our callback above
         // resulted in our connection being killed.  So just bail in that case.
-        if (self._state.status === STATES.NOCONNECT)
+        if (self._state.status === STATES.NOCONNECT) {
+console.log('SYNC DEBUG:: imap processResponse step 1AP');
+
           return;
+        }
+console.log('SYNC DEBUG:: imap processResponse step 1AQ');
+
         // This is unexpected and bad.  Log a poor man's error for now.
         console.error('IMAP: Somehow no recentReq for data:', data);
         return;
       }
+console.log('SYNC DEBUG:: imap processResponse step 1AR');
 
       var recentCmd = recentReq.command;
       if (self._LOG) self._LOG.cmd_end(recentReq.prefix, recentCmd, /^LOGIN$/.test(recentCmd) ? '***BLEEPING OUT LOGON***' : recentReq.cmddata);
       if (self._state.requests.length !== 0 || recentCmd === 'LOGOUT') {
+console.log('SYNC DEBUG:: imap processResponse step 1AS');
+
         process.nextTick(function() { self._send(); });
       }
+console.log('SYNC DEBUG:: imap processResponse step 1AT');
 
       self._state.isIdle = true;
     } else if (data[0] === 'IDLE') {
-      if (self._state.requests.length)
+console.log('SYNC DEBUG:: imap processResponse step 1AU');
+
+      if (self._state.requests.length) {
+        console.log('SYNC DEBUG:: imap processResponse step 1AV');
+
         process.nextTick(function() { self._send(); });
+      }
       self._state.isIdle = false;
       self._state.ext.idle.state = IDLE_NONE;
       self._state.ext.idle.timeWaited = 0;
@@ -1156,7 +1240,11 @@ ImapConnection.prototype.connect = function(loginCb) {
     processResponse(stringExplode(response, ' ', 3));
   };
 
+console.log('SYNC DEBUG:: imap processResponse step 2');
+
   this._state.conn.on('close', function onClose() {
+console.log('SYNC DEBUG:: imap processResponse step 4: noClose');
+
     self._reset();
     if (this._LOG) this._LOG.closed();
     self.emit('close');
@@ -1191,6 +1279,8 @@ ImapConnection.prototype.connect = function(loginCb) {
       throw ex;
     }
   });
+  console.log('SYNC DEBUG:: imap processResponse step 3, end');
+
 };
 
 /**
@@ -1373,12 +1463,21 @@ ImapConnection.prototype.search = function(options, cb) {
   this._search('UID ', options, cb);
 };
 ImapConnection.prototype._search = function(which, options, cb) {
-  if (this._state.status !== STATES.BOXSELECTED)
+console.log('SYNC DEBUG:: imap connection probe _search step 1');
+  if (this._state.status !== STATES.BOXSELECTED) {
+console.log('SYNC DEBUG:: imap connection probe NO MAILBOX: ' + this._state.status + ' !== ' + STATES.BOXSELECTED);
     throw new Error('No mailbox is currently selected');
-  if (!Array.isArray(options))
+  }
+  if (!Array.isArray(options)) {
+console.log('SYNC DEBUG:: imap connection probe options are NOT AN ARRAY');
+
     throw new Error('Expected array for search options');
+
+  }
+console.log('SYNC DEBUG:: imap connection probe _search step 2');
   this._send(which + 'SEARCH',
              buildSearchQuery(options, this.capabilities), cb);
+console.log('SYNC DEBUG:: imap connection probe _search step 3');
 };
 
 ImapConnection.prototype.append = function(data, options, cb) {
@@ -1669,6 +1768,8 @@ ImapConnection.prototype.__defineGetter__('seq', function() {
       return self._fetch('', seqnos, options);
     },
     search: function(options, cb) {
+console.log('SYNC DEBUG:: imap probe.search called: options:');
+console.log(JSON.stringify(options, null, '  '));
       self._search('', options, cb);
     }
   };
@@ -1821,10 +1922,13 @@ ImapConnection.prototype._send = function(
   bypass,
   fetchParams
 ) {
-
+console.log('SYNC DEBUG:: ImapConnection _send ' + Array.prototype.slice.call(arguments).join(', '));
   var request;
 
+console.log('SYNC DEBUG:: ImapConnection _send step 1');
+
   if (cmdstr !== undefined) {
+console.log('SYNC DEBUG:: ImapConnection _send step 2');
     request = {
       prefix: null,
       command: cmdstr,
@@ -1838,44 +1942,64 @@ ImapConnection.prototype._send = function(
 
     // don't queue bypassed requests
     if (!bypass) {
+console.log('SYNC DEBUG:: ImapConnection _send step 3, not a bypass, tracking');
       this._state.requests.push(request);
       this._state.unsentRequests.push(request);
+    } else {
+console.log('SYNC DEBUG:: ImapConnection _send step 3, IS a bypass');
+
     }
   }
+console.log('SYNC DEBUG:: ImapConnection _send step 4');
 
   // If we are currently transitioning to/from idle, then wait around for the
   // server's response before doing anything more.
   if (this._state.ext.idle.state === IDLE_WAIT ||
       this._state.ext.idle.state === DONE_WAIT) {
+console.log('SYNC DEBUG:: ImapConnection _send step 5: state is IDLE_WAIT or DONE_WAIT');
     return request;
   }
+console.log('SYNC DEBUG:: ImapConnection _send step 6');
 
   if (bypass) {
+console.log('SYNC DEBUG:: ImapConnection _send step 7: ' + bypass);
     this._writeRequest(request);
+console.log('SYNC DEBUG:: ImapConnection _send step 8, returning');
     return request;
   }
 
   var unsentRequests = this._state.unsentRequests;
+console.log('SYNC DEBUG:: ImapConnection _send step 9');
 
   // bail if nothing unsent
-  if (unsentRequests.length === 0)
+if (unsentRequests.length === 0) {
+  console.log('SYNC DEBUG:: ImapConnection _send step 10');
+
     return null;
+  }
+
+console.log('SYNC DEBUG:: ImapConnection _send step 11');
 
   // If there are no active requests, dispatch immediately.
   if (this._state.activeRequests === 0) {
+console.log('SYNC DEBUG:: ImapConnection _send step 12');
     this._writeRequest(unsentRequests.shift(), true);
   }
   // We can issue fetches in parallel, so if our last request was a fetch, then
   // try and issue all the fetches we can.
+console.log('SYNC DEBUG:: ImapConnection _send step 13');
   if (
     this._state.lastRequest &&
     this._state.lastRequest.fetchParams
   ) {
     while (unsentRequests.length &&
            unsentRequests[0].fetchParams) {
+console.log('SYNC DEBUG:: ImapConnection _send step 14: ' + unsentRequests[0].fetchParams);
       this._writeRequest(unsentRequests.shift(), true);
     }
   }
+
+console.log('SYNC DEBUG:: ImapConnection _send step 15, end');
 
   return request;
 };
@@ -1886,22 +2010,29 @@ ImapConnection.prototype._writeRequest = function(request, realRequest) {
       data = request.cmddata,
       dispatch = request.dispatch;
 
+console.log('SYNC DEBUG:: ImapConnection _writeRequest step 1');
+
   // If we are currently in IDLE, we need to exit it before we send the
   // actual command.  We mark it as a bypass so it does't mess with the
   // list of requests.
   if (this._state.ext.idle.state === IDLE_READY && cmd !== 'DONE') {
+console.log('SYNC DEBUG:: ImapConnection _writeRequest step 2');
+
     this._send('DONE', null, undefined, undefined, true);
   }
   else if (cmd === 'IDLE') {
+console.log('SYNC DEBUG:: ImapConnection _writeRequest step 3');
      // we use a different prefix to differentiate and disregard the tagged
      // response the server will send us when we issue DONE
     prefix = 'IDLE ';
     this._state.ext.idle.state = IDLE_WAIT;
   }
   else if (cmd === 'DONE') {
+console.log('SYNC DEBUG:: ImapConnection _writeRequest step 4');
     this._state.ext.idle.state = DONE_WAIT;
   }
   if (cmd !== 'IDLE' && cmd !== 'DONE') {
+console.log('SYNC DEBUG:: ImapConnection _writeRequest step 5');
     prefix = 'A' + ++this._state.curId + ' ';
     request.prefix = prefix;
 
@@ -1910,9 +2041,15 @@ ImapConnection.prototype._writeRequest = function(request, realRequest) {
     // should not be sent while other operations are ongoing (for now anyway)
     this._state.lastRequest = request;
   }
+console.log('SYNC DEBUG:: ImapConnection _writeRequest step 6');
 
-  if (dispatch)
+  if (dispatch) {
+console.log('SYNC DEBUG:: ImapConnection _writeRequest step 7, calling dispatch');
     dispatch();
+
+  }
+
+console.log('SYNC DEBUG:: ImapConnection _writeRequest step 8');
 
   // We want our send to happen in a single packet; nagle is disabled by
   // default and at least on desktop-class machines, we are sending out one
@@ -1924,8 +2061,10 @@ ImapConnection.prototype._writeRequest = function(request, realRequest) {
   for (iSrc = 0; iSrc < cmd.length; iSrc++) {
     gSendBuf[iWrite++] = cmd.charCodeAt(iSrc);
   }
+console.log('SYNC DEBUG:: ImapConnection _writeRequest step 9');
 
   if (data) {
+console.log('SYNC DEBUG:: ImapConnection _writeRequest step 10');
     // fits in buffer
     if (data.length < gSendBuf.length - 2) {
       if (typeof(data) === 'string') {
@@ -1940,6 +2079,7 @@ ImapConnection.prototype._writeRequest = function(request, realRequest) {
     }
     // does not fit in buffer, just do separate writes...
     else {
+console.log('SYNC DEBUG:: ImapConnection _writeRequest step 11');
       this._state.conn.write(gSendBuf.subarray(0, iWrite));
       if (typeof(data) === 'string')
         this._state.conn.write(Buffer(data));
@@ -1955,8 +2095,10 @@ ImapConnection.prototype._writeRequest = function(request, realRequest) {
     gSendBuf[iWrite++] = 10;
     this._state.conn.write(gSendBuf.subarray(0, iWrite));
   }
+console.log('SYNC DEBUG:: ImapConnection _writeRequest step 12');
 
   if (realRequest) {
+console.log('SYNC DEBUG:: ImapConnection _writeRequest step 13');
     request.active = true;
     this._state.activeRequests++;
   }
@@ -1964,6 +2106,7 @@ ImapConnection.prototype._writeRequest = function(request, realRequest) {
   if (this._LOG) {
     this._LOG.cmd_begin(prefix, cmd, /^LOGIN$/.test(cmd) ? '***BLEEPING OUT LOGON***' : data);
   }
+console.log('SYNC DEBUG:: ImapConnection _writeRequest step 14');
 };
 
 function ImapMessage() {}

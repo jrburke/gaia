@@ -38,20 +38,20 @@ define(function(require) {
     dataOps = {};
     dataOpsTimeoutId = 0;
 
-    // Only really close if the app is hidden.
-    if (document.hidden) {
-      console.log('email: cronsync wake locks expired, force closing app');
-      window.close();
-    } else {
-      console.log('email: cronsync wake locks expired, but app visible, ' +
-                  'not force closing');
-      // User is using the app. Just clear all locks so we do not burn battery.
-      // This means the app could still be in a bad data sync state, so just
-      // need to rely on the next sync attempt or OOM from other app usage.
-      Object.keys(allLocks).forEach(function(accountKey) {
-        clearLocks(accountKey);
-      });
-    }
+    // // Only really close if the app is hidden.
+    // if (document.hidden) {
+    //   console.log('email: cronsync wake locks expired, force closing app');
+    //   window.close();
+    // } else {
+    //   console.log('email: cronsync wake locks expired, but app visible, ' +
+    //               'not force closing');
+    // }
+    // User is using the app. Just clear all locks so we do not burn battery.
+    // This means the app could still be in a bad data sync state, so just
+    // need to rely on the next sync attempt or OOM from other app usage.
+    Object.keys(allLocks).forEach(function(accountKey) {
+      clearLocks(accountKey);
+    });
   }
 
   function closeIfNoDataOps() {

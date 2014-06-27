@@ -956,9 +956,11 @@ ImapFolderConn.prototype = {
     }
 
     // Having a connection is 10% of the battle
-    if (progressCallback)
+    if (progressCallback) {
+console.log('SYNC DEBUG:: _timelySyncSearch calling progressCallback 0.1');
       progressCallback(0.1);
 
+    }
     // Gmail IMAP servers cache search results until your connection
     // gets notified of new messages via an unsolicited server
     // response. Sending a command like NOOP is required to flush the
@@ -966,10 +968,12 @@ ImapFolderConn.prototype = {
     // been received. Other IMAP servers don't need this as far as we know.
     // See <https://bugzilla.mozilla.org/show_bug.cgi?id=933079>.
     if (this._account.isGmail) {
+console.log('SYNC DEBUG:: _timelySyncSearch this._account.isGmail is true, calling noop');
       this._conn.noop();
     }
 
     this._conn.search(searchOptions, function(err, uids) {
+console.log('SYNC DEBUG:: _timelySyncSearch conn.search cb: ' + err + ', ' + uids);
         if (err) {
           console.error('Search error on', searchOptions, 'err:', err);
           abortedCallback();
@@ -1154,10 +1158,12 @@ console.log('BISECT CASE', serverUIDs.length, 'curDaysDelta', curDaysDelta);
     this._timelySyncSearch(
       searchOptions, callbacks.search,
       function abortedSearch() {
+console.log('SYNC DEBUG:: _lazySyncDateRange abortedSearch: ' + completed);
         if (completed)
           return;
         completed = true;
         this._LOG.syncDateRange_end(0, 0, 0, startTS, endTS, null, null);
+console.log('SYNC DEBUG:: _lazySyncDateRange abortedSearch: calling doneCallback');
         doneCallback('aborted');
       }.bind(this),
       progressCallback);
@@ -1675,7 +1681,9 @@ ImapFolderSyncer.prototype = {
    */
   initialSync: function(slice, initialDays, syncCallback,
                         doneCallback, progressCallback) {
+console.log('SYNC DEBUG:: ImapFolderSyncer.initialSync step 1');
     syncCallback('sync', false /* Ignore Headers */);
+console.log('SYNC DEBUG:: ImapFolderSyncer.initialSync step 2');
     // We want to enter the folder and get the box info so we can know if we
     // should trigger our SYNC_WHOLE_FOLDER_AT_N_MESSAGES logic.
     // _timelySyncSearch is what will get called next either way, and it will
@@ -1683,6 +1691,8 @@ ImapFolderSyncer.prototype = {
     // that our deathback is no longer active.
     this.folderConn.withConnection(
       function(folderConn, storage) {
+console.log('SYNC DEBUG:: ImapFolderSyncer.initialSync with Connection step 1');
+
         // Flag to sync the whole range if we
         var syncWholeTimeRange = false;
         if (folderConn && folderConn.box &&
@@ -1690,6 +1700,7 @@ ImapFolderSyncer.prototype = {
               $sync.SYNC_WHOLE_FOLDER_AT_N_MESSAGES) {
           syncWholeTimeRange = true;
         }
+console.log('SYNC DEBUG:: ImapFolderSyncer.initialSync with Connection step 2: ' [$sync.OLDEST_SYNC_DATE, syncWholeTimeRange, initialDays].join(', '));
 
         this._startSync(
           slice, PASTWARDS, // sync into the past
@@ -1701,9 +1712,12 @@ ImapFolderSyncer.prototype = {
           doneCallback, progressCallback);
       }.bind(this),
       function died() {
+console.log('SYNC DEBUG:: ImapFolderSyncer.initialSync with Connection _startSync DIED');
         doneCallback('aborted');
       },
       'initialSync', true);
+console.log('SYNC DEBUG:: ImapFolderSyncer.initialSync step 3, end');
+
   },
 
   /**
@@ -4498,12 +4512,12 @@ define('pop3/transport',['exports'], function(exports) {
 });
 
 define('mailparser/datetime',['require','exports','module'],function (require, exports, module) {
-/* 
+/*
  * More info at: http://phpjs.org
- * 
+ *
  * This is version: 3.18
  * php.js is copyright 2010 Kevin van Zonneveld.
- * 
+ *
  * Portions copyright Brett Zamir (http://brett-zamir.me), Kevin van Zonneveld
  * (http://kevin.vanzonneveld.net), Onno Marsman, Theriault, Michael White
  * (http://getsprink.com), Waldo Malqui Silva, Paulo Freitas, Jonas Raoni
@@ -4589,10 +4603,10 @@ define('mailparser/datetime',['require','exports','module'],function (require, e
  * (http://http/my.opera.com/fearphage/), Victor, Brant Messenger
  * (http://www.brantmessenger.com/), Matt Bradley, Luis Salazar
  * (http://www.freaky-media.com/), Tim de Koning, taith, Rick Waldron, Mick@el
- * 
+ *
  * Dual licensed under the MIT (MIT-LICENSE.txt)
  * and GPL (GPL-LICENSE.txt) licenses.
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the
  * "Software"), to deal in the Software without restriction, including
@@ -4600,10 +4614,10 @@ define('mailparser/datetime',['require','exports','module'],function (require, e
  * distribute, sublicense, and/or sell copies of the Software, and to
  * permit persons to whom the Software is furnished to do so, subject to
  * the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included
  * in all copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
  * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
@@ -4611,7 +4625,7 @@ define('mailparser/datetime',['require','exports','module'],function (require, e
  * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
- */ 
+ */
 this.strtotime = function(str, now) {
     // http://kevin.vanzonneveld.net
     // +   original by: Caio Ariede (http://caioariede.com)
@@ -4630,7 +4644,7 @@ this.strtotime = function(str, now) {
     // *     returns 3: 1127041200
     // *     example 4: strtotime('2009-05-04 08:30:00');
     // *     returns 4: 1241418600
- 
+
     var i, match, s, strTmp = '', parse = '';
 
     strTmp = str;
@@ -4817,10 +4831,10 @@ module.exports.BinaryStream = BinaryStream;
 function Base64Stream(){
     Stream.call(this);
     this.writable = true;
-    
+
     this.checksum = crypto.createHash("md5");
     this.length = 0;
-    
+
     this.current = "";
 }
 utillib.inherits(Base64Stream, Stream);
@@ -4843,9 +4857,9 @@ Base64Stream.prototype.handleInput = function(data){
     if(!data || !data.length){
         return;
     }
-    
+
     data = (data || "").toString("utf-8");
-    
+
     var remainder = 0;
     this.current += data.replace(/[^\w\+\/=]/g,'');
     var buffer = new Buffer(this.current.substr(0, this.current.length - this.current.length % 4),"base64");
@@ -4860,10 +4874,10 @@ Base64Stream.prototype.handleInput = function(data){
 function QPStream(charset){
     Stream.call(this);
     this.writable = true;
-    
+
     this.checksum = crypto.createHash("md5");
     this.length = 0;
-    
+
     this.charset = charset || "UTF-8";
     this.current = undefined;
 }
@@ -4888,12 +4902,12 @@ QPStream.prototype.handleInput = function(data){
     if(!data || !data.length){
         return;
     }
-    
+
     data = (data || "").toString("utf-8");
     if(data.match(/^\r\n/)){
         data = data.substr(2);
     }
-    
+
     if(typeof this.current !="string"){
         this.current = data;
     }else{
@@ -4914,17 +4928,17 @@ QPStream.prototype.flush = function(){
 
     this.length += buffer.length;
     this.checksum.update(buffer);
-    
+
     this.emit("data", buffer);
 };
 
 function BinaryStream(charset){
     Stream.call(this);
     this.writable = true;
-    
+
     this.checksum = crypto.createHash("md5");
     this.length = 0;
-    
+
     this.charset = charset || "UTF-8";
     this.current = "";
 }
