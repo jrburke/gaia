@@ -1,0 +1,6 @@
+{
+  "name": "meaningless",
+  "dependencies": {
+    "gaia-header": "gaia-components/gaia-header#~0.2.2"
+  }
+}

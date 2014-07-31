@@ -1,0 +1,1 @@
+'use strict'; define(['./gaia-header/script'], function(m) { return m; });
