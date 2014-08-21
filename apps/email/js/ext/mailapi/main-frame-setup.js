@@ -598,6 +598,8 @@ MailFolder.prototype = {
     // Hold on to wireRep for caching
     this._wireRep = wireRep;
 
+    this.unread = wireRep.unreadCount;
+
     this.lastSyncedAt = wireRep.lastSyncedAt ? new Date(wireRep.lastSyncedAt)
                                              : null;
     this.path = wireRep.path;

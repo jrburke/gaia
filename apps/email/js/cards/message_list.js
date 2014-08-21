@@ -145,6 +145,12 @@ function MessageListCard(domNode, mode, args) {
     // the default color.
     this.domNode.dataset.statuscolor = 'background';
   }
+  this.folderName =
+    domNode.getElementsByClassName('msg-list-header-folder-name')[0];
+  this.folderUnread =
+    domNode.getElementsByClassName('msg-list-header-folder-unread')[0];
+  this.folderUnreadFake =
+    domNode.getElementsByClassName('msg-list-header-folder-unread-fake')[0];
 
   this.messagesContainer =
     domNode.getElementsByClassName('msg-messages-container')[0];
@@ -643,12 +649,29 @@ MessageListCard.prototype = {
     this.sizeLastSync();
   },
 
+  updateUnread: function(num) {
+    if (num > 0) {
+      var content = num > 999 ?
+        mozL10n.get('messages-folder-unread-max') : num;
+
+      this.folderUnread.textContent = content;
+      this.folderUnreadFake.textContent = content;
+      this.folderUnread.classList.remove('collapsed');
+      this.folderUnreadFake.classList.remove('collapsed');
+    } else {
+      this.folderUnread.classList.add('collapsed');
+      this.folderUnreadFake.classList.add('collapsed');
+    }
+  },
+
   onFoldersSliceChange: function(folder) {
-    // Just care about updating the last sync time
     if (folder === this.curFolder) {
+      this.updateUnread(folder.unread);
       this.updateLastSynced(folder.lastSyncedAt);
     }
   },
+
+
 
   /**
    * Show a folder, returning true if we actually changed folders or false if
@@ -681,9 +704,8 @@ MessageListCard.prototype = {
         break;
     }
 
-    this.domNode.getElementsByClassName('msg-list-header-folder-label')[0]
-      .textContent = folder.name;
-
+    this.folderName.textContent = folder.name;
+    this.updateUnread(folder.unread);
     this.hideEmptyLayout();
 
 
