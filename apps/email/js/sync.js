@@ -9,7 +9,6 @@ define(function(require) {
       mozL10n = require('l10n!'),
       notificationHelper = require('shared/js/notification_helper'),
       queryString = require('query_string'),
-      Promise = require('prim'),
       newLineRegExp = /\n/g;
 
   // Version marker for the notification data format. It is a string because
