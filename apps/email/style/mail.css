@@ -15,6 +15,9 @@
 @import url('message_cards.css');
 @import url('setup_cards.css');
 
+/* gaia custom element stuff */
+@import url('../shared/elements/gaia-theme/gaia-theme.css');
+@import url('../shared/elements/gaia-theme/style.css');
 
 .peep-bubble {
   overflow: hidden;

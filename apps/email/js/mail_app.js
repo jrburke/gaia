@@ -44,7 +44,19 @@ if (typeof TestUrlResolver === 'undefined') {
         exports: 'AccessibilityHelper'
       }
     },
-    definePrim: 'prim'
+    definePrim: 'prim',
+
+    config: {
+      element: {
+        convertId: function(id) {
+          if (id.indexOf('gaia-') === 0) {
+            return 'shared/elements/' + id + '/' + id + '.js';
+          } else {
+            return id;
+          }
+        }
+      }
+    }
   });
 }
 

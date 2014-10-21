@@ -25,6 +25,7 @@
 }
 
 /* Override some styles set by header.css to allow flexbox content */
+section[role="region"] > gaia-header:first-child h1.msg-list-header-folder-label,
 section[role="region"] > header:first-child h1.msg-list-header-folder-label {
   display: flex;
   align-items: center;

@@ -1086,8 +1086,10 @@ return [
       cacheNode.dataset.cached = 'cached';
 
       // Make sure toolbar is visible, could be hidden by drawer
-      cacheNode.querySelector('menu[type="toolbar"]')
-               .classList.remove('transparent');
+      var tempNode = cacheNode.querySelector('menu[type="toolbar"]');
+      if (tempNode) {
+        tempNode.classList.remove('transparent');
+      }
 
       // Hide search field as it will not operate and gets scrolled out
       // of view after real load.
@@ -1103,7 +1105,7 @@ return [
       }
 
       // Hide the last sync number
-      var tempNode = cacheNode.querySelector('.msg-last-synced-label');
+      tempNode = cacheNode.querySelector('.msg-last-synced-label');
       if (tempNode) {
         tempNode.classList.add('collapsed');
       }

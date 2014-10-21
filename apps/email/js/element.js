@@ -6,12 +6,13 @@
  */
 /*jshint browser: true */
 /*globals define */
-define(function() {
+define(function(require) {
   'use strict';
   var slice = Array.prototype.slice,
       callbackSuffix = 'Callback',
       callbackSuffixLength = callbackSuffix.length,
-      charRegExp = /[^a-z]/g;
+      charRegExp = /[^a-z]/g,
+      moduleConfig = require('module').config();
 
   /**
    * Converts an attribute like a-long-attr to aLongAttr
@@ -120,6 +121,10 @@ define(function() {
      * config.isBuild if in a build scenario.
      */
     load: function(id, req, onload, config) {
+      if (moduleConfig.convertId) {
+        id = moduleConfig.convertId(id);
+      }
+
       // Normal dependency request.
       req([id], function(mod) {
         // For builds do nothing else. Also if no module export or

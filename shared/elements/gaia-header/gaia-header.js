@@ -6,10 +6,10 @@
  */
 
 var fontFit = require('./lib/font-fit');
-var pressed = require('pressed');
+var pressed = require('../pressed/pressed');
 
 // Load 'gaia-icons' font-family
-require('gaia-icons');
+require('../gaia-icons/gaia-icons');
 
 /**
  * Detects presence of shadow-dom
