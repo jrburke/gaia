@@ -19,6 +19,7 @@ return [
   {
     onArgs: function(args) {
       this.args = args;
+      this.callingCard = args.callingCard;
       this.emailAddress = args.emailAddress;
 
       this.emailNode.textContent = this.emailAddress;
@@ -38,6 +39,9 @@ return [
 
     onBack: function(event) {
       cards.removeCardAndSuccessors(this, 'animate', 1);
+      if (this.callingCard && this.callingCard.pushedCardCanceled) {
+        this.callingCard.pushedCardCanceled();
+      }
     },
     onNext: function(event) {
       event.preventDefault(); // Prevent FormNavigation from taking over.

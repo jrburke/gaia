@@ -47,22 +47,11 @@ return [
       // XXX implement cancellation
     },
 
-    onCardVisible: function() {
-      // If this card was made visible because of a cancel of a secondary config
-      // card, just go back one more card. The setTimeout is a hack. Without it,
-      // the final card is not actionable because the onTransitionEnd is not
-      // fired on this second removeCardAndSuccessors call while done as part
-      // of finishing up the previous card's removeCardAndSuccessors. A queue
-      // approach as described in 973038 does not help. It seems like the
-      // _transitionEnd for the second call does not ever fire. Need some async
-      // delay, not sure why yet. Otherwise, _eatingEventsUntilNextCard ends up
-      // as true, since the reset logic for it in _onTransitionEnd does not
-      // fire.
-      if (this.pushedSecondaryCard) {
-        // Doing an immediate setTimeout is not enough, bothersome that it
-        // needs a time threshold
-        setTimeout(this.onBack.bind(this), 100);
-      }
+    pushedCardCanceled: function() {
+console.log('##########pushedCardCanceled******');
+      //setTimeout(function() {
+        this.onBack();
+      //}.bind(this), 300);
     },
 
     onBack: function(e) {
@@ -110,14 +99,12 @@ return [
           }.bind(this), this.onCreationError.bind(this));
         // We can autoconfig but we need the user's password.
         } else if (result === 'need-password') {
-          // Track that a secondary card was added that could lead to a cancel
-          // in that case, need to cancel this card too.
-          this.pushedSecondaryCard = true;
           cards.pushCard(
             'setup_account_password', 'animate',
             {
               displayName: args.displayName,
-              emailAddress: args.emailAddress
+              emailAddress: args.emailAddress,
+              callingCard: this
             },
             'right');
         // No configuration data available, the user's only option is manual
@@ -133,10 +120,10 @@ return [
      * their account.  Sorry, user!
      */
     _divertToManualConfig: function() {
-      this.pushedSecondaryCard = true;
       cards.pushCard('setup_manual_config', 'animate', {
         displayName: this.args.displayName,
-        emailAddress: this.args.emailAddress
+        emailAddress: this.args.emailAddress,
+        callingCard: this
       },
       'right');
     },

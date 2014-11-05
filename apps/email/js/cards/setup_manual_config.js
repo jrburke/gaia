@@ -12,6 +12,7 @@ return [
   require('./setup_account_error_mixin'),
   {
     onArgs: function(args) {
+      this.callingCard = args.callingCard;
       this.formItems = {
         common: {
           displayName: this._fromClass('sup-info-name'),
@@ -96,6 +97,9 @@ return [
     },
     onBack: function(event) {
       cards.removeCardAndSuccessors(this, 'animate', 1);
+      if (this.callingCard && this.callingCard.pushedCardCanceled) {
+        this.callingCard.pushedCardCanceled();
+      }
     },
 
     onNext: function(event) {

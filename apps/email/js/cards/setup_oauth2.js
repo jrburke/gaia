@@ -8,8 +8,8 @@ return [
   require('./base')(require('template!./setup_oauth2.html')),
   {
     onArgs: function(args) {
+      this.callingCard = args.callingCard;
       this.onBrowserComplete = args.onBrowserComplete;
-
 
       var browserFrame = document.createElement('iframe');
       browserFrame.classList.add('sup-oauth2-browser');
@@ -49,6 +49,10 @@ return [
       });
 
       this.close();
+
+      if (this.callingCard && this.callingCard.pushedCardCanceled) {
+        this.callingCard.pushedCardCanceled();
+      }
     },
 
     onLocationChange: function(event) {
