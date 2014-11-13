@@ -1,5 +1,14 @@
 'use strict';
-define(function(require) {
+
+(function (factory) {
+    if (typeof define === 'function' && define.amd) {
+        // AMD. Register as an anonymous module.
+        define(['require'], factory);
+    } else {
+        // Browser globals
+        window.cards = factory();
+    }
+}(function (require) {
 
 function addClass(domNode, name) {
   if (domNode) {
@@ -176,6 +185,17 @@ var cards = {
   },
 
   /**
+   * Allows for dynamic loading of the card constructore. This function MUST
+   * call the cb asynchronously for the other logic in this module to work.
+   * @param  {String} type card type.
+   * @param  {Function} cb callback to call once the constructor is available.
+   * The constructor is passed to the callback as the first arg.
+   */
+  _getCardConstructor: function(type, cb) {
+    require([this._typeToModuleId(type)], cb);
+  },
+
+  /**
    * Push a card onto the card-stack.
    */
   /* @args[
@@ -222,7 +242,7 @@ var cards = {
         this.eatEventsUntilNextCard();
       }
 
-      require([this._typeToModuleId(type)], function(Ctor) {
+      this._getCardConstructor(type, function(Ctor) {
         this._cardDefs[type] = Ctor;
         this.pushCard.apply(this, cbArgs);
       }.bind(this));
@@ -838,5 +858,5 @@ var cards = {
 
 return cards;
 
-});
+}));
 
