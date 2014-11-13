@@ -1,11 +1,5 @@
 'use strict';
-/*global startupCacheEventsSent */
 define(function(require) {
-
-var mozL10n = require('l10n!'),
-    evt = require('evt'),
-    toaster = require('toaster'),
-    hookupInputAreaResetButtons = require('input_areas');
 
 function addClass(domNode, name) {
   if (domNode) {
@@ -17,14 +11,6 @@ function removeClass(domNode, name) {
   if (domNode) {
     domNode.classList.remove(name);
   }
-}
-
-// XXX when a bigger rename can happen, remove the need
-// to translate between custom element names and moz-style
-// underbar naming, and consider the card- as part of the
-// input names.
-function translateCustomElementName(customElementName) {
-  return customElementName.replace(/^cards-/, '').replace(/-/g, '_');
 }
 
 /**
@@ -120,8 +106,6 @@ var cards = {
 
     this._statusColorMeta = document.querySelector('meta[name="theme-color"]');
 
-    toaster.init(this._containerNode);
-
     this._containerNode.addEventListener('click',
                                          this._onMaybeIntercept.bind(this),
                                          true);
@@ -167,6 +151,28 @@ var cards = {
         break;
       }
     }
+  },
+
+  /**
+   * Converts a custom element name to the "type" usually passed in to the
+   * pushCard API.
+   * This default one converts names like 'cards-message-list' to
+   * 'message_list'.
+   * @param  {String} customElementName
+   * @return {String} type
+   */
+  _customElementNameToType: function(customElementName) {
+    return customElementName.replace(/^cards-/, '').replace(/-/g, '_');
+  },
+
+  /**
+   * Converts the shorthand card type passed to pushCard to a module ID suitable
+   * for dynamic loading. So
+   * @param  {String} type
+   * @return {String} module ID
+   */
+  _typeToModuleId: function(type) {
+    return 'element!cards/' + type;
   },
 
   /**
@@ -216,7 +222,7 @@ var cards = {
         this.eatEventsUntilNextCard();
       }
 
-      require(['element!cards/' + type], function(Ctor) {
+      require([this._typeToModuleId(type)], function(Ctor) {
         this._cardDefs[type] = Ctor;
         this.pushCard.apply(this, cbArgs);
       }.bind(this));
@@ -263,11 +269,6 @@ var cards = {
     if (!args.cachedNode) {
       this._cardsNode.insertBefore(domNode, insertBuddy);
     }
-
-    // If the card has any <button type="reset"> buttons,
-    // make them clear the field they're next to and not the entire form.
-    // See input_areas.js and shared/style/input_areas.css.
-    hookupInputAreaResetButtons(domNode);
 
     // Only do auto font size watching for cards that do not have more
     // complicated needs, like message_list, which modifies children contents
@@ -384,7 +385,7 @@ var cards = {
   _findCardUsingType: function(type) {
     for (var i = 0; i < this._cardStack.length; i++) {
       var domNode = this._cardStack[i];
-      if (translateCustomElementName(this.cardName(domNode)) === type) {
+      if (this._customElementNameToType(this.cardName(domNode)) === type) {
         return i;
       }
     }
@@ -443,42 +444,9 @@ var cards = {
     if (this._pendingPush) {
       result = this._pendingPush;
     } else if (card) {
-      result = translateCustomElementName(this.cardName(card));
+      result = this._customElementNameToType(this.cardName(card));
     }
     return result;
-  },
-
-  // Filter is an optional paramater. It is a function that returns
-  // true if the folder passed to it should be included in the selector
-  folderSelector: function(callback, filter) {
-    var self = this;
-
-    require(['model', 'value_selector'], function(model, ValueSelector) {
-      // XXX: Unified folders will require us to make sure we get the folder
-      //      list for the account the message originates from.
-      if (!self.folderPrompt) {
-        var selectorTitle = mozL10n.get('messages-folder-select');
-        self.folderPrompt = new ValueSelector(selectorTitle);
-      }
-
-      model.latestOnce('foldersSlice', function(foldersSlice) {
-        var folders = foldersSlice.items;
-        folders.forEach(function(folder) {
-          var isMatch = !filter || filter(folder);
-          if (folder.neededForHierarchy || isMatch) {
-            self.folderPrompt.addToList(folder.name, folder.depth,
-              isMatch,
-              function(folder) {
-                return function() {
-                  self.folderPrompt.hide();
-                  callback(folder);
-                };
-              }(folder));
-          }
-        });
-        self.folderPrompt.show();
-      });
-    });
   },
 
   moveToCard: function(query, showMethod) {
@@ -757,9 +725,6 @@ var cards = {
       this._onCardVisible(domNode);
     }
 
-    // Hide toaster while active card index changed:
-    toaster.hide();
-
     this.activeCardIndex = cardIndex;
   },
 
@@ -818,19 +783,6 @@ var cards = {
       }
 
       this._onCardVisible(activeCard);
-
-      // If the card has next cards that can be preloaded, load them now.
-      // Use of nextCards should be balanced with startup performance.
-      // nextCards can result in smoother transitions to new cards on first
-      // navigation to that new card type, but loading the extra module may
-      // also compete with current card and data model performance.
-      var nextCards = activeCard.nextCards;
-      if (nextCards) {
-        console.log('Preloading cards: ' + nextCards);
-        require(nextCards.map(function(id) {
-          return 'cards/' + id;
-        }));
-      }
     }
   },
 
@@ -841,34 +793,6 @@ var cards = {
   _onCardVisible: function(domNode) {
     if (domNode.onCardVisible) {
       domNode.onCardVisible();
-    }
-    this._emitStartupEvents(domNode.skipEmitContentEvents);
-  },
-
-  /**
-   * Handles emitting startup events used for performance tracking.
-   * @param  {Boolean} skipEmitContentEvents if content events should be skipped
-   * because the card itself handles it.
-   */
-  _emitStartupEvents: function(skipEmitContentEvents) {
-    if (!this._startupEventsEmitted) {
-      if (startupCacheEventsSent) {
-        // Cache already loaded, so at this point the content shown is wired
-        // to event handlers.
-        window.dispatchEvent(new CustomEvent('moz-content-interactive'));
-      } else {
-        // Cache was not used, so only now is the chrome dom loaded.
-        window.dispatchEvent(new CustomEvent('moz-chrome-dom-loaded'));
-      }
-      window.dispatchEvent(new CustomEvent('moz-chrome-interactive'));
-
-      // If a card that has a simple static content DOM, content is complete.
-      // Otherwise, like message_list, need backend data to call complete.
-      if (!skipEmitContentEvents) {
-        evt.emit('metrics:contentDone');
-      }
-
-      this._startupEventsEmitted = true;
     }
   },
 
