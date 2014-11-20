@@ -840,9 +840,7 @@ return [
       var domNode = this,
           rootBodyNode = this.rootBodyNode,
           reps = body.bodyReps,
-          hasExternalImages = false,
-          showEmbeddedImages = body.embeddedImageCount &&
-                               body.embeddedImagesDownloaded;
+          hasExternalImages = false;
 
 
       // The first time we build the body DOM, do one-time bootstrapping:
@@ -898,18 +896,19 @@ return [
           var iframeShim = iframeShims.createAndInsertIframeForContent(
             rep.content, this.scrollContainer, repNode, null,
             'interactive', this.onHyperlinkClick.bind(this));
-          var iframe = iframeShim.iframe;
-          var bodyNode = iframe.contentDocument.body;
-          this.iframeResizeHandler = iframeShim.resizeHandler;
-          model.api.utils.linkifyHTML(iframe.contentDocument);
-          this.htmlBodyNodes.push(bodyNode);
+          console.log(iframeShim);
+//          var iframe = iframeShim.iframe;
+//          var bodyNode = iframe.contentDocument.body;
+//          this.iframeResizeHandler = iframeShim.resizeHandler;
+//          model.api.utils.linkifyHTML(iframe.contentDocument);
+//          this.htmlBodyNodes.push(bodyNode);
 
-          if (body.checkForExternalImages(bodyNode)) {
-            hasExternalImages = true;
-          }
-          if (showEmbeddedImages) {
-            body.showEmbeddedImages(bodyNode, this.iframeResizeHandler);
-          }
+//          if (body.checkForExternalImages(bodyNode)) {
+          //   hasExternalImages = true;
+          // }
+          // if (showEmbeddedImages) {
+          //   body.showEmbeddedImages(bodyNode, this.iframeResizeHandler);
+          // }
         }
       }
 
