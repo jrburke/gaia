@@ -439,7 +439,21 @@ define(function(require, exports, module) {
       if (top < 0) {
         top = 0;
       }
-      return this.itemHeight ? Math.floor(top / this.itemHeight) : 0;
+
+      if (this.itemHeight === 0) {
+        return 0;
+      }
+
+      var length = this.list.size();
+      var totalTop = 0;
+      for (var i = 0; i < length; i++) {
+        totalTop += this.getHeightForData(this.list(i)) || this.itemHeight;
+        if (top <= totalTop) {
+          return i;
+        }
+      }
+
+      return length - 1;
     },
 
     /**
@@ -468,8 +482,9 @@ define(function(require, exports, module) {
      * @param  {Number} index the list item index.
      */
     jumpToIndex: function(index) {
-      this._setContainerScrollTop((index * this.itemHeight) +
-                                          this.visibleOffset);
+      var top = this._calcHeightToIndex(index);
+
+      this._setContainerScrollTop(top + this.visibleOffset);
     },
 
     /**
@@ -776,10 +791,22 @@ console.warn('_render starting with totalTop: ' + totalTop);
       }
       this.waitingForRecalculate = false;
 
-      this._setContainerScrollTop((this.itemHeight * index) + remainder);
+      this._setContainerScrollTop(this._heightAtIndex(index) + remainder);
       this.renderCurrentPosition();
 
       this.emit('recalculated', index === 0);
+    },
+
+    _heightAtIndex: function(index) {
+      return this._calcHeightToIndex(index + 1);
+    },
+
+    _calcHeightToIndex: function(endIndex) {
+      var totalTop = 0;
+      for (var i = 0; i < endIndex; i++) {
+        totalTop += this.getHeightForData(this.list(i)) || this.itemHeight;
+      }
+      return totalTop;
     },
 
     /**
@@ -791,15 +818,9 @@ console.warn('_render starting with totalTop: ' + totalTop);
       // scroll bar grow/shrink effects and so that inertia
       // scrolling is not artificially truncated.
       var newListSize = this.list.size();
-
-      // Do not bother if same size, or if the container was set to 0 height,
-      // most likely by a clearDisplay.
-      if (this.oldListSize !== newListSize ||
-        parseInt(this.container.style.height, 10) === 0) {
-        this.totalHeight = this.itemHeight * newListSize;
-        this.container.style.height = this.totalHeight + 'px';
-        this.oldListSize = newListSize;
-      }
+      this.totalHeight = this._calcHeightToIndex(newListSize + 1);
+      this.container.style.height = this.totalHeight + 'px';
+      this.oldListSize = newListSize;
     },
 
     /**

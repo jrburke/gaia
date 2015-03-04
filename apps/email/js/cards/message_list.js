@@ -248,7 +248,7 @@ return [
           return 0;
         }
         var extraContent = this.extraContent[model.id];
-        return extraContent && extraContent.height;
+        return extraContent && extraContent.open && extraContent.height;
       }).bind(this);
 
       // Called by VScroll when it detects it will need more data in the near
@@ -1609,7 +1609,7 @@ return [
       var extraContent = this.extraContent[message.id];
       var extraContentNode = msgNode.querySelector('.msg-header-extra-content');
       var height = 0;
-      if (extraContent) {
+      if (extraContent && extraContent.open) {
         extraContentNode.appendChild(extraContent.node);
         if (extraContent.height) {
           height = extraContent.height;
@@ -1646,29 +1646,32 @@ return [
       // function needs to be revisited.
       var extraContentNode = messageNode
                              .querySelector('.msg-header-extra-content');
+      var extraContent = this.extraContent[header.id];
 
-      if (extraContentNode.children.length) {
+      if (extraContent && extraContent.open) {
         extraContentNode.removeChild(extraContentNode.firstElementChild);
+        extraContent.open = false;
         this.setMessageHeight(messageNode);
       } else {
-        if (!this.extraContent[header.id]) {
-          var contentEntry = {
+        if (!extraContent) {
+          extraContent = {
             node: new MessageBody()
           };
 
-          contentEntry.node.onArgs({
+          extraContent.node.onArgs({
             header: header,
             scrollContainer: this.scrollContainer,
             onHeightChange: function(height) {
 console.log('onHeightChange called: ' + height);
-              contentEntry.height = this.vScroll.itemHeight + height;
-              this.setMessageHeight(messageNode, contentEntry.height);
+              extraContent.height = this.vScroll.itemHeight + height;
+              this.setMessageHeight(messageNode, extraContent.height);
               this.vScroll.renderCurrentPosition();
             }.bind(this)
           });
-          this.extraContent[header.id] = contentEntry;
+          this.extraContent[header.id] = extraContent;
         }
 
+        extraContent.open = true;
         this.setExtraContent(messageNode, header);
         this.vScroll.renderCurrentPosition();
       }
