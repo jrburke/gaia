@@ -302,12 +302,13 @@ function createAndInsertIframeForContent(htmlStr, scrollContainer,
   var scrollPad = 0;
 
   var viewportWidth = parentNode.offsetWidth - scrollPad;
+console.warn('VIEWPORT WIDTH: ' + viewportWidth);
   var viewport = document.createElement('div');
   viewport.setAttribute(
     'style',
     'padding: 0; border-width: 0; margin: 0; ' +
     //'position: relative; ' +
-    'overflow: hidden;');
+    'overflow-y: hidden; overflow-x: auto');
   viewport.style.width = viewportWidth + 'px';
   // leave height unsized for now.
 
@@ -373,6 +374,7 @@ function createAndInsertIframeForContent(htmlStr, scrollContainer,
       scaleMode = 0;
 
   viewport.style.width = Math.ceil(scrollWidth * scale) + 'px';
+
   var newHeight = Math.ceil(scrollHeight * scale);
   viewport.style.height = newHeight + 'px';
   if (onHeightChange) {
@@ -403,8 +405,9 @@ function createAndInsertIframeForContent(htmlStr, scrollContainer,
     iframe.style.transform = 'scale(' + scale + ')';
     iframe.style.height =
       ((scrollHeight * Math.max(1, scale)) + scrollPad) + 'px';
-    viewport.style.width = Math.ceil(scrollWidth * scale) + 'px';
-    var newHeight = (Math.ceil(scrollHeight * scale) + scrollPad);
+    viewport.style.width = '100%';
+
+    var newHeight = (Math.ceil(scrollHeight * Math.max(1, scale)) + scrollPad);
     viewport.style.height = newHeight +
                               'px';
     if (onHeightChange) {
