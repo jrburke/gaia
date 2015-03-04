@@ -39,18 +39,20 @@ exports.cloneAsInertNodeAvoidingCustomElementHorrors = function(node) {
  * /htmlc(\d+)/
  */
 exports.save = function htmlCacheSave(moduleId, html) {
+  // XXX DISABLED CACHING UNTIL REALLY FIGURED OUT THE CONVO STORY
+
   // Only save the last part of the module ID as the cache key. This is specific
   // to how email lays out all card modules in a 'cards/' module ID prefix, and
   // with all / and underscores turned to dashes for component names.
-  var id = exports.moduleIdToKey(moduleId);
+  // var id = exports.moduleIdToKey(moduleId);
 
-  var langDir = document.querySelector('html').getAttribute('dir');
-  html = window.HTML_CACHE_VERSION + (langDir ? ',' + langDir : '') +
-         ':' + html;
-  localStorage.setItem('html_cache_' + id, html);
+  // var langDir = document.querySelector('html').getAttribute('dir');
+  // html = window.HTML_CACHE_VERSION + (langDir ? ',' + langDir : '') +
+  //        ':' + html;
+  // localStorage.setItem('html_cache_' + id, html);
 
-  console.log('htmlCache.save ' + id + ': ' +
-              html.length + ', lang dir: ' + langDir);
+  // console.log('htmlCache.save ' + id + ': ' +
+  //             html.length + ', lang dir: ' + langDir);
 };
 
 /**

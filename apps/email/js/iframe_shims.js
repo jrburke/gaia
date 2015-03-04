@@ -293,7 +293,8 @@ var iframeShimsOpts = {
 function createAndInsertIframeForContent(htmlStr, scrollContainer,
                                          parentNode, beforeNode,
                                          interactiveMode,
-                                         clickHandler) {
+                                         clickHandler,
+                                         onHeightChange) {
   // We used to care about running in Firefox nightly.  This was a fudge-factor
   // to account for its stupid scroll-bars that could not be escaped.  If you
   // are using nightly, maybe it makes sense to turn this back up.  Or maybe we
@@ -372,7 +373,11 @@ function createAndInsertIframeForContent(htmlStr, scrollContainer,
       scaleMode = 0;
 
   viewport.style.width = Math.ceil(scrollWidth * scale) + 'px';
-  viewport.style.height = Math.ceil(scrollHeight * scale) + 'px';
+  var newHeight = Math.ceil(scrollHeight * scale);
+  viewport.style.height = newHeight + 'px';
+  if (onHeightChange) {
+    onHeightChange(newHeight);
+  }
 
   // setting iframe.style.height is not sticky, so be heavy-handed.
   // Also, do not set overflow: hidden since we are already clipped by our
@@ -399,8 +404,12 @@ function createAndInsertIframeForContent(htmlStr, scrollContainer,
     iframe.style.height =
       ((scrollHeight * Math.max(1, scale)) + scrollPad) + 'px';
     viewport.style.width = Math.ceil(scrollWidth * scale) + 'px';
-    viewport.style.height = (Math.ceil(scrollHeight * scale) + scrollPad) +
+    var newHeight = (Math.ceil(scrollHeight * scale) + scrollPad);
+    viewport.style.height = newHeight +
                               'px';
+    if (onHeightChange) {
+      onHeightChange(newHeight);
+    }
   };
   resizeFrame('initial');
 
@@ -543,7 +552,8 @@ function createAndInsertIframeForContent(htmlStr, scrollContainer,
 
   var title = document.getElementsByClassName('msg-reader-header')[0];
   var header = document.getElementsByClassName('msg-envelope-bar')[0];
-  var extraHeight = title.clientHeight + header.clientHeight;
+  var extraHeight = title && header ? title.clientHeight + header.clientHeight :
+                    0;
 
   // -- Double-tap zoom idiom
   detectorTarget.addEventListener('dbltap', function(e) {
@@ -665,8 +675,8 @@ function bindSanitizedClickHandler(target, clickHandler, topNode, iframe) {
     inputStyle = window.getComputedStyle(msgBodyContainer);
     msgBodyMarginTop = parseInt(inputStyle.marginTop);
     msgBodyMarginLeft = parseInt(inputStyle.marginLeft);
-    titleHeight = title.clientHeight;
-    headerHeight = header.clientHeight;
+    titleHeight = title ? title.clientHeight : 0;
+    headerHeight = header ? header.clientHeight : 0;
     eventType = 'tap';
     iframeDoc = iframe.contentDocument;
   } else {

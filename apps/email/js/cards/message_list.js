@@ -17,6 +17,7 @@ var msgHeaderItemNode = require('tmpl!./msg/header_item.html'),
     htmlCache = require('html_cache'),
     mozL10n = require('l10n!'),
     VScroll = require('vscroll'),
+    MessageBody = require('element!./message_body'),
     MessageListTopBar = require('message_list_topbar'),
     accessibilityHelper = require('shared/js/accessibility_helper'),
     messageDisplay = require('message_display');
@@ -195,6 +196,8 @@ return [
 
       this.usingCachedNode = this.dataset.cached === 'cached';
 
+      this.extraContent = {};
+
       // Set up the list data source for VScroll
       var listFunc = (function(index) {
          return headerCursor.messagesSlice.items[index];
@@ -239,6 +242,14 @@ return [
           this.updateMatchedMessageDom(true, model);
         }).bind(this);
       }
+
+      this.vScroll.getHeightForData = (function(model) {
+        if (!model) {
+          return 0;
+        }
+        var extraContent = this.extraContent[model.id];
+        return extraContent && extraContent.height;
+      }).bind(this);
 
       // Called by VScroll when it detects it will need more data in the near
       // future. VScroll does not know if it already asked for this information,
@@ -625,6 +636,8 @@ return [
       if (folder === this.curFolder && !forceNewSlice) {
         return false;
       }
+
+      this.extraContent = {};
 
       // If using a cache, do not clear the HTML as it will
       // be cleared once real data has been fetched.
@@ -1408,6 +1421,8 @@ return [
         syncNode.removeAttribute('data-l10n-id');
       }
 
+      this.setExtraContent(msgNode, message);
+
       // edit mode select state
       this.setSelectState(msgNode, message);
     },
@@ -1590,6 +1605,29 @@ return [
       this.sizeLastSync();
     },
 
+    setExtraContent: function(msgNode, message) {
+      var extraContent = this.extraContent[message.id];
+      var extraContentNode = msgNode.querySelector('.msg-header-extra-content');
+      var height = 0;
+      if (extraContent) {
+        extraContentNode.appendChild(extraContent.node);
+        if (extraContent.height) {
+          height = extraContent.height;
+        }
+      } else if (extraContentNode.children.length) {
+        extraContentNode.removeChild(extraContentNode.firstElementChild);
+      }
+      this.setMessageHeight(msgNode, height);
+    },
+
+    setMessageHeight: function(msgNode, height) {
+      if (height) {
+        msgNode.style.height = height + 'px';
+      } else {
+        msgNode.style.height = '';
+      }
+    },
+
     onClickMessage: function(messageNode, event) {
       // You cannot open a message if this is the outbox and it is syncing.
       if (this.curFolder &&
@@ -1604,106 +1642,139 @@ return [
         return;
       }
 
-      if (this.editMode) {
-        var idx = this.selectedMessages.indexOf(header);
-        if (idx !== -1) {
-          this.selectedMessages.splice(idx, 1);
-        }
-        else {
-          this.selectedMessages.push(header);
-        }
-        this.setMessageChecked(messageNode, idx === -1);
-        this.selectedMessagesUpdated();
-        return;
-      }
+      // HACK, just to get the message_body can show up. The rest of this
+      // function needs to be revisited.
+      var extraContentNode = messageNode
+                             .querySelector('.msg-header-extra-content');
 
-      if (this.curFolder && this.curFolder.type === 'localdrafts') {
-        var composer = header.editAsDraft(function() {
-          cards.pushCard('compose', 'animate',
-                         { composer: composer });
-        });
-        return;
-      }
+      if (extraContentNode.children.length) {
+        extraContentNode.removeChild(extraContentNode.firstElementChild);
+        this.setMessageHeight(messageNode);
+      } else {
+        if (!this.extraContent[header.id]) {
+          var contentEntry = {
+            node: new MessageBody()
+          };
 
-      // When tapping a message in the outbox, don't open the message;
-      // instead, move it to localdrafts and edit the message as a
-      // draft.
-      if (this.curFolder && this.curFolder.type === 'outbox') {
-        // If the message is currently being sent, abort.
-        if (header.sendStatus.state === 'sending') {
-          return;
-        }
-        var draftsFolder =
-              model.foldersSlice.getFirstFolderWithType('localdrafts');
-
-        console.log('outbox: Moving message to localdrafts.');
-        model.api.moveMessages([header], draftsFolder, function(moveMap) {
-          header.id = moveMap[header.id];
-          console.log('outbox: Editing message in localdrafts.');
-          var composer = header.editAsDraft(function() {
-            cards.pushCard('compose', 'animate',
-                           { composer: composer });
-          });
-        });
-
-        return;
-      }
-
-      function pushMessageCard() {
-        cards.pushCard(
-          'message_reader', 'animate',
-          {
-            // The header here may be undefined here, since the click
-            // could be on a cached HTML node before the back end has
-            // started up. It is OK if header is not available as the
-            // message_reader knows how to wait for the back end to
-            // start up to get the header value later.
+          contentEntry.node.onArgs({
             header: header,
-            // Use the property on the HTML, since the click could be
-            // from a cached HTML node and the real data object may not
-            // be available yet.
-            messageSuid: messageNode.dataset.id
+            scrollContainer: this.scrollContainer,
+            onHeightChange: function(height) {
+console.log('onHeightChange called: ' + height);
+              contentEntry.height = this.vScroll.itemHeight + height;
+              this.setMessageHeight(messageNode, contentEntry.height);
+              this.vScroll.renderCurrentPosition();
+            }.bind(this)
           });
+          this.extraContent[header.id] = contentEntry;
+        }
+
+        this.setExtraContent(messageNode, header);
+        this.vScroll.renderCurrentPosition();
       }
 
-      if (header) {
-        headerCursor.setCurrentMessage(header);
-      } else if (messageNode.dataset.id) {
-        // a case where header was not set yet, like clicking on a
-        // html cached node, or virtual scroll item that is no
-        // longer backed by a header.
-        headerCursor.setCurrentMessageBySuid(messageNode.dataset.id);
-      } else {
-        // Not an interesting click, bail
-        return;
-      }
+      return;
 
-      // If the message is really big, warn them before they open it.
-      // Ideally we'd only warn if you're on a cell connection
-      // (metered), but as of now `navigator.connection.metered` isn't
-      // implemented.
+      // if (this.editMode) {
+      //   var idx = this.selectedMessages.indexOf(header);
+      //   if (idx !== -1) {
+      //     this.selectedMessages.splice(idx, 1);
+      //   }
+      //   else {
+      //     this.selectedMessages.push(header);
+      //   }
+      //   this.setMessageChecked(messageNode, idx === -1);
+      //   this.selectedMessagesUpdated();
+      //   return;
+      // }
 
-      // This number is somewhat arbitrary, based on a guess that most
-      // plain-text/HTML messages will be smaller than this. If this
-      // value is too small, users get warned unnecessarily. Too large
-      // and they download a lot of data without knowing. Since we
-      // currently assume that all network connections are metered,
-      // they'll always see this if they get a large message...
-      var LARGE_MESSAGE_SIZE = 1 * 1024 * 1024;
+      // if (this.curFolder && this.curFolder.type === 'localdrafts') {
+      //   var composer = header.editAsDraft(function() {
+      //     cards.pushCard('compose', 'animate',
+      //                    { composer: composer });
+      //   });
+      //   return;
+      // }
 
-      // watch out, header might be undefined here (that's okay, see above)
-      if (header && header.bytesToDownloadForBodyDisplay > LARGE_MESSAGE_SIZE) {
-        this.showLargeMessageWarning(
-          header.bytesToDownloadForBodyDisplay, function(result) {
-          if (result) {
-            pushMessageCard();
-          } else {
-            // abort
-          }
-        });
-      } else {
-        pushMessageCard();
-      }
+      // // When tapping a message in the outbox, don't open the message;
+      // // instead, move it to localdrafts and edit the message as a
+      // // draft.
+      // if (this.curFolder && this.curFolder.type === 'outbox') {
+      //   // If the message is currently being sent, abort.
+      //   if (header.sendStatus.state === 'sending') {
+      //     return;
+      //   }
+      //   var draftsFolder =
+      //         model.foldersSlice.getFirstFolderWithType('localdrafts');
+
+      //   console.log('outbox: Moving message to localdrafts.');
+      //   model.api.moveMessages([header], draftsFolder, function(moveMap) {
+      //     header.id = moveMap[header.id];
+      //     console.log('outbox: Editing message in localdrafts.');
+      //     var composer = header.editAsDraft(function() {
+      //       cards.pushCard('compose', 'animate',
+      //                      { composer: composer });
+      //     });
+      //   });
+
+      //   return;
+      // }
+
+      // function pushMessageCard() {
+      //   cards.pushCard(
+      //     'message_reader', 'animate',
+      //     {
+      //       // The header here may be undefined here, since the click
+      //       // could be on a cached HTML node before the back end has
+      //       // started up. It is OK if header is not available as the
+      //       // message_reader knows how to wait for the back end to
+      //       // start up to get the header value later.
+      //       header: header,
+      //       // Use the property on the HTML, since the click could be
+      //       // from a cached HTML node and the real data object may not
+      //       // be available yet.
+      //       messageSuid: messageNode.dataset.id
+      //     });
+      // }
+
+      // if (header) {
+      //   headerCursor.setCurrentMessage(header);
+      // } else if (messageNode.dataset.id) {
+      //   // a case where header was not set yet, like clicking on a
+      //   // html cached node, or virtual scroll item that is no
+      //   // longer backed by a header.
+      //   headerCursor.setCurrentMessageBySuid(messageNode.dataset.id);
+      // } else {
+      //   // Not an interesting click, bail
+      //   return;
+      // }
+
+      // // If the message is really big, warn them before they open it.
+      // // Ideally we'd only warn if you're on a cell connection
+      // // (metered), but as of now `navigator.connection.metered` isn't
+      // // implemented.
+
+      // // This number is somewhat arbitrary, based on a guess that most
+      // // plain-text/HTML messages will be smaller than this. If this
+      // // value is too small, users get warned unnecessarily. Too large
+      // // and they download a lot of data without knowing. Since we
+      // // currently assume that all network connections are metered,
+      // // they'll always see this if they get a large message...
+      // var LARGE_MESSAGE_SIZE = 1 * 1024 * 1024;
+
+      // // watch out, header might be undefined here (that's okay, see above)
+  // if (header && header.bytesToDownloadForBodyDisplay > LARGE_MESSAGE_SIZE) {
+      //   this.showLargeMessageWarning(
+      //     header.bytesToDownloadForBodyDisplay, function(result) {
+      //     if (result) {
+      //       pushMessageCard();
+      //     } else {
+      //       // abort
+      //     }
+      //   });
+      // } else {
+      //   pushMessageCard();
+      // }
     },
 
     /**

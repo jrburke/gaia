@@ -69,6 +69,8 @@ define(function(require) {
       Emitter.prototype,
 
       {
+        isCard: true,
+
         createdCallback: function() {
           Emitter.call(this);
 
@@ -81,7 +83,9 @@ define(function(require) {
                                         this.extraClasses);
           }
 
-          this.classList.add('card');
+          if (this.isCard) {
+            this.classList.add('card');
+          }
         },
 
         batchAddClass: function(searchClass, classToAdd) {

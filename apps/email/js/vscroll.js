@@ -18,6 +18,10 @@ define(function(require, exports, module) {
     }
   }
 
+  function setHeight(node, value) {
+    node.style.height = value + 'px';
+  }
+
   // VScroll --------------------------------------------------------
   /**
    * Creates a new VScroll instance. Needs .setData() called on it
@@ -540,32 +544,44 @@ define(function(require, exports, module) {
         this._init();
       }
 
+      var totalTop = 0;
+
+      for (i = 0; i < startIndex; i++) {
+        totalTop += this.getHeightForData(this.list(i)) || this.itemHeight;
+      }
+
+console.warn('_render starting with totalTop: ' + totalTop);
+
       for (i = startIndex; i <= endIndex; i++) {
+        var data = this.list(i);
+        var height = this.getHeightForData(data) || this.itemHeight;
+        var node = this._getNodeFromDataIndex(i);
+
         // If node already bound and placed correctly, skip it.
-        if (this._getNodeFromDataIndex(i)) {
-          continue;
+        if (!node) {
+          node = this._nextAvailableNode(startIndex, endIndex);
+
+          if (!data) {
+            data = this.defaultData;
+          }
+
+          // Remove the node while doing updates in positioning to
+          // avoid extra layers from being created which really slows
+          // down scrolling.
+          if (node.parentNode) {
+            node.parentNode.removeChild(node);
+          }
+
+          this._setNodeDataIndex(this.nodesIndex, i);
+          this.bindData(data, node);
+
+          this.container.appendChild(node);
         }
 
-        var node = this._nextAvailableNode(startIndex, endIndex),
-            data = this.list(i);
+        setHeight(node, height);
+        setTop(node, totalTop);
 
-        if (!data) {
-          data = this.defaultData;
-        }
-
-        // Remove the node while doing updates in positioning to
-        // avoid extra layers from being created which really slows
-        // down scrolling.
-        if (node.parentNode) {
-          node.parentNode.removeChild(node);
-        }
-
-        setTop(node, i * this.itemHeight);
-        this._setNodeDataIndex(this.nodesIndex, i);
-        this.bindData(data, node);
-
-        this.container.appendChild(node);
-
+        totalTop += height;
       }
     },
 
@@ -665,6 +681,7 @@ define(function(require, exports, module) {
       for (var i = 0; i < this.nodeCount; i++) {
         node = this.template.cloneNode(true);
         node.classList.add(VScroll.nodeClassName);
+        setHeight(node, this.itemHeight);
         setTop(node, (-1 * this.itemHeight));
         this.nodes.push(node);
         this._setNodeDataIndex(i, -1);
@@ -753,6 +770,7 @@ define(function(require, exports, module) {
       // Now clear the caches from the visible area
       for (var i = 0; i < this.nodeCount; i++) {
         node = this.nodes[i];
+        setHeight(node, this.itemHeight);
         setTop(node, (-1 * this.itemHeight));
         this._setNodeDataIndex(i, -1);
       }

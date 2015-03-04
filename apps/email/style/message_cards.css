@@ -119,6 +119,11 @@ reflows. Foreground/background colors should be safe.
   color: white;
 }
 
+cards-message-body {
+  position: absolute;
+  top: 8rem;
+}
+
 .msg-header-unread-section {
   position: absolute;
   top: 50%;
