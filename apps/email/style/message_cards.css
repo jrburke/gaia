@@ -101,6 +101,11 @@ cards-message-list.after .msg-list-scrollouter {
   background-color: #b1f1ff;
 }
 
+.show-extra-content.msg-header-item {
+  height: 6rem;
+  background-color: #F2F2F1;
+}
+
 /*
 Default data placeholder items. To limit scrolling
 impact, these styles should not be ones that trigger
@@ -121,18 +126,28 @@ reflows. Foreground/background colors should be safe.
 
 .msg-header-extra-content {
   position: relative;
+  top: 7rem;
   width: 100%;
+  /*background-color: red;*/
+}
+
+.show-extra-content .msg-header-extra-content {
+  top: 5rem;
+  margin: 2rem 1.5rem 0 1.5rem;
+  border-bottom: 0.1rem solid #F2F2F1;
 }
 
 cards-message-body {
-  position: absolute;
-  top: 8rem;
   width: 100%;
+}
+
+cards-message-body progress {
+  margin-left: calc(50% - 2.9rem);
 }
 
 .msg-header-unread-section {
   position: absolute;
-  top: 50%;
+  top: 4.3rem;
   left: 1rem;
   display: inline-block;
   height: .9rem;
@@ -140,6 +155,10 @@ cards-message-body {
   margin-top: -.45rem;
   border-radius: 50%;
   visibility: hidden;
+}
+
+.show-extra-content .msg-header-unread-section {
+  display: none;
 }
 
 html:-moz-dir(rtl) .msg-header-unread-section {
@@ -190,7 +209,7 @@ html:-moz-dir(rtl) .msg-header-unread-section {
   top: 0;
   left: 1.5rem;
   width: calc(100% - 3rem);
-  height: 100%;
+  height: 8rem;
   font-size: 1.6rem;
   line-height: 2rem;
   padding: 1rem 0 0 1.5rem;
@@ -198,6 +217,13 @@ html:-moz-dir(rtl) .msg-header-unread-section {
   display: inline-flex;
   flex-flow: row wrap;
   justify-content: space-between;
+}
+
+.show-extra-content .msg-header-details-section {
+  height: 6rem;
+  border-bottom: 0;
+  padding: 1rem 1.5rem 0 1.5rem;
+  background-color: white;
 }
 
 html:-moz-dir(rtl) .msg-header-details-section {
@@ -296,6 +322,10 @@ html:-moz-dir(rtl) .msg-header-subject {
   overflow: hidden;
   text-overflow: ellipsis;
   text-align: left;
+}
+
+.show-extra-content .msg-header-snippet {
+  display: none;
 }
 
 html:-moz-dir(rtl) .msg-header-snippet {
@@ -409,12 +439,15 @@ html:-moz-dir(rtl) .msg-header-attachments-yes {
   -moz-user-select: text;
 }
 
+/* TODO: revisit this, this change makes it so that the content does not have
+   a bunch of top space at the top of the message body. did this for iframe
+   content inside here, but may be needed for text */
 .msg-body-container {
-  white-space: pre-wrap;
+  /* white-space: pre-wrap;
   font-size: 1.6rem;
-  line-height: 2rem;
-  margin: 1rem 1.5rem;
-  word-wrap: break-word;
+  line-height: 2rem; */
+  margin: 0.5rem 0 1rem 0;
+  /*word-wrap: break-word;*/
 }
 
 /* Plain text emails with their structured DOM created for the reader should

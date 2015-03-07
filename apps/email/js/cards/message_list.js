@@ -248,6 +248,8 @@ return [
           return 0;
         }
         var extraContent = this.extraContent[model.id];
+// console.log('getHeightForData: ' + model.id + ': ' +
+//   (extraContent && extraContent.open && extraContent.height));
         return extraContent && extraContent.open && extraContent.height;
       }).bind(this);
 
@@ -1610,11 +1612,13 @@ return [
       var extraContentNode = msgNode.querySelector('.msg-header-extra-content');
       var height = 0;
       if (extraContent && extraContent.open) {
+        msgNode.classList.add('show-extra-content');
         extraContentNode.appendChild(extraContent.node);
         if (extraContent.height) {
           height = extraContent.height;
         }
       } else if (extraContentNode.children.length) {
+        msgNode.classList.remove('show-extra-content');
         extraContentNode.removeChild(extraContentNode.firstElementChild);
       }
       this.setMessageHeight(msgNode, height);
@@ -1652,6 +1656,7 @@ return [
         extraContentNode.removeChild(extraContentNode.firstElementChild);
         extraContent.open = false;
         this.setMessageHeight(messageNode);
+        messageNode.classList.remove('show-extra-content');
       } else {
         if (!extraContent) {
           extraContent = {
@@ -1662,8 +1667,15 @@ return [
             header: header,
             scrollContainer: this.scrollContainer,
             onHeightChange: function(height) {
-console.log('onHeightChange called: ' + height);
-              extraContent.height = this.vScroll.itemHeight + height;
+              var extraHeight = messageNode
+                                .querySelector('.msg-header-extra-content')
+                                .clientHeight;
+console.log('onHeightChange called: ' + extraHeight +
+            ', ' +  this.vScroll.itemHeight);
+
+              // something is weird, just doing 20 to get something that does
+              // not look horrible.
+              extraContent.height = this.vScroll.itemHeight + 20 + extraHeight;
               this.setMessageHeight(messageNode, extraContent.height);
               this.vScroll.renderCurrentPosition();
             }.bind(this)
@@ -1671,10 +1683,12 @@ console.log('onHeightChange called: ' + height);
           this.extraContent[header.id] = extraContent;
         }
 
+        messageNode.classList.add('show-extra-content');
         extraContent.open = true;
         this.setExtraContent(messageNode, header);
-        this.vScroll.renderCurrentPosition();
       }
+
+      this.vScroll.renderCurrentPosition();
 
       return;
 

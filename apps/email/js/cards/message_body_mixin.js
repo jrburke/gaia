@@ -81,10 +81,10 @@ define(function (require) {
 
       // The first time we build the body DOM, do one-time bootstrapping:
       if (!this._builtBodyDom) {
-        iframeShims.bindSanitizedClickHandler(rootBodyNode,
-                                              this.onHyperlinkClick.bind(this),
-                                              rootBodyNode,
-                                              null);
+// iframeShims.bindSanitizedClickHandler(rootBodyNode,
+//                                       this.onHyperlinkClick.bind(this),
+//                                       rootBodyNode,
+//                                       null);
         this._builtBodyDom = true;
       }
 

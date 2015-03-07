@@ -444,13 +444,17 @@ define(function(require, exports, module) {
         return 0;
       }
 
+// console.log('indexAtScrollPosition: ' + top);
       var length = this.list.size();
       var totalTop = 0;
+      var height = 0;
       for (var i = 0; i < length; i++) {
-        totalTop += this.getHeightForData(this.list(i)) || this.itemHeight;
-        if (top <= totalTop) {
+        height = this.getHeightForData(this.list(i)) || this.itemHeight;
+// console.log('iasp range: ' + totalTop + ', ' + (totalTop + height));
+        if (top >= totalTop && top <= totalTop + height) {
           return i;
         }
+        totalTop += height;
       }
 
       return length - 1;
@@ -471,10 +475,13 @@ define(function(require, exports, module) {
 
       var top = this.scrollTop;
 
-      return [
+      var result = [
         this.indexAtScrollPosition(top),
         this.indexAtScrollPosition(top + this.innerHeight)
       ];
+
+      console.warn('index range: ' + result);
+      return result;
     },
 
     /**
@@ -565,7 +572,7 @@ define(function(require, exports, module) {
         totalTop += this.getHeightForData(this.list(i)) || this.itemHeight;
       }
 
-console.warn('_render starting with totalTop: ' + totalTop);
+// console.warn('_render starting with totalTop: ' + totalTop);
 
       for (i = startIndex; i <= endIndex; i++) {
         var data = this.list(i);
@@ -594,6 +601,7 @@ console.warn('_render starting with totalTop: ' + totalTop);
         }
 
         setHeight(node, height);
+// console.log('HEIGHT for ' + i + ': ' + totalTop);
         setTop(node, totalTop);
 
         totalTop += height;
