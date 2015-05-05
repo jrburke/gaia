@@ -170,7 +170,7 @@ return [
      */
     changeIfSame: function(sourceField, destFields) {
       sourceField._previousValue = sourceField.value;
-      sourceField.addEventListener('input', function(e) {
+      sourceField.addEventListener('input', (e) => {
         for (var i = 0; i < destFields.length; i++) {
           var destField = destFields[i];
           if (destField.value === e.target._previousValue) {
@@ -179,7 +179,7 @@ return [
         }
         sourceField._previousValue = e.target.value;
         this.onInfoInput(); // run validation
-      }.bind(this));
+      });
     },
 
     onChangeAccountType: function(event) {
@@ -295,7 +295,7 @@ return [
       });
     },
 
-    die: function() {
+    release: function() {
       this._formNavigation = null;
     }
   }

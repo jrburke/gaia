@@ -29,13 +29,23 @@ return [
 
     onArgs: function(args) {
       var model = this.model = args.model;
-
       model.latest('account', this.updateAccount);
+      var accountCount = this.model.getAccountCount();
 
-      // If more than one account, need to show the account dropdown
-      var accountCount = model.getAccountCount();
       if (accountCount > 1) {
         this.classList.remove('one-account');
+      }
+    },
+
+    /**
+     * Called after the element that shows the accounts is visible. Need to wait
+     * until the element is visible for the size measurements to be correct.
+     */
+    initAccountDisplay: function() {
+      // If more than one account, need to show the account dropdown
+      var accountCount = this.model.getAccountCount();
+
+      if (accountCount > 1) {
         // Set up size needed to handle translation animation for showing
         // accounts later.
         this.currentAccountContainerHeight = this.accountHeader
@@ -44,9 +54,12 @@ return [
         this.hideAccounts();
       }
 
-      this.acctsSlice = model.api.viewAccounts(false);
-      this.acctsSlice.onsplice = this.onAccountsSplice.bind(this);
-      this.acctsSlice.onchange = this.onAccountsChange.bind(this);
+      this.accounts = this.model.api.accounts;
+      this.accounts.on('complete', this, 'onAccountChange');
+      this.accounts.on('change', this, 'onAccountChange');
+
+      // Accounts already likely loaded, so do first render.
+      this.onAccountChange();
     },
 
     extraClasses: ['anim-vertical', 'anim-overlay', 'one-account'],
@@ -68,7 +81,7 @@ return [
       if (oldAccount !== account) {
         this.foldersContainer.innerHTML = '';
 
-        this.model.latestOnce('folder', function(folder) {
+        this.model.latestOnce('folder', (folder) => {
           this.curAccount = account;
 
           // - DOM!
@@ -83,25 +96,15 @@ return [
           }
 
           // Clean up any old bindings.
-          if (this.foldersSlice) {
-            this.foldersSlice.onsplice = null;
-            this.foldersSlice.onchange = null;
+          if (this.foldersList) {
+            this.foldersList.removeObjectListener(this);
           }
 
-          this.foldersSlice = this.model.foldersSlice;
-
-          // since the slice is already populated, generate a fake notification
-          this.onFoldersSplice(0, 0, this.foldersSlice.items, true, false);
-
-          // Listen for changes in the foldersSlice.
-          // TODO: perhaps slices should implement an event listener
-          // interface vs. only allowing one handler. This is slightly
-          // dangerous in that other cards may access model.foldersSlice
-          // and could decide to set these handlers, wiping these ones
-          // out. However, so far folder_picker is the only one that cares
-          // about these dynamic updates.
-          this.foldersSlice.onsplice = this.onFoldersSplice.bind(this);
-        }.bind(this));
+          this.foldersList = this.model.foldersList;
+          this.foldersList.on('complete', this, 'onFoldersComplete');
+          this.foldersList.on('change', this, 'onFoldersComplete');
+          this.onFoldersComplete();
+        });
       }
     },
 
@@ -179,38 +182,30 @@ return [
     /**
      * Used to populate the account list.
      */
-    onAccountsSplice: function(index, howMany, addedItems,
-                               requested, moreExpected) {
+    onAccountChange: function() {
       var accountListContainer = this.accountListContainer;
 
-      // Note! We get called before the splice() is run on this.acctsSlice.items
-      var postSliceCount = this.acctsSlice.items.length +
-                           addedItems.length - howMany;
+      accountListContainer.innerHTML = '';
 
-      this.classList.toggle('one-account', postSliceCount <= 1);
-
-      // Clear out accounts that have been removed
-      var account;
-      if (howMany) {
-        for (var i = index + howMany - 1; i >= index; i--) {
-          account = this.acctsSlice.items[i];
-          if (account.element) {
-            accountListContainer.removeChild(account.element);
-          }
-        }
+      if (!this.accounts.items.length) {
+        return;
       }
 
-      var insertBuddy = (index >= accountListContainer.childElementCount) ?
-                          null : accountListContainer.children[index];
+      var accountCount = this.accounts.items.length;
+
+      this.classList.toggle('one-account', accountCount <= 1);
 
       // Add DOM for each account
-      addedItems.forEach(function(account) {
+      this.accounts.items.forEach((account, index) => {
+        var insertBuddy = (index >= accountListContainer.childElementCount) ?
+                          null : accountListContainer.children[index];
+
         var accountNode = account.element =
           fldAccountItemNode.cloneNode(true);
         accountNode.account = account;
         this.updateAccountDom(account, true);
         accountListContainer.insertBefore(accountNode, insertBuddy);
-      }.bind(this));
+      });
 
       // Use the accountHeader as a unit of height and multiple
       // by the number of children, to get total height needed for
@@ -221,12 +216,9 @@ return [
       this.currentAccountContainerHeight = this.accountHeader
                                            .getBoundingClientRect().height *
                                            accountListContainer.children.length;
+
       // Recalculate heights needed to properly hide the accounts.
       this.hideAccounts();
-    },
-
-    onAccountsChange: function(account) {
-      this.updateAccountDom(account, false);
     },
 
     updateAccountDom: function(account, firstTime) {
@@ -243,25 +235,18 @@ return [
       }
     },
 
-    onFoldersSplice: function(index, howMany, addedItems,
-                               requested, moreExpected) {
+    onFoldersComplete: function() {
       var foldersContainer = this.foldersContainer;
 
-      var folder;
-      if (howMany) {
-        for (var i = index + howMany - 1; i >= index; i--) {
-          folder = this.foldersSlice.items[i];
-          foldersContainer.removeChild(folder.element);
-        }
-      }
+      foldersContainer.innerHTML = '';
 
-      var insertBuddy = (index >= foldersContainer.childElementCount) ?
-                          null : foldersContainer.children[index],
-          self = this;
-      addedItems.forEach(function(folder) {
+      this.foldersList.items.forEach((folder, index) => {
+        var insertBuddy = (index >= foldersContainer.childElementCount) ?
+                          null : foldersContainer.children[index];
+
         var folderNode = folder.element = fldFolderItemNode.cloneNode(true);
         folderNode.folder = folder;
-        self.updateFolderDom(folder, true);
+        this.updateFolderDom(folder, true);
         foldersContainer.insertBefore(folderNode, insertBuddy);
       });
     },
@@ -310,21 +295,28 @@ return [
     },
 
     onTransitionEnd: function(event) {
+      // Only care about the larger card transition, not the transition when
+      // showing or hiding the list of accounts.
+      if (!event.target.classList.contains('fld-content')) {
+        return;
+      }
+
       // If this is an animation for the content closing, then
       // it means the card should be removed now.
-      if (!this.classList.contains('opened') &&
-          event.target.classList.contains('fld-content')) {
+      if (!this.classList.contains('opened')) {
         cards.removeCardAndSuccessors(this, 'none');
 
         // After card is removed, then switch the account, to provide
         // smooth animation on closing of drawer.
         if (this._waitingAccountId) {
           var model = this.model;
-          model.changeAccountFromId(this._waitingAccountId, function() {
-            model.selectInbox();
-          });
+          model.changeAccountFromId(this._waitingAccountId);
           this._waitingAccountId = null;
         }
+      } else {
+        // Now that the card is fully opened, init account display, since
+        // size measurement will work now.
+        this.initAccountDisplay();
       }
     },
 
@@ -355,8 +347,10 @@ return [
      * This will enable the UI to animate away from our card without weird
      * graphical glitches.
      */
-    die: function() {
-      this.acctsSlice.die();
+    release: function() {
+      if (this.accounts) {
+        this.accounts.removeObjectListener(this);
+      }
       this.model.removeListener('account', this.updateAccount);
     }
   }

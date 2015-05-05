@@ -59,7 +59,7 @@ define(function(require) {
 
         data = data || {};
 
-        //TODO: consider setting dir and lang?
+        // TODO: consider setting dir and lang?
         //https://developer.mozilla.org/en-US/docs/Web/API/notification
         var notificationOptions = {
           bodyL10n: bodyL10n,
@@ -466,7 +466,7 @@ define(function(require) {
       if (data.state === 'success') {
         // Grab an up-to-date reading of the "play sound on send"
         // preference to decide if we're going to play a sound or not.
-        model.latestOnce('acctsSlice', function() {
+        model.latestOnce('acctsSlice', () => {
           var account = model.getAccount(data.accountId);
           if (!account) {
             console.error('Invalid account ID', data.accountId,
@@ -492,7 +492,7 @@ define(function(require) {
             }
             sentAudio.play();
           }
-        }.bind(this));
+        });
       }
 
       // If we are in the foreground, notify through the model, which

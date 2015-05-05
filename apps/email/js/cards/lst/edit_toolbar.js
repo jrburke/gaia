@@ -38,9 +38,9 @@ define(function(require, exports) {
       // Set how many messages to edit. If greater than zero, enable buttons.
       updateDomEditButtons: function(hasMessages) {
         // Update disabled state based on if there are selected messages
-        toolbarEditButtonNames.forEach(function(key) {
+        toolbarEditButtonNames.forEach((key) => {
           this[key].disabled = !hasMessages;
-        }.bind(this));
+        });
       }
     }
   ];

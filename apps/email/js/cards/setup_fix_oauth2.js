@@ -17,7 +17,7 @@ return [
       this.oauth2Name.textContent = this.account.name;
     },
 
-    die: function() {
+    release: function() {
       // no special cleanup required
     },
 
@@ -29,7 +29,7 @@ return [
       oauthFetch(oauth2, {
         login_hint: this.account.username
       })
-      .then(function(response) {
+      .then((response) => {
         // Cancellation means hide this UI.
         if (response.status === 'cancel') {
           this.delayedClose();
@@ -44,7 +44,7 @@ return [
           console.error('Unknown oauthFetch status: ' + response.status);
           this.delayedClose();
         }
-      }.bind(this));
+      });
     },
 
     delayedClose: function() {

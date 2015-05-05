@@ -5,6 +5,7 @@
 define(
   [
     'logic',
+    'rdcommon/log',
     '../accountcommon',
     '../a64',
     '../accountmixins',
@@ -16,6 +17,7 @@ define(
   ],
   function(
     logic,
+    $log,
     $accountcommon,
     $a64,
     $acctmixins,
@@ -25,6 +27,7 @@ define(
     allback,
     exports
   ) {
+'use strict';
 
 var PIECE_ACCOUNT_TYPE_TO_CLASS = {
   'imap': $imapacct.ImapAccount,
@@ -38,12 +41,11 @@ var PIECE_ACCOUNT_TYPE_TO_CLASS = {
  * intended to be a very thin layer that shields consuming code from the
  * fact that IMAP and SMTP are not actually bundled tightly together.
  */
-function CompositeAccount(universe, accountDef, folderInfo, dbConn,
+function CompositeAccount(universe, accountDef, foldersTOC, dbConn,
                           receiveProtoConn) {
   this.universe = universe;
   this.id = accountDef.id;
   this.accountDef = accountDef;
-  logic.defineScope(this, 'Account', { accountId: this.id });
 
   // Currently we don't persist the disabled state of an account because it's
   // easier for the UI to be edge-triggered right now and ensure that the
@@ -73,17 +75,23 @@ function CompositeAccount(universe, accountDef, folderInfo, dbConn,
     new PIECE_ACCOUNT_TYPE_TO_CLASS[accountDef.receiveType](
       universe, this,
       accountDef.id, accountDef.credentials, accountDef.receiveConnInfo,
-      folderInfo, dbConn, receiveProtoConn);
+      foldersTOC, dbConn, receiveProtoConn);
   this._sendPiece =
     new PIECE_ACCOUNT_TYPE_TO_CLASS[accountDef.sendType](
       universe, this,
       accountDef.id, accountDef.credentials,
       accountDef.sendConnInfo, dbConn);
 
+  // XXX this hiding and all that just ended up confusing.  FIX IT.
+  // XXX and now I'm making this worse since both can't be true.
+  this.imapAccount = this._receivePiece;
+  this.popAccount = this._receivePiece;
+  this.smtpAccount = this._sendPiece;
+
   // expose public lists that are always manipulated in place.
   this.folders = this._receivePiece.folders;
+  // foldersTOC is a getter; both work.
   this.meta = this._receivePiece.meta;
-  this.mutations = this._receivePiece.mutations;
 
   // Mix in any fields common to all accounts.
   $acctmixins.accountConstructorMixin.call(
@@ -98,46 +106,6 @@ CompositeAccount.prototype = {
   get supportsServerFolders() {
     return this._receivePiece.supportsServerFolders;
   },
-  toBridgeWire: function() {
-    return {
-      id: this.accountDef.id,
-      name: this.accountDef.name,
-      type: this.accountDef.type,
-
-      defaultPriority: this.accountDef.defaultPriority,
-
-      enabled: this.enabled,
-      problems: this.problems,
-
-      syncRange: this.accountDef.syncRange,
-      syncInterval: this.accountDef.syncInterval,
-      notifyOnNew: this.accountDef.notifyOnNew,
-      playSoundOnSend: this.accountDef.playSoundOnSend,
-
-      identities: this.identities,
-
-      credentials: {
-        username: this.accountDef.credentials.username,
-        outgoingUsername: this.accountDef.credentials.outgoingUsername,
-        // no need to send the password to the UI.
-        // send all the oauth2 stuff we've got, though.
-        oauth2: this.accountDef.credentials.oauth2
-      },
-
-      servers: [
-        {
-          type: this.accountDef.receiveType,
-          connInfo: this.accountDef.receiveConnInfo,
-          activeConns: this._receivePiece.numActiveConns || 0,
-        },
-        {
-          type: this.accountDef.sendType,
-          connInfo: this.accountDef.sendConnInfo,
-          activeConns: this._sendPiece.numActiveConns || 0,
-        }
-      ],
-    };
-  },
   toBridgeFolder: function() {
     return {
       id: this.accountDef.id,
@@ -147,11 +115,29 @@ CompositeAccount.prototype = {
     };
   },
 
+  // TODO: evaluate whether the account actually wants to be a RefedResource
+  // with some kind of reaping if all references die and no one re-acquires it
+  // within some timeout horizon.
+  __acquire: function() {
+    return Promise.resolve(this);
+  },
+  __release: function() {
+
+  },
+
   get enabled() {
     return this._enabled;
   },
   set enabled(val) {
     this._enabled = this._receivePiece.enabled = val;
+  },
+
+  get foldersTOC() {
+    return this._receivePiece.foldersTOC;
+  },
+
+  get pimap() {
+    return this._receivePiece.pimap;
   },
 
   saveAccountState: function(reuseTrans, callback, reason) {
@@ -237,14 +223,6 @@ CompositeAccount.prototype = {
       }.bind(this));
   },
 
-  getFolderStorageForFolderId: function(folderId) {
-    return this._receivePiece.getFolderStorageForFolderId(folderId);
-  },
-
-  getFolderMetaForFolderId: function(folderId) {
-    return this._receivePiece.getFolderMetaForFolderId(folderId);
-  },
-
   runOp: function(op, mode, callback) {
     return this._receivePiece.runOp(op, mode, callback);
   },
@@ -260,7 +238,13 @@ CompositeAccount.prototype = {
     return this._receivePiece.ensureEssentialOnlineFolders(callback);
   },
 
+  ensureEssentialOfflineFolders: function(callback) {
+    return this._receivePiece.ensureEssentialOfflineFolders(callback);
+  },
+
   getFirstFolderWithType: $acctmixins.getFirstFolderWithType,
+
+  getFolderById: $acctmixins.getFolderById,
 
   upgradeFolderStoragesIfNeeded: function() {
     for (var key in this._receivePiece._folderStorages) {

@@ -127,12 +127,12 @@ var cards = {
     // Listen for visibility changes to let current card know of them too.
     // Do this here instead of each card needing to listen, and needing to know
     // if it is also the current card.
-    document.addEventListener('visibilitychange', function(evt) {
-      var card = this._cardStack[this.activeCardIndex];
+    document.addEventListener('visibilitychange', (evt) => {
+      var card = this.getActiveCard();
       if (card && card.onCurrentCardDocumentVisibilityChange) {
         card.onCurrentCardDocumentVisibilityChange(document.hidden);
       }
-    }.bind(this));
+    });
 
     cardsInit(this);
   },
@@ -210,10 +210,10 @@ var cards = {
         this.eatEventsUntilNextCard();
       }
 
-      require(['element!cards/' + type], function(Ctor) {
+      require(['element!cards/' + type], (Ctor) => {
         this._cardDefs[type] = Ctor;
         this.pushCard.apply(this, cbArgs);
-      }.bind(this));
+      });
       return;
     }
 
@@ -336,7 +336,7 @@ var cards = {
     // not know what element to use for a baseline. In those cases, Cards
     // decides the target element.
     if (!element) {
-      element = this._cardStack[this.activeCardIndex];
+      element = this.getActiveCard();
     }
 
     // Try first for specific color override. Do a node query, since for custom
@@ -420,7 +420,7 @@ var cards = {
 
   getCurrentCardType: function() {
     var result = null,
-        card = this._cardStack[this.activeCardIndex];
+        card = this.getActiveCard();
 
     // Favor any _pendingPush value as it is about to
     // become current, just waiting on an async cycle
@@ -446,8 +446,8 @@ var cards = {
         self.folderPrompt = new ValueSelector(selectorTitle);
       }
 
-      model.latestOnce('foldersSlice', function(foldersSlice) {
-        var folders = foldersSlice.items;
+      model.latestOnce('foldersList', function(foldersList) {
+        var folders = foldersList.items;
         folders.forEach(function(folder) {
           var isMatch = !filter || filter(folder);
           if (folder.neededForHierarchy || isMatch) {
@@ -527,10 +527,10 @@ var cards = {
     if (cardDomNode && this._cardStack.length === 1 && !skipDefault) {
       // No card to go to when done, so ask for a default
       // card and continue work once it exists.
-      return cards.pushDefaultCard(function() {
+      return cards.pushDefaultCard(() => {
         this.removeCardAndSuccessors(cardDomNode, showMethod, numCards,
                                     nextCardSpec);
-      }.bind(this));
+      });
     }
 
     var firstIndex, iCard, domNode;
@@ -593,7 +593,7 @@ var cards = {
     for (iCard = 0; iCard < deadDomNodes.length; iCard++) {
       domNode = deadDomNodes[iCard];
       try {
-        domNode.die();
+        domNode.release();
       }
       catch (ex) {
         console.warn('Problem cleaning up card:', ex, '\n', ex.stack);
@@ -618,6 +618,15 @@ var cards = {
    */
   removeAllCards: function() {
     return this.removeCardAndSuccessors(null, 'none');
+  },
+
+  removeActiveCard: function(showMethod) {
+    var card = this.getActiveCard();
+    return this.removeCardAndSuccessors(card, showMethod);
+  },
+
+  getActiveCard: function() {
+    return this._cardStack[this.activeCardIndex];
   },
 
   _showCard: function(cardIndex, showMethod, navDirection) {
@@ -646,7 +655,7 @@ var cards = {
     }
 
     var domNode = (cardIndex !== null) ? this._cardStack[cardIndex] : null;
-    var beginNode = this._cardStack[this.activeCardIndex];
+    var beginNode = this.getActiveCard();
     var endNode = this._cardStack[cardIndex];
     var isForward = navDirection === 'forward';
 
@@ -775,7 +784,7 @@ var cards = {
       return;
     }
 
-    var activeCard = this._cardStack[this.activeCardIndex];
+    var activeCard = this.getActiveCard();
     // If no current card, this could be initial setup from cache, no valid
     // cards yet, so bail.
     if (!activeCard) {
@@ -794,14 +803,14 @@ var cards = {
       }
       if (this._animatingDeadDomNodes.length) {
         // Use a setTimeout to give the animation some space to settle.
-        setTimeout(function() {
+        setTimeout(() => {
           this._animatingDeadDomNodes.forEach(function(domNode) {
             if (domNode.parentNode) {
               domNode.parentNode.removeChild(domNode);
             }
           });
           this._animatingDeadDomNodes = [];
-        }.bind(this), 100);
+        }, 100);
       }
 
       // If an vertical overlay transition was was disabled, if

@@ -5,14 +5,14 @@ define(
     '../accountmixins',
     '../allback',
     '../errbackoff',
-    '../mailslice',
+    '../db/folder_info_rep',
     '../searchfilter',
     '../syncbase',
     '../util',
     '../composite/incoming',
     './folder',
-    './jobs',
     './client',
+    './protocol/parallel_imap',
     '../errorutils',
     '../disaster-recovery',
     'module',
@@ -25,27 +25,23 @@ define(
     $acctmixins,
     $allback,
     $errbackoff,
-    $mailslice,
+    folderInfoRep,
     $searchfilter,
     $syncbase,
     $util,
     incoming,
     $imapfolder,
-    $imapjobs,
     $imapclient,
+    ParallelImap,
     errorutils,
     DisasterRecovery,
     $module,
     require,
     exports
   ) {
-var bsearchForInsert = $util.bsearchForInsert;
-var allbackMaker = $allback.allbackMaker;
-var CompositeIncomingAccount = incoming.CompositeIncomingAccount;
+'use strict';
 
-function cmpFolderPubPath(a, b) {
-  return a.path.localeCompare(b.path);
-}
+var CompositeIncomingAccount = incoming.CompositeIncomingAccount;
 
 /**
  * Account object, root of all interaction with servers.
@@ -56,16 +52,10 @@ function cmpFolderPubPath(a, b) {
  *
  */
 function ImapAccount(universe, compositeAccount, accountId, credentials,
-                     connInfo, folderInfos,
+                     connInfo, foldersTOC,
                      dbConn, existingProtoConn) {
-
-  // Using the generic 'Account' here, as current tests don't
-  // distinguish between events on ImapAccount vs. CompositeAccount.
-  logic.defineScope(this, 'Account', { accountId: accountId,
-                                       accountType: 'imap' });
-
-  CompositeIncomingAccount.apply(
-      this, [$imapfolder.ImapFolderSyncer].concat(Array.slice(arguments)));
+  logic.defineScope(this, 'ImapAccount');
+  CompositeIncomingAccount.apply(this, arguments);
 
   /**
    * The maximum number of connections we are allowed to have alive at once.  We
@@ -104,11 +94,11 @@ function ImapAccount(universe, compositeAccount, accountId, credentials,
   this._demandedConns = [];
   this._backoffEndpoint = $errbackoff.createEndpoint('imap:' + this.id, this);
 
-  if (existingProtoConn)
-    this._reuseConnection(existingProtoConn);
+  this.pimap = new ParallelImap(this);
 
-  this._jobDriver = new $imapjobs.ImapJobDriver(
-                          this, this._folderInfos.$mutationState);
+  if (existingProtoConn) {
+    this._reuseConnection(existingProtoConn);
+  }
 
   /**
    * Flag to allow us to avoid calling closeBox to close a folder.  This avoids
@@ -230,12 +220,14 @@ var properties = {
     this._demandedConns.push(demand);
 
     // No line-cutting; bail if there was someone ahead of us.
-    if (this._demandedConns.length > 1)
+    if (this._demandedConns.length > 1) {
       return;
+    }
 
     // - try and reuse an existing connection
-    if (this._allocateExistingConnection())
+    if (this._allocateExistingConnection()) {
       return;
+    }
 
     // - we need to wait for a new conn or one to free up
     this._makeConnectionIfPossible();
@@ -266,19 +258,21 @@ var properties = {
    * }
    */
   _allocateExistingConnection: function() {
-    if (!this._demandedConns.length)
+    if (!this._demandedConns.length) {
       return false;
+    }
     var demandInfo = this._demandedConns[0];
 
-    var reusableConnInfo = null;
     for (var i = 0; i < this._ownedConns.length; i++) {
       var connInfo = this._ownedConns[i];
       // It's concerning if the folder already has a connection...
-      if (demandInfo.folderId && connInfo.folderId === demandInfo.folderId)
+      if (demandInfo.folderId && connInfo.folderId === demandInfo.folderId) {
         logic(this, 'folderAlreadyHasConn', { folderId: demandInfo.folderId });
+      }
 
-      if (connInfo.inUseBy)
+      if (connInfo.inUseBy) {
         continue;
+      }
 
       connInfo.inUseBy = demandInfo;
       this._demandedConns.shift();
@@ -322,8 +316,9 @@ var properties = {
   closeUnusedConnections: function() {
     for (var i = this._ownedConns.length - 1; i >= 0; i--) {
       var connInfo = this._ownedConns[i];
-      if (connInfo.inUseBy)
+      if (connInfo.inUseBy) {
         continue;
+      }
       console.log('Killing unused IMAP connection.');
       // this eats all future notifications, so we need to splice...
       this._ownedConns.splice(i, 1);
@@ -367,7 +362,7 @@ var properties = {
             // just save the account information.
             this.universe.saveAccountDef(
               this.compositeAccount.accountDef,
-              /* folderInfo: */ null,
+              /* folderDbState: */ null,
               /* callback: */ resolve);
           }.bind(this));
         }.bind(this)
@@ -461,8 +456,9 @@ var properties = {
             folderId: connInfo.inUseBy &&
               connInfo.inUseBy.folderId
           });
-          if (connInfo.inUseBy && connInfo.inUseBy.deathback)
+          if (connInfo.inUseBy && connInfo.inUseBy.deathback) {
             connInfo.inUseBy.deathback(conn);
+          }
           connInfo.inUseBy = null;
           this._ownedConns.splice(i, 1);
           return;
@@ -485,8 +481,9 @@ var properties = {
     for (var i = 0; i < this._ownedConns.length; i++) {
       var connInfo = this._ownedConns[i];
       if (connInfo.conn === conn) {
-        if (resourceProblem)
+        if (resourceProblem) {
           this._backoffEndpoint(connInfo.inUseBy.folderId);
+        }
         logic(this, 'releaseConnection', {
           folderId: connInfo.inUseBy.folderId,
           label: connInfo.inUseBy.label
@@ -504,16 +501,7 @@ var properties = {
   //////////////////////////////////////////////////////////////////////////////
   // Folder synchronization
 
-  /**
-   * Helper in conjunction with `_syncFolderComputeDeltas` for use by the
-   * syncFolderList operation/job.  The op is on the hook for the connection's
-   * lifecycle.
-   */
-  _syncFolderList: function(conn, callback) {
-    conn.listMailboxes(
-      this._syncFolderComputeDeltas.bind(this, conn, callback));
-  },
-
+  // TODO factor out to be like activesync's normalize_folder.js.
   _determineFolderType: function(box, path) {
     var attribs = (box.flags || []).map(function(flag) {
       return flag.substr(1).toUpperCase(); // Map "\\Noselect" => "NOSELECT"
@@ -535,9 +523,10 @@ var properties = {
       // Process the attribs for goodness.
       for (var i = 0; i < attribs.length; i++) {
         switch (attribs[i]) {
-          // TODO: split the 'all' cases into their own type!
           case 'ALL': // special-use
           case 'ALLMAIL': // xlist
+            type = 'all';
+            break;
           case 'ARCHIVE': // special-use
             type = 'archive';
             break;
@@ -579,6 +568,7 @@ var properties = {
           case 'NOINFERIORS': // 3501
             // XXX use noinferiors to prohibit folder creation under it.
           // NOSELECT
+            break;
 
           default:
         }
@@ -600,8 +590,9 @@ var properties = {
               break;
             case 'INBOX':
               // Inbox is special; the path needs to case-insensitively match.
-              if (path.toUpperCase() === 'INBOX')
+              if (path.toUpperCase() === 'INBOX') {
                 type = 'inbox';
+              }
               break;
             // Yahoo provides "Bulk Mail" for yahoo.fr.
             case 'BULK MAIL':
@@ -624,8 +615,9 @@ var properties = {
         }
       }
 
-      if (!type)
+      if (!type) {
         type = 'normal';
+      }
     }
     return type;
   },
@@ -639,31 +631,15 @@ var properties = {
     provisional: true
   },
 
-  _syncFolderComputeDeltas: function(conn, callback, err, boxesRoot) {
-    var self = this;
-    if (err) {
-      callback(err);
-      return;
+  /**
+   * TODO: migrate this and its friends above into a helper like activesync's
+   * normalize_folder.js and then invoke it from the syncing task.
+   */
+  processFolderListUpdates: function(boxesRoot, namespaces) {
+    if (namespaces) {
+      this._namespaces = namespaces;
     }
-
-    // Before we walk the boxes, get namespace information.
-    // In the failure case, assume no relevant namespaces.
-    if (self._namespaces.provisional) {
-      conn.listNamespaces(function(err, namespaces) {
-        if (!err && namespaces) {
-          self._namespaces = namespaces;
-        }
-
-        self._namespaces.provisional = false;
-
-        logic(self, 'list-namespaces', {
-          namespaces: namespaces
-        });
-
-        self._syncFolderComputeDeltas(conn, callback, err, boxesRoot);
-      });
-      return;
-    }
+    this._namespaces.provisional = false;
 
     // - build a map of known existing folders
     var folderPubsByPath = {};
@@ -673,13 +649,10 @@ var properties = {
       folderPubsByPath[folderPub.path] = folderPub;
     }
 
-    var syncScope = logic.scope('ImapFolderSync');
-
     // - walk the boxes
-    function walkBoxes(boxLevel, pathDepth, parentId) {
-      boxLevel.forEach(function(box) {
-        var boxName = box.name, meta,
-            folderId;
+    let walkBoxes = (boxLevel, pathDepth, parentId) => {
+      boxLevel.forEach((box) => {
+        var meta;
 
         var delim = box.delimiter || '/';
 
@@ -690,12 +663,13 @@ var properties = {
         var path = box.path;
 
         // - normalize jerk-moves
-        var type = self._determineFolderType(box, path);
+        var type = this._determineFolderType(box, path);
 
         // gmail finds it amusing to give us the localized name/path of its
         // inbox, but still expects us to ask for it as INBOX.
-        if (type === 'inbox')
+        if (type === 'inbox') {
           path = 'INBOX';
+        }
 
         // - already known folder
         if (folderPubsByPath.hasOwnProperty(path)) {
@@ -705,11 +679,11 @@ var properties = {
           meta.name = box.name;
           meta.delim = delim;
 
-          logic(syncScope, 'folder-sync:existing', {
-            type: type,
+          logic(this, 'folder-sync:existing', {
+            type,
             name: box.name,
-            path: path,
-            delim: delim
+            path,
+            delim
           });
 
           // mark it with true to show that we've seen it.
@@ -717,35 +691,37 @@ var properties = {
         }
         // - new to us!
         else {
-          logic(syncScope, 'folder-sync:add', {
-            type: type,
+          logic(this, 'folder-sync:add', {
+            type,
             name: box.name,
-            path: path,
-            delim: delim
+            path,
+            delim
           });
-          meta = self._learnAboutFolder(box.name, path, parentId, type,
+          meta = this._learnAboutFolder(box.name, path, path, parentId, type,
                                         delim, pathDepth);
         }
 
-        if (box.children)
+        if (box.children) {
           walkBoxes(box.children, pathDepth + 1, meta.id);
+        }
       });
-    }
+    };
 
     walkBoxes(boxesRoot.children, 0, null);
 
     // - detect deleted folders
     // track dead folder id's so we can issue a
-    var deadFolderIds = [];
     for (var folderPath in folderPubsByPath) {
       folderPub = folderPubsByPath[folderPath];
       // (skip those we found above)
-      if (folderPub === true)
+      if (folderPub === true) {
         continue;
+      }
       // Never delete our localdrafts or outbox folder.
-      if ($mailslice.FolderStorage.isTypeLocalOnly(folderPub.type))
+      if (folderInfoRep.isTypeLocalOnly(folderPub.type)) {
         continue;
-      logic(syncScope, 'delete-dead-folder', {
+      }
+      logic(this, 'delete-dead-folder', {
         folderType: folderPub.type,
         folderId: folderPub.id
       });
@@ -758,10 +734,10 @@ var properties = {
     // completes, we'll check to make sure our offline-only folders
     // (localdrafts, outbox) are in the right place according to where
     // this server stores other built-in folders.
-    this.ensureEssentialOnlineFolders();
-    this.normalizeFolderHierarchy();
-
-    callback(null);
+    // XXX this stuff should be triggered by the task logic.
+    // XXX this stuff should also not be 100% disabled.
+    //this.ensureEssentialOnlineFolders();
+    //this.normalizeFolderHierarchy();
   },
 
   /**
@@ -780,6 +756,7 @@ var properties = {
         this._learnAboutFolder(
           /* name: */ folderType,
           /* path: */ folderType,
+          /* serverPath */ null,
           /* parentId: */ null,
           /* type: */ folderType,
           /* delim: */ '',
@@ -801,18 +778,16 @@ var properties = {
    * @param {function} callback
    *   Called when all ops have run.
    */
-  ensureEssentialOnlineFolders: function(callback) {
+  ensureEssentialOnlineFolders: function() {
     var essentialFolders = { 'trash': 'Trash', 'sent': 'Sent' };
     var latch = $allback.latch();
 
     for (var type in essentialFolders) {
       if (!this.getFirstFolderWithType(type)) {
         this.universe.createFolder(
-          this.id, null, essentialFolders[type], type, false, latch.defer());
+          this.id, null, essentialFolders[type], type, false);
       }
     }
-
-    latch.then(callback);
   },
 
   /**
@@ -869,15 +844,14 @@ var properties = {
   },
 
   shutdown: function(callback) {
-    CompositeIncomingAccount.prototype.shutdownFolders.call(this);
-
     this._backoffEndpoint.shutdown();
 
     // - close all connections
     var liveConns = this._ownedConns.length;
     function connDead() {
-      if (--liveConns === 0)
+      if (--liveConns === 0) {
         callback();
+      }
     }
     for (var i = 0; i < this._ownedConns.length; i++) {
       var connInfo = this._ownedConns[i];
@@ -895,8 +869,9 @@ var properties = {
       }
     }
 
-    if (!liveConns && callback)
+    if (!liveConns && callback) {
       callback();
+    }
   },
 
   checkAccount: function(listener) {
@@ -906,12 +881,6 @@ var properties = {
       listener(err);
     }.bind(this), null, 'check');
   },
-
-  accountDeleted: function() {
-    this._alive = false;
-    this.shutdown();
-  },
-
 
   //////////////////////////////////////////////////////////////////////////////
 

@@ -4,7 +4,7 @@
 
 define(
   [
-    'logic',
+    'rdcommon/log',
     '../accountcommon',
     '../a64',
     '../allback',
@@ -14,7 +14,7 @@ define(
     'exports'
   ],
   function(
-    logic,
+    $log,
     $accountcommon,
     $a64,
     $allback,
@@ -23,13 +23,11 @@ define(
     require,
     exports
   ) {
-
-var allbackMaker = $allback.allbackMaker;
+'use strict';
 
 exports.account = $account;
 exports.configurator = {
-  tryToCreateAccount: function(universe, userDetails, domainInfo,
-                               callback) {
+  tryToCreateAccount: function(universe, userDetails, domainInfo) {
     var credentials, incomingInfo, smtpConnInfo, incomingType;
     if (domainInfo) {
       incomingType = (domainInfo.type === 'imap+smtp' ? 'imap' : 'pop3');
@@ -120,21 +118,23 @@ exports.configurator = {
     // the first error that returns, it actually works well for our
     // semantics, as we only notify the user about one side's problems
     // at a time.
-    Promise.all([incomingPromise, outgoingPromise])
+    return Promise.all([incomingPromise, outgoingPromise])
       .then(function(results) {
         var incomingConn = results[0].conn;
         var defineAccount;
+        var engine;
 
         if (incomingType === 'imap') {
           defineAccount = this._defineImapAccount;
+          engine = results[0].engine;
         } else if (incomingType === 'pop3') {
           incomingInfo.preferredAuthMethod = incomingConn.authMethod;
           defineAccount = this._definePop3Account;
+          engine = 'pop3';
         }
-        defineAccount.call(this,
-                           universe, userDetails, credentials,
-                           incomingInfo, smtpConnInfo, incomingConn,
-                           callback);
+        return defineAccount.call(this, universe, engine,
+                                  userDetails, credentials,
+                                  incomingInfo, smtpConnInfo, incomingConn);
       }.bind(this))
       .catch(function(ambiguousErr) {
         // One of the account sides failed. Normally we leave the
@@ -142,19 +142,23 @@ exports.configurator = {
         // configuration falied we must close the incoming connection.
         // (If the incoming side failed as well, we won't receive the
         // `.then` callback.)
-        incomingPromise.then(function incomingOkButOutgoingFailed(result) {
+        return incomingPromise.then(function incomingOkOutgoingFailed(result) {
           result.conn.close();
           // the error is no longer ambiguous; it was SMTP
-          callback(ambiguousErr, /* conn: */ null,
-                   { server: smtpConnInfo.hostname });
+          return {
+            error: ambiguousErr,
+            errorDetails: { server: smtpConnInfo.hostname }
+          };
         }).catch(function incomingFailed(incomingErr) {
-          callback(incomingErr, /* conn: */ null,
-                   { server: incomingInfo.hostname });
+          return {
+            error: incomingErr,
+            errorDetails: { server: incomingInfo.hostname }
+          };
         });
      });
  },
 
-  recreateAccount: function(universe, oldVersion, oldAccountInfo, callback) {
+  recreateAccount: function(universe, oldVersion, oldAccountInfo) {
     var oldAccountDef = oldAccountInfo.def;
 
     var credentials = {
@@ -173,6 +177,7 @@ exports.configurator = {
       name: oldAccountDef.name,
 
       type: oldType,
+      engine: oldAccountDef.engine || 'vanillaImap',
       receiveType: oldType.split('+')[0],
       sendType: 'smtp',
 
@@ -201,10 +206,8 @@ exports.configurator = {
                                      oldAccountDef.identities)
     };
 
-    this._loadAccount(universe, accountDef,
-                      oldAccountInfo.folderInfo, null, function(account) {
-      callback(null, account, null);
-    });
+    return this._saveAccount(
+      universe, accountDef, oldAccountInfo.folderInfo, null);
   },
 
   /**
@@ -213,9 +216,8 @@ exports.configurator = {
    * provided with the protocol connection that was used to perform the check
    * so we can immediately put it to work.
    */
-  _defineImapAccount: function(universe, userDetails, credentials,
-                               incomingInfo, smtpConnInfo, imapProtoConn,
-                               callback) {
+  _defineImapAccount: function(universe, engine, userDetails, credentials,
+                               incomingInfo, smtpConnInfo, imapProtoConn) {
     var accountId = $a64.encodeInt(universe.config.nextAccountNum++);
     var accountDef = {
       id: accountId,
@@ -223,6 +225,7 @@ exports.configurator = {
       defaultPriority: $date.NOW(),
 
       type: 'imap+smtp',
+      engine,
       receiveType: 'imap',
       sendType: 'smtp',
 
@@ -239,7 +242,7 @@ exports.configurator = {
 
       identities: [
         {
-          id: accountId + '/' +
+          id: accountId + '.' +
                 $a64.encodeInt(universe.config.nextIdentityNum++),
           name: userDetails.displayName,
           address: userDetails.emailAddress,
@@ -250,10 +253,7 @@ exports.configurator = {
       ]
     };
 
-    this._loadAccount(universe, accountDef, null,
-                      imapProtoConn, function(account) {
-      callback(null, account, null);
-    });
+    return this._saveAccount(universe, accountDef, null, imapProtoConn);
   },
 
   /**
@@ -262,9 +262,8 @@ exports.configurator = {
    * provided with the protocol connection that was used to perform the check
    * so we can immediately put it to work.
    */
-  _definePop3Account: function(universe, userDetails, credentials,
-                               incomingInfo, smtpConnInfo, pop3ProtoConn,
-                               callback) {
+  _definePop3Account: function(universe, engine, userDetails, credentials,
+                               incomingInfo, smtpConnInfo, pop3ProtoConn) {
     var accountId = $a64.encodeInt(universe.config.nextAccountNum++);
     var accountDef = {
       id: accountId,
@@ -272,6 +271,7 @@ exports.configurator = {
       defaultPriority: $date.NOW(),
 
       type: 'pop3+smtp',
+      engine,
       receiveType: 'pop3',
       sendType: 'smtp',
 
@@ -288,7 +288,7 @@ exports.configurator = {
 
       identities: [
         {
-          id: accountId + '/' +
+          id: accountId + '.' +
                 $a64.encodeInt(universe.config.nextIdentityNum++),
           name: userDetails.displayName,
           address: userDetails.emailAddress,
@@ -299,44 +299,37 @@ exports.configurator = {
       ],
     };
 
-    this._loadAccount(universe, accountDef, null,
-                      pop3ProtoConn, function(account) {
-      callback(null, account, null);
-    });
+    return this._saveAccount(universe, accountDef, null, pop3ProtoConn);
   },
 
   /**
    * Save the account def and folder info for our new (or recreated) account and
    * then load it.
    */
-  _loadAccount: function(universe, accountDef, oldFolderInfo, protoConn,
-                         callback) {
+  _saveAccount: function(universe, accountDef, oldFolderInfo, protoConn) {
     var folderInfo;
     if (accountDef.receiveType === 'imap') {
       folderInfo = {
-        $meta: {
+        meta: {
           nextFolderNum: 0,
           nextMutationNum: 0,
           lastFolderSyncAt: 0,
-          capability: (oldFolderInfo && oldFolderInfo.$meta.capability) ||
+          capability: (oldFolderInfo && oldFolderInfo.meta.capability) ||
             protoConn.capability
         },
-        $mutations: [],
-        $mutationState: {},
+        folders: new Map()
       };
     } else { // POP3
       folderInfo = {
-        $meta: {
+        meta: {
           nextFolderNum: 0,
           nextMutationNum: 0,
           lastFolderSyncAt: 0,
         },
-        $mutations: [],
-        $mutationState: {},
+        folders: new Map()
       };
     }
-    universe.saveAccountDef(accountDef, folderInfo);
-    universe._loadAccount(accountDef, folderInfo, protoConn, callback);
+    return universe.saveAccountDef(accountDef, folderInfo, protoConn);
   },
 };
 

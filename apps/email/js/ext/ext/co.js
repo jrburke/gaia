@@ -1,4 +1,5 @@
-define(function(require) {
+define(function (require, exports, module) {
+
 /**
  * slice() reference.
  */
@@ -9,7 +10,7 @@ var slice = Array.prototype.slice;
  * Expose `co`.
  */
 
-co['default'] = co.co = co;
+module.exports = co['default'] = co.co = co;
 
 /**
  * Wrap the given generator `fn` into a
@@ -232,5 +233,4 @@ function isObject(val) {
   return Object == val.constructor;
 }
 
-  return co;
 });

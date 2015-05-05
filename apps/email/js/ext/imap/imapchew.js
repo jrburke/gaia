@@ -1,22 +1,12 @@
-/**
- *
- **/
+define(function(require, exports, module) {
+'use strict';
 
-define(
-  [
-    'mimefuncs',
-    '../db/mail_rep',
-    '../mailchew',
-    'mimeparser',
-    'exports'
-  ],
-  function(
-    mimefuncs,
-    mailRep,
-    $mailchew,
-    MimeParser,
-    exports
-  ) {
+const { parseUI64: parseGmailMsgId, encodeInt: encodeA64 } = require('../a64');
+
+let mimefuncs = require('mimefuncs');
+let mailRep = require('../db/mail_rep');
+let $mailchew = require('../bodies/mailchew');
+let MimeParser = require('mimeparser');
 
 function parseRfc2231CharsetEncoding(s) {
   // charset'lang'url-encoded-ish
@@ -225,7 +215,7 @@ function chewStructure(msg) {
         // https://bugzil.la/1024685
       } else if (parentMultipartSubtype === 'related' && partInfo.id &&
                  type === 'image') {
-        disposition = "inline";
+        disposition = 'inline';
       } else if (filename || type !== 'text') {
         disposition = 'attachment';
       } else {
@@ -248,6 +238,7 @@ function chewStructure(msg) {
 
      var makePart = function(partInfo, filename) {
         return mailRep.makeAttachmentPart({
+          relId: encodeA64(attachments.length),
           name: filename || 'unnamed-' + (++unnamedPartCounter),
           contentId: partInfo.id ? stripArrows(partInfo.id) : null,
           type: partInfo.type.toLowerCase(),
@@ -256,7 +247,7 @@ function chewStructure(msg) {
           sizeEstimate: estimatePartSizeInBytes(partInfo),
           file: null
         });
-      }
+      };
 
       var makeTextPart = function(partInfo) {
         return mailRep.makeBodyPart({
@@ -280,9 +271,9 @@ function chewStructure(msg) {
             params: valuesOnly(partInfo.parameters),
             encoding: partInfo.encoding && partInfo.encoding.toLowerCase()
           } : null,
-          content: ''
+          contentBlob: null
         });
-      }
+      };
 
       if (disposition === 'attachment') {
         attachments.push(makePart(partInfo, filename));
@@ -295,7 +286,6 @@ function chewStructure(msg) {
       case 'image':
         relatedParts.push(makePart(partInfo, filename));
         return true;
-        break;
         // - content
       case 'text':
         if (subtype === 'plain' || subtype === 'html') {
@@ -315,7 +305,7 @@ function chewStructure(msg) {
     attachments: attachments,
     relatedParts: relatedParts
   };
-};
+}
 
 /**
  * Transform a browserbox representation of an item that has a value
@@ -346,15 +336,17 @@ function valuesOnly(item) {
     return null;
   }
 }
+exports.valuesOnly = valuesOnly;
 
-exports.chewHeaderAndBodyStructure = function(msg, folderId, newMsgId) {
-  // begin by splitting up the raw imap message
-  var parts = chewStructure(msg);
+function ensureHeadersParsed(msg) {
+  // already parsed!
+  if (msg.headers) {
+    return;
+  }
 
-  msg.date = msg.internaldate && parseImapDateTime(msg.internaldate);
   msg.headers = {};
 
-  for (var key in msg) {
+  for (let key in msg) {
     // We test the key using a regex here because the key name isn't
     // normalized to a form we can rely on. The browserbox docs in
     // particular indicate that the full key name may be dependent on
@@ -363,56 +355,124 @@ exports.chewHeaderAndBodyStructure = function(msg, folderId, newMsgId) {
     // rely on instead: grabbing the right key based upon just this
     // regex.
     if (/header\.fields/.test(key)) {
-      var headerParser = new MimeParser();
+      let headerParser = new MimeParser();
       headerParser.write(msg[key] + '\r\n');
       headerParser.end();
       msg.headers = headerParser.node.headers;
       break;
     }
   }
+}
 
-  var fromArray = valuesOnly(firstHeader(msg, 'from'));
-  var references = valuesOnly(firstHeader(msg, 'references'));
+function extractMessageIdHeader(msg) {
+  ensureHeadersParsed(msg);
+  return stripArrows(valuesOnly(firstHeader(msg, 'message-id')));
+}
+exports.extractMessageIdHeader = extractMessageIdHeader;
 
-  return {
-    header: mailRep.makeHeaderInfo({
-      // the FolderStorage issued id for this message (which differs from the
-      // IMAP-server-issued UID so we can do speculative offline operations like
-      // moves).
-      id: newMsgId,
-      srvid: msg.uid,
-      // The sufficiently unique id is a concatenation of the UID onto the
-      // folder id.
-      suid: folderId + '/' + newMsgId,
-      // The message-id header value; as GUID as get for now; on gmail we can
-      // use their unique value, or if we could convince dovecot to tell us.
-      guid: stripArrows(valuesOnly(firstHeader(msg, 'message-id'))),
-      // mimeparser models from as an array; we do not.
-      author: fromArray && fromArray[0] ||
-        // we require a sender e-mail; let's choose an illegal default as
-        // a stopgap so we don't die.
-        { address: 'missing-address@example.com' },
-      to: valuesOnly(firstHeader(msg, 'to')),
-      cc: valuesOnly(firstHeader(msg, 'cc')),
-      bcc: valuesOnly(firstHeader(msg, 'bcc')),
-      replyTo: valuesOnly(firstHeader(msg, 'reply-to')),
-      date: msg.date,
-      flags: msg.flags || [],
-      hasAttachments: parts.attachments.length > 0,
-      subject: valuesOnly(firstHeader(msg, 'subject')),
+/**
+ * Given a message extract and normalize the references header into a list of
+ * strings without arrows, etc.  If there is no references header but there is
+ * an in-reply-to header, use that.
+ *
+ * Note that we currently require properly <> enclosed id's and ignore things
+ * outside of them.
+ *
+ * @return {String[]}
+ *   An array of references.  If there were no references, this will be an
+ *   empty list.
+ *
+ * XXX actually do the in-reply-to stuff; this has extra normalization sanity
+ * checking required so not doing that right now.
+ */
+function extractReferences(msg, messageId) {
+  ensureHeadersParsed(msg);
+  let referencesStr = valuesOnly(firstHeader(msg, 'references'));
+  if (!referencesStr) {
+    return [];
+  }
 
-      // we lazily fetch the snippet later on
-      snippet: null
-    }),
-    bodyInfo: mailRep.makeBodyInfo({
-      date: msg.date,
-      size: 0,
-      attachments: parts.attachments,
-      relatedParts: parts.relatedParts,
-      references: references ? stripArrows(references.split(/\s+/)) : null,
-      bodyReps: parts.bodyReps
-    })
-  };
+  let idx = 0;
+  let len = referencesStr.length;
+  let references = [];
+
+  while (idx < len) {
+    idx = referencesStr.indexOf('<', idx);
+    if (idx === -1) {
+      break;
+    }
+
+    let closeArrow = referencesStr.indexOf('>', idx + 1);
+    if (closeArrow === -1) {
+      break;
+    }
+
+    // Okay, so now we have a <...> we can consume.
+    let deArrowed = referencesStr.substring(idx + 1, closeArrow);
+    // Don't let a message include itself in its references
+    if (deArrowed !== messageId) {
+      references.push(deArrowed);
+    }
+
+    idx = closeArrow + 1;
+  }
+
+  return references;
+}
+exports.extractReferences = extractReferences;
+
+exports.chewMessageStructure = function(msg, folderIds, flags, convId,
+                                        maybeUmid, explicitMessageId) {
+  ensureHeadersParsed(msg);
+
+  // begin by splitting up the raw imap message
+  let parts = chewStructure(msg);
+
+  msg.date = msg.internaldate && parseImapDateTime(msg.internaldate);
+
+  let fromArray = valuesOnly(firstHeader(msg, 'from'));
+
+  let messageId;
+  let umid = null;
+  // non-gmail, umid-case.
+  if (maybeUmid) {
+    umid = maybeUmid;
+    messageId = explicitMessageId;
+  }
+  // gmail case
+  else {
+    let gmailMsgId = parseGmailMsgId(msg['x-gm-msgid']);
+    messageId = convId + '.' + gmailMsgId + '.' + msg.uid;
+  }
+
+  return mailRep.makeMessageInfo({
+    id: messageId,
+    // uniqueMessageId which provides server indirection for non-gmail sync
+    umid: umid,
+    // The message-id header value
+    guid: extractMessageIdHeader(msg),
+    date: msg.date,
+    // mimeparser models from as an array; we do not.
+    author: fromArray && fromArray[0] ||
+      // we require a sender e-mail; let's choose an illegal default as
+      // a stopgap so we don't die.
+      { address: 'missing-address@example.com' },
+    to: valuesOnly(firstHeader(msg, 'to')),
+    cc: valuesOnly(firstHeader(msg, 'cc')),
+    bcc: valuesOnly(firstHeader(msg, 'bcc')),
+    replyTo: valuesOnly(firstHeader(msg, 'reply-to')),
+    flags: flags,
+    folderIds: folderIds,
+    hasAttachments: parts.attachments.length > 0,
+    subject: valuesOnly(firstHeader(msg, 'subject')),
+
+    // we lazily fetch the snippet later on
+    snippet: null,
+    attachments: parts.attachments,
+    relatedParts: parts.relatedParts,
+    references: extractReferences(msg),
+    bodyReps: parts.bodyReps
+  });
 };
 
 /**
@@ -445,8 +505,8 @@ exports.chewHeaderAndBodyStructure = function(msg, folderId, newMsgId) {
  *    //    and set its value.
  *
  */
-exports.updateMessageWithFetch = function(header, body, req, res) {
-  var bodyRep = body.bodyReps[req.bodyRepIndex];
+exports.updateMessageWithFetch = function(message, req, res) {
+  var bodyRep = message.bodyReps[req.bodyRepIndex];
 
   // check if the request was unbounded or we got back less bytes then we
   // requested in which case the download of this bodyRep is complete.
@@ -458,29 +518,31 @@ exports.updateMessageWithFetch = function(header, body, req, res) {
   }
 
   if (!bodyRep.isDownloaded && res.buffer) {
-    bodyRep._partInfo.pendingBuffer = res.buffer;
+    bodyRep._partInfo.pendingBuffer = new Blob([res.buffer]);
   }
 
   bodyRep.amountDownloaded += res.bytesFetched;
 
-  var data = $mailchew.processMessageContent(
+  var { contentBlob, snippet } = $mailchew.processMessageContent(
     res.text, bodyRep.type, bodyRep.isDownloaded, req.createSnippet);
 
   if (req.createSnippet) {
-    header.snippet = data.snippet;
+    message.snippet = snippet;
   }
-  if (bodyRep.isDownloaded)
-    bodyRep.content = data.content;
+  if (bodyRep.isDownloaded) {
+    bodyRep.contentBlob = contentBlob;
+  }
 };
 
 /**
  * Selects a desirable snippet body rep if the given header has no snippet.
  */
-exports.selectSnippetBodyRep = function(header, body) {
-  if (header.snippet)
+exports.selectSnippetBodyRep = function(message) {
+  if (message.snippet) {
     return -1;
+  }
 
-  var bodyReps = body.bodyReps;
+  var bodyReps = message.bodyReps;
   var len = bodyReps.length;
 
   for (var i = 0; i < len; i++) {
@@ -528,7 +590,7 @@ exports.calculateBytesToDownloadForImapBodyDisplay = function(body) {
     }
   });
   return bytesLeft;
-}
+};
 
 // parseImapDateTime and formatImapDateTime functions from node-imap;
 // MIT licensed, (c) Brian White.
@@ -568,8 +630,9 @@ var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep',
 */
 var parseImapDateTime = exports.parseImapDateTime = function(dstr) {
   var match = reDateTime.exec(dstr);
-  if (!match)
+  if (!match) {
     throw new Error('Not a good IMAP date-time: ' + dstr);
+  }
   var day = parseInt(match[1], 10),
       zeroMonth = MONTHS.indexOf(match[2]),
       year = parseInt(match[3], 10),

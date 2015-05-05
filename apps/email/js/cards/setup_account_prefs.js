@@ -36,7 +36,7 @@ return [
       this.updateSignatureButton();
     },
 
-    die: function() {
+    release: function() {
     }
   }
 ];

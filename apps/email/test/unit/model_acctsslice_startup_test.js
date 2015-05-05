@@ -27,7 +27,7 @@ suite('model acctsSlice, startup', function() {
     var fakeSlice = {
       oncomplete: function() { },
       items: [],
-      die: function() { }
+      release: function() { }
     };
     sinon.stub(api, 'viewAccounts').returns(fakeSlice);
     // Wait for model.init to finish this tick...

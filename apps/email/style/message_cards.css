@@ -123,16 +123,16 @@ cards-message-list.after .msg-list-scrollouter {
 /* Sections horizontally chop up the item: unread, details, icons, avatar.
  * We have 320 horizontal pixels to play with.
  */
-.msg-header-item {
+.msg-message-item {
   display: block;
   position: absolute;
   width: 100%;
   height: 8rem;
 }
-.msg-header-item:active {
+.msg-message-item:active {
   background-color: #b1f1ff;
 }
-.msg-header-item:focus {
+.msg-message-item:focus {
   outline: 0;
 }
 
@@ -141,20 +141,20 @@ Default data placeholder items. To limit scrolling
 impact, these styles should not be ones that trigger
 reflows. Foreground/background colors should be safe.
  */
-.msg-header-item.default-data .msg-header-author {
+.msg-message-item.default-data .msg-message-author {
   color: #e7e8e9;
 }
-.msg-header-item.default-data .msg-header-subject {
+.msg-message-item.default-data .msg-message-subject {
   color: #e7e8e9;
 }
-.msg-header-item.default-data .msg-header-snippet {
+.msg-message-item.default-data .msg-message-snippet {
   color: #e7e8e9;
 }
-.msg-header-item.default-data .msg-header-date {
+.msg-message-item.default-data .msg-message-date {
   color: white;
 }
 
-.msg-header-unread-section {
+.msg-message-unread-section {
   position: absolute;
   top: 50%;
   display: inline-block;
@@ -172,12 +172,12 @@ html[dir="rtl"] .msg-header-unread-section {
   right: 1rem;
 }
 
-.msg-header-item.unread .msg-header-unread-section {
+.msg-message-item.unread .msg-message-unread-section {
   background-color: #2fc9ec;
   visibility: visible;
 }
 
-.msg-header-syncing-section {
+.msg-message-syncing-section {
   position: absolute;
   top: 50%;
   display: inline-block;
@@ -192,19 +192,19 @@ html[dir="rtl"] .msg-header-unread-section {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
-.msg-header-syncing-section-syncing {
+.msg-message-syncing-section-syncing {
   animation: syncing-rotation 1s linear infinite;
   visibility: visible;
   background: url("images/icons/icon_outbox_sending.png") no-repeat center / contain;
 }
 
 /* The syncing status supercedes the unread icon. */
-.unread .msg-header-syncing-section-error + .msg-header-unread-section,
-.unread .msg-header-syncing-section-syncing + .msg-header-unread-section {
+.unread .msg-message-syncing-section-error + .msg-message-unread-section,
+.unread .msg-message-syncing-section-syncing + .msg-message-unread-section {
   display: none;
 }
 
-.msg-header-syncing-section-error {
+.msg-message-syncing-section-error {
   visibility: visible;
   background: url("images/icons/icon_outbox_pending.png") no-repeat center / contain;
 }
@@ -232,7 +232,7 @@ html[dir="rtl"] .msg-header-details-section {
   right: 1.5rem;
 }
 
-.msg-header-icons-section {
+.msg-message-icons-section {
   display: block;
   position: absolute;
   top: 0;
@@ -240,6 +240,7 @@ html[dir="rtl"] .msg-header-details-section {
   height: 100%;
   padding-top: 2.5rem;
 }
+
 html[dir="ltr"] .msg-header-icons-section {
   right: 2.8rem; /* The width of the avatar-section. */
 }
@@ -247,30 +248,49 @@ html[dir="rtl"] .msg-header-icons-section {
   left: 2.8rem; /* The width of the avatar-section. */
 }
 
-.msg-header-avatar-section {
+.msg-message-avatar-section {
   display: block;
   position: absolute;
   top: 0;
   width: 2.8rem;
   height: 100%;
 }
+
 html[dir="ltr"] .msg-header-avatar-section { right: 0; }
 html[dir="rtl"] .msg-header-avatar-section { left: 0; }
 
-.msg-header-author {
+.msg-message-author-count {
   font-size: 1.9rem;
   font-weight: normal;
   color: #131313;
-  flex-grow: 1;
-  flex-shrink: 1;
+  flex: 1 1;
   width: 0;
   order: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-align: left;
+}
+
+html:-moz-dir(rtl) .msg-message-author-count {
+  text-align: right;
+}
+
+.msg-message-author {
+  display: inline-block;
+  max-width: 100%;
+  font-size: 1.9rem;
+  font-weight: normal;
+  color: #131313;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.msg-header-item.unread .msg-header-author {
+.draft .msg-message-author {
+  color: #ff1919;
+}
+
+.msg-message-item.unread .msg-message-author {
   font-weight: 500;
 }
 
@@ -282,14 +302,32 @@ html[dir="rtl"] .msg-header-avatar-section { left: 0; }
   order: 2;
   white-space: nowrap;
 }
+
 html[dir="ltr"] .msg-header-date { padding-left: 0.5rem; }
 html[dir="rtl"] .msg-header-date { padding-right: 0.5rem; }
 
-.msg-header-item.unread .msg-header-date {
+.msg-message-item.unread .msg-message-date {
   color: #008eab;
 }
 
-.msg-header-subject {
+.multiple-count .msg-message-author {
+  max-width: calc(100% - 4rem);
+}
+
+.msg-message-count {
+  display: none;
+  font-size: 1.5rem;
+  font-weight: normal;
+  color: #858585;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.multiple-count .msg-message-count {
+  display: inline-block;
+}
+
+.msg-message-subject {
   order: 3;
   flex: 0 0 -moz-available;
   color: #131313;
@@ -300,7 +338,7 @@ html[dir="rtl"] .msg-header-date { padding-right: 0.5rem; }
   text-overflow: ellipsis;
 }
 
-.msg-header-snippet {
+.msg-message-snippet {
   order: 4;
   flex: 0 0 -moz-available;
   color: #858585;
@@ -321,14 +359,19 @@ html[dir="rtl"] .msg-header-snippet.icon-short {
   margin-left: 1.6rem;
 }
 
-.msg-header-star {
+cards-conv-list .msg-message-snippet {
+  white-space: normal;
+  height: 4rem;
+}
+
+.msg-message-star {
   display: block;
   visibility: hidden;
   color: #888844;
   font-size: 150%;
 }
 
-.msg-header-star-starred {
+.msg-message-star-starred {
   background: url("images/icons/message-list-star.png") no-repeat center / 2rem;
   position: absolute;
   width: 2rem;
@@ -336,15 +379,16 @@ html[dir="rtl"] .msg-header-snippet.icon-short {
   top: 3rem;
   visibility: visible;
 }
+
 html[dir="ltr"] .msg-header-star-starred { right: -2rem; }
 html[dir="rtl"] .msg-header-star-starred { left: -2rem; }
 
-.msg-header-attachments {
+.msg-message-attachments {
   display: block;
   visibility: hidden;
 }
 
-.msg-header-attachments-yes {
+.msg-message-attachments-yes {
   background: url("images/icons/message-list-attachment.png") no-repeat center / 2rem;
   position: absolute;
   width: 2rem;
@@ -356,7 +400,7 @@ html[dir="rtl"] .msg-header-star-starred { left: -2rem; }
 html[dir="ltr"] .msg-header-attachments-yes { right: -2rem; }
 html[dir="rtl"] .msg-header-attachments-yes { left: -2rem; }
 
-.msg-envelope-bar {
+msg-envelope-bar {
   width: 100%;
   font-size: 1.4rem;
   color: #707070;
@@ -931,4 +975,11 @@ html[dir="rtl"] .msg-reply-menu menu > button:before { float: right; }
 
 .msg-reply-menu-forward:before {
   background-image: url("images/icons/forward.png");
+}
+
+.conv-list-subject {
+  padding: 1rem 1.5rem 1rem 3rem;
+  font-size: 1.6rem;
+  color: #707070;
+  background-color: #f2f2f2;
 }

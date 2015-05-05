@@ -21,7 +21,7 @@ return [
       this.scrollRegion.appendChild(browserFrame);
     },
 
-    die: function() {
+    release: function() {
       // The main reason a mozbrowser for this flow, not preserving cookies.
       appSelf.latest('self', function(app) {
         console.log('clearing browser data: ' + app);

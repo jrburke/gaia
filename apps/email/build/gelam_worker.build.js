@@ -27,6 +27,10 @@
     buildExclude: true
   },
 
+  paths: {
+    app_logic: '../api_app_logic'
+  },
+
   onBuildWrite: function (id, path, contents) {
     if (id === 'worker-bootstrap') {
       // The loading kickoff is stripped out from the source worker-bootstrap by
@@ -57,15 +61,14 @@
         // Job/operations are currently not gated, although they could be...
         'jobmixins',
         'jobs/outbox',
-        'drafts/jobs',
 
         // Common account logic is required for everything.
         'accountmixins',
 
         // Include the chews because they are common and small-ish.
-        'htmlchew',
-        'quotechew',
-        'mailchew',
+        'bodies/htmlchew',
+        'bodies/quotechew',
+        'bodies/mailchew',
 
         // main-frame-setup also wants this, so will delete it after the main
         // gaia app optimization runs, so include it now. Commonly needed at

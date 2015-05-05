@@ -52,7 +52,7 @@ return [
       oauthFetch(oauth2, {
         login_hint: this.account.username
       })
-      .then(function(response) {
+      .then((response) => {
         if (response.status === 'success') {
           this.account.modifyAccount({ oauthTokens: response.tokens });
 
@@ -64,10 +64,10 @@ return [
           // Successfully reauthed, nothing else to do on this card.
           this.onBack();
         }
-      }.bind(this));
+      });
     },
 
-    die: function() {
+    release: function() {
     }
   }
 ];
