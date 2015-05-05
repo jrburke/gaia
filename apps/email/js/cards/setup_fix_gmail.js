@@ -35,7 +35,7 @@ return [
       }
     },
 
-    die: function() {
+    release: function() {
       // no special cleanup required
     },
 

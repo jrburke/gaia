@@ -123,10 +123,10 @@ define(function(require) {
       this.actionButton.disabled = !opts.action;
       this.el.classList.remove('collapsed');
 
-      this._fadeTimeout = setTimeout(function() {
+      this._fadeTimeout = setTimeout(() => {
         // This will hide when the 'fadeout' is complete in 'transitionend'.
         this.el.classList.add('fadeout');
-      }.bind(this), opts.timeout || this.defaultTimeout);
+      }, opts.timeout || this.defaultTimeout);
     },
 
     isShowing: function() {

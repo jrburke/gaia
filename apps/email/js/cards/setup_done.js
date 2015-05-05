@@ -17,7 +17,7 @@ return [
       evt.emit('showLatestAccount');
     },
 
-    die: function() {
+    release: function() {
     }
   }
 ];

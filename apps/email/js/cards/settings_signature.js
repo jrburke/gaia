@@ -42,7 +42,7 @@ return [
       cards.setStatusColor(menu);
       document.body.appendChild(menu);
 
-      var formSubmit = (function(evt) {
+      var formSubmit = (evt) => {
         cards.setStatusColor();
         document.body.removeChild(menu);
         this._savePromptMenu = null;
@@ -59,7 +59,7 @@ return [
             break;
         }
         return false;
-      }).bind(this);
+      };
       menu.addEventListener('submit', formSubmit);
     },
 
@@ -100,7 +100,7 @@ return [
       this.signatureNode.focus();
     },
 
-    die: function() {
+    release: function() {
     }
   }
 ];

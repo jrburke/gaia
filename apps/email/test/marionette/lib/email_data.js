@@ -43,7 +43,7 @@ EmailData.prototype = {
 
       function checkDone() {
         if (account[key] === value) {
-          acctsSlice.die();
+          acctsSlice.release();
           marionetteScriptFinished(true);
         }
       }

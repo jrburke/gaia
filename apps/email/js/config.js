@@ -5,6 +5,9 @@
 // config.
 if (typeof TestUrlResolver === 'undefined') {
   requirejs.config({
+    // Worker code is getting fancy
+    scriptType: 'application/javascript;version=1.7',
+
     // waitSeconds is set to the default here; the build step rewrites it to 0
     // in build/email.build.js so that we never timeout waiting for modules in
     // production. This is important when the device is under super-low-memory
@@ -16,7 +19,10 @@ if (typeof TestUrlResolver === 'undefined') {
       l10nbase: '../shared/js/l10n',
       moz_intl: '../shared/js/moz_intl',
       style: '../style',
-      shared: '../shared'
+      shared: '../shared',
+      app_logic: 'api_app_logic',
+      logic: 'ext/logic',
+      gelam: 'ext'
     },
      map: {
       '*': {
@@ -45,6 +51,10 @@ if (typeof TestUrlResolver === 'undefined') {
       }
     },
     config: {
+      'ext/main-frame-setup': {
+        appLogicPath: '../api_app_logic'
+      },
+
       template: {
         tagToId: function(tag) {
            return tag.replace(/^cards-/, 'cards/')

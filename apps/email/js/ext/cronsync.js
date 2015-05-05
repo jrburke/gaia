@@ -76,7 +76,7 @@ var SliceBridgeProxy = require('./slice_bridge_proxy').SliceBridgeProxy;
  *   being closed, you want to make sure that if you're doing anything like
  *   scheduling snippet downloads that you do that first.
  */
-function makeHackedUpSlice(storage, callback) {
+function makeHackedUpSlice(storage, callback, parentLog) {
   var fakeBridgeThatEatsStuff = {
         __sendMessage: function() {}
       },
@@ -130,10 +130,8 @@ function makeHackedUpSlice(storage, callback) {
  * The brains behind periodic account synchronization; only created by the
  * universe once it has loaded its configuration and accounts.
  */
-function CronSync(universe) {
+function CronSync(universe, _logParent) {
   this._universe = universe;
-
-  logic.defineScope(this, 'CronSync');
 
   this._ensureSyncResolve = null;
 

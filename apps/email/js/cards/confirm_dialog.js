@@ -37,7 +37,7 @@ define(function(require) {
         }
 
         // Wire up the event handling
-        dialogBodyNode.addEventListener('submit', function(evt) {
+        dialogBodyNode.addEventListener('submit', (evt) => {
           evt.preventDefault();
           evt.stopPropagation();
 
@@ -53,14 +53,14 @@ define(function(require) {
           } else if ((isCancel || targetId === cancel.id) && cancel.handler) {
             cancel.handler();
           }
-        }.bind(this));
+        });
       },
 
       hide: function() {
         cards.removeCardAndSuccessors(this, 'immediate', 1, null, true);
       },
 
-      die: function() {
+      release: function() {
       }
     }
   ];

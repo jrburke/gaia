@@ -6,8 +6,8 @@ requireApp('email/js/alameda.js');
 requireApp('email/test/config.js');
 
 suite('message_list', function() {
-  var subject, modelCreate, HeaderCursor, MessageList;
-  var mockMessagesSlice = { items: [], die: function() {} };
+  var subject, modelCreate, ListCursor, MessageList;
+  var mockList = { items: [], release: function() {} };
   var mockStarredMessage = {
     isStarred: true
   };
@@ -40,23 +40,23 @@ suite('message_list', function() {
       done: done
     }, [
       'model_create',
-      'header_cursor',
+      'list_cursor',
       'element!cards/message_list_search',
-      'tmpl!cards/msg/header_item.html'], function(mc, hc, ml, hi) {
+      'tmpl!cards/msg/header_item.html'], function(mc, lc, ml, hi) {
       modelCreate = mc;
-      HeaderCursor = hc;
+      ListCursor = lc;
       mockMessage.element = hi.cloneNode(true);
       MessageList = ml;
     });
   });
 
   setup(function() {
-    var headerCursor = new HeaderCursor(modelCreate.defaultModel);
-    headerCursor.messagesSlice = mockMessagesSlice;
+    var listCursor = new ListCursor();
+    listCursor.list = mockList;
     subject = new MessageList();
     subject.onArgs({
       model: modelCreate.defaultModel,
-      headerCursor: headerCursor
+      listCursor: listCursor
     });
   });
 

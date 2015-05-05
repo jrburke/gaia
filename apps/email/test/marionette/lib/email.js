@@ -32,7 +32,7 @@ var Selector = {
   msgListScrollOuter: 'cards-message-list .msg-list-scrollouter',
   editMode: 'cards-message-list .msg-edit-btn',
   editModeCheckBoxes:
-    'cards-message-list .msg-header-item[data-index="0"] label.pack-checkbox',
+    'cards-message-list .msg-message-item[data-index="0"] label.pack-checkbox',
   editModeTrash: 'cards-message-list button.msg-delete-btn',
   msgUpBtn: 'cards-message-reader .msg-up-btn',
   msgEnvelopeSubject: 'cards-message-reader .msg-envelope-subject',
@@ -51,7 +51,7 @@ var Selector = {
   composeErrorMessage: 'cards-compose .cmp-error-message',
   refreshButton: '.card.center .msg-refresh-btn',
   messageHeaderItem:
-  '.msg-vscroll-container .msg-header-item',
+  '.msg-vscroll-container .msg-message-item',
   cardMessageReader: 'cards-message-reader',
   currentCardInputs: '.card.center input[type="text"]',
   replyMenuButton: '.msg-reply-btn',
@@ -77,7 +77,7 @@ var Selector = {
   accountSettingsBackButton: 'cards-settings-account .tng-back-btn',
   localDraftsItem: '.fld-folders-container a[data-type=localdrafts]',
   outboxItem: '.fld-folders-container a[data-type=outbox]',
-  outboxItemSyncIcon: '.msg-header-syncing-section',
+  outboxItemSyncIcon: '.msg-message-syncing-section',
   msgLastSync: '.msg-last-synced-value',
   toaster: 'section[role="status"]'
 };

@@ -54,7 +54,7 @@ return [
         this.syncSettingNode.parentNode.removeChild(this.syncSettingNode);
       }
 
-      this.account.servers.forEach(function(server, index) {
+      this.account.servers.forEach((server, index) => {
         var serverNode = tngAccountSettingsServerNode.cloneNode(true);
         var serverLabel = serverNode.querySelector('.tng-account-server-label');
 
@@ -64,7 +64,7 @@ return [
           this.onClickServers.bind(this, index), false);
 
         this.serversContainer.appendChild(serverNode);
-      }.bind(this));
+      });
 
       var credL10nId = 'settings-account-userpass';
       if (this.account.authMechanism === 'oauth2') {
@@ -141,7 +141,7 @@ return [
       );
     },
 
-    die: function() {
+    release: function() {
     }
   }
 ];

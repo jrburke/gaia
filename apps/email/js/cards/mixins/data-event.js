@@ -33,7 +33,7 @@ define(function () {
           method = parts[1].trim();
 
           if (typeof this[method] !== 'function') {
-            throw new Error('"' + method +
+            throw new Error(this.nodeName.toLowerCase() + ': "' + method +
                             '" is not a function, cannot bind with data-event');
           }
 

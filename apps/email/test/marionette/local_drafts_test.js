@@ -42,7 +42,7 @@ marionette('local draft', function() {
 
     // TODO(gaye): Abstract this waitForChild into lib/email.
     var author = client.helper
-      .waitForChild(message, '.msg-header-author')
+      .waitForChild(message, '.msg-message-author')
       .text();
     assert.equal(author, EMAIL_ADDRESS);
   });

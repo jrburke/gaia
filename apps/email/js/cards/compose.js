@@ -19,6 +19,7 @@ var cmpAttachmentItemNode = require('tmpl!./cmp/attachment_item.html'),
     toaster = require('toaster'),
     iframeShims = require('iframe_shims'),
     Marquee = require('marquee'),
+    mix = require('mix'),
     mozL10n = require('l10n!'),
 
     cards = require('cards'),
@@ -99,19 +100,17 @@ return [
       // Likewise, clicking on the empty space below our contenteditable region
       // or on our immutable HTML quoting box should result in us positioning
       // the cursor in our contenteditable region.
-      this.scrollContainer.addEventListener(
-        'click',
-        function(event) {
-          // Only do this if the click is BELOW the text area.
-          var bounds = this.textBodyNode.getBoundingClientRect();
-          if (event.clientY > bounds.bottom) {
-            this._focusEditorWithCursorAtEnd(event);
-          }
-        }.bind(this));
+      this.scrollContainer.addEventListener( 'click', (event) => {
+        // Only do this if the click is BELOW the text area.
+        var bounds = this.textBodyNode.getBoundingClientRect();
+        if (event.clientY > bounds.bottom) {
+          this._focusEditorWithCursorAtEnd(event);
+        }
+      });
 
       // Tracks if the card closed itself, in which case
       // no draft saving is needed. If something else
-      // causes the card to die, then we want to save any
+      // causes the card to release, then we want to save any
       // state.
       this._selfClosed = false;
 
@@ -201,7 +200,7 @@ return [
     postInsert: function() {
       // the HTML bit needs us linked into the DOM so the iframe can be
       // linked in, hence this happens in postInsert.
-      require(['iframe_shims'], function() {
+      require(['iframe_shims'], () => {
 
         // NOTE: when the compose card changes to allow switching the From
         // account then this logic will need to change, both the acquisition of
@@ -214,20 +213,31 @@ return [
           var data = this.composerData,
               model = this.model;
 
-          model.latestOnce('folder', function(folder) {
-            this.composer = model.api.beginMessageComposition(data.message,
-                                                              folder,
-                                                              data.options,
-                                                              function() {
+          var composeOptions = {};
+          if (data.options) {
+            mix(composeOptions, data.options);
+          }
+
+          if (!composeOptions.command) {
+            composeOptions.command = 'blank';
+          }
+
+          model.latestOnce('folder', (folder) => {
+            model.api.beginMessageComposition(data.message,
+                                              folder,
+                                              composeOptions)
+            .then((composer) => {
+              this.composer = composer;
+
               if (data.onComposer) {
                 data.onComposer(this.composer, this);
               }
 
               this._loadStateFromComposer();
-            }.bind(this));
-          }.bind(this));
+            });
+          });
         }
-      }.bind(this));
+      });
     },
 
     _loadStateFromComposer: function() {
@@ -256,7 +266,7 @@ return [
 
       this.validateAddresses();
 
-      this.renderSendStatus();
+      this.renderSendProblems();
 
       // Add attachments
       this.renderAttachments();
@@ -266,17 +276,17 @@ return [
       // hits the back button without doing anything we can simply discard the
       // draft. This is not for avoiding redundant saves or any attempt at
       // efficiency.
-      this.origText = this.composer.body.text;
+      this.origText = this.composer.textBody;
 
-      this.populateEditor(this.composer.body.text);
+      this.populateEditor(this.composer.textBody);
 
-      if (this.composer.body.html) {
+      if (this.composer.htmlBlob) {
         // Although (still) sanitized, this is still HTML we did not create and
         // so it gets to live in an iframe.  Its read-only and the user needs to
         // be able to see what they are sending, so reusing the viewing
         // functionality is desirable.
         var ishims = iframeShims.createAndInsertIframeForContent(
-          this.composer.body.html, this.scrollContainer,
+          this.composer.htmlBlob, this.scrollContainer,
           this.htmlBodyContainer, /* append */ null,
           'noninteractive',
           /* no click handler because no navigation desired */ null);
@@ -293,28 +303,28 @@ return [
     },
 
     /**
-     * If this draft came from the outbox, it might have a sendStatus
+     * If this draft came from the outbox, it might have a sendProblems
      * description explaining why the send failed. Display it if so.
      *
-     * The sendStatus information on this messages is provided through
+     * The sendProblems information on this messages is provided through
      * the sendOutboxMessages job; see `jobs/outbox.js` in GELAM for details.
      */
-    renderSendStatus: function() {
-      var sendStatus = this.composer.sendStatus || {};
-      if (sendStatus.state === 'error') {
-        var badAddresses = sendStatus.badAddresses || [];
+    renderSendProblems: function() {
+      var sendProblems = this.composer.sendProblems || {};
+      if (sendProblems.state === 'error') {
+        var badAddresses = sendProblems.badAddresses || [];
 
         // For debugging, report some details to the console, masking
         // recipients for privacy.
         console.log('Editing a failed outbox message. Details:',
         JSON.stringify({
-          err: sendStatus.err,
+          err: sendProblems.err,
           badAddressCount: badAddresses.length,
-          sendFailures: sendStatus.sendFailures
+          sendFailures: sendProblems.sendFailures
         }, null, ' '));
 
         var l10nId;
-        if (badAddresses.length || sendStatus.err === 'bad-recipient') {
+        if (badAddresses.length || sendProblems.err === 'bad-recipient') {
           l10nId = 'send-failure-recipients';
         } else {
           l10nId = 'send-failure-unknown';
@@ -352,7 +362,7 @@ return [
 
       // Extract the addresses from the bubbles as well as any partial
       // addresses entered in the text input.
-      var frobAddressNode = (function(node) {
+      var frobAddressNode = ((node) => {
         var bubbles = node.parentNode.querySelectorAll('.cmp-peep-bubble');
         var addrList = [];
         for (var i = 0; i < bubbles.length; i++) {
@@ -363,14 +373,14 @@ return [
           var mailbox = this.model.api.parseMailbox(node.value);
           addrList.push({ name: mailbox.name, address: mailbox.address });
         }
-        addrList.forEach(function(addr) {
+        addrList.forEach((addr) => {
           allAddresses.push(addr);
           if (!this.isValidAddress(addr.address)) {
             invalidAddresses.push(addr);
           }
-        }.bind(this));
+        });
         return addrList;
-      }.bind(this));
+      });
 
       // NOTE: allAddresses contains invalidAddresses, but we never
       // actually send a message directly using either of those lists.
@@ -404,7 +414,7 @@ return [
       this.composer.cc = addrs.cc;
       this.composer.bcc = addrs.bcc;
       this.composer.subject = this.subjectNode.value;
-      this.composer.body.text = this.fromEditor();
+      this.composer.textBody = this.fromEditor();
       // The HTML representation cannot currently change in our UI, so no
       // need to save it.  However, what we send to the back-end is what gets
       // sent, so if you want to implement editing UI and change this here,
@@ -423,7 +433,7 @@ return [
         return false;
       }
 
-      var hasNewContent = this.fromEditor() !== this.composer.body.text;
+      var hasNewContent = this.fromEditor() !== this.composer.textBody;
 
       // We need `to save / ask about deleting the draft if:
       // There's any recipients listed, there's a subject, there's anything in
@@ -445,12 +455,12 @@ return [
       }
       this._saveStateToComposer();
       evt.emit('uiDataOperationStart', this._dataIdSaveDraft);
-      this.composer.saveDraft(function() {
+      this.composer.saveDraft(() => {
         evt.emit('uiDataOperationStop', this._dataIdSaveDraft);
         if (callback) {
           callback();
         }
-      }.bind(this));
+      });
     },
 
     createBubbleNode: function(name, address) {
@@ -640,7 +650,7 @@ return [
         document.body.appendChild(contents);
         Marquee.activate('alternate', 'ease');
 
-        var formSubmit = (function(evt) {
+        var formSubmit = (evt) => {
           cards.setStatusColor();
           document.body.removeChild(contents);
           switch (evt.explicitOriginalTarget.className) {
@@ -654,7 +664,7 @@ return [
               break;
           }
           return false;
-        }).bind(this);
+        };
         contents.addEventListener('submit', formSubmit);
         return;
       }
@@ -684,9 +694,9 @@ return [
        {
         // ok
         id: 'msg-attach-ok',
-        handler: function() {
+        handler: () => {
           // There is nothing to do.
-        }.bind(this)
+        }
        }
       );
     },
@@ -708,7 +718,7 @@ return [
       // adding a bit of a buffer, just to be nice for super low memory
       // devices. Not a catastrophe if work is still going on when the timeout
       // fires.
-      setTimeout(function() {
+      setTimeout(() => {
         var wantAttachment = this._wantAttachment;
         this._totalAttachmentsFinishing = 0;
         this._totalAttachmentsDone = 0;
@@ -727,7 +737,7 @@ return [
         if (wantAttachment) {
           this.onAttachmentAdd();
         }
-      }.bind(this), 600);
+      }, 600);
     },
 
     /**
@@ -751,6 +761,7 @@ return [
       var attachedAny = false;
       while (toAttach.length) {
         var attachment = toAttach.shift();
+        // Not a mail attachment object yet, need to consult blob for size.
         totalSize += attachment.blob.size;
         if (totalSize >= MAX_ATTACHMENT_SIZE) {
           this._warnAttachmentSizeExceeded(1 + toAttach.length);
@@ -786,11 +797,12 @@ return [
           var attachment = this.composer.attachments[i];
 
           filenameTemplate.textContent = attachment.name;
-          fileDisplay.fileSize(filesizeTemplate, attachment.blob.size);
+          fileDisplay.fileSize(filesizeTemplate,
+                               attachment.sizeEstimate);
           var attachmentNode = attTemplate.cloneNode(true);
           this.attachmentsContainer.appendChild(attachmentNode);
 
-          attachmentNode.classList.add(mimeToClass(attachment.blob.type));
+          attachmentNode.classList.add(mimeToClass(attachment.type));
           attachmentNode.getElementsByClassName('cmp-attachment-remove')[0]
             .addEventListener('click',
                               this.onClickRemoveAttachment.bind(
@@ -825,7 +837,7 @@ return [
     calculateTotalAttachmentsSize: function() {
       var totalSize = 0;
       for (var i = 0; i < this.composer.attachments.length; i++) {
-        totalSize += this.composer.attachments[i].blob.size;
+        totalSize += this.composer.attachments[i].sizeEstimate;
       }
       return totalSize;
     },
@@ -871,7 +883,7 @@ return [
      * Save the draft if there's anything to it, close the card.
      */
     onBack: function() {
-      var goBack = (function() {
+      var goBack = () => {
         if (this.activity) {
           // We need more testing here to make sure the behavior that back
           // to originated activity works perfectly without any crash or
@@ -882,7 +894,7 @@ return [
         }
 
         this._closeCard();
-      }).bind(this);
+      };
 
       if (!this._saveNeeded()) {
         console.log('compose: back: no save needed, exiting without prompt');
@@ -896,7 +908,7 @@ return [
       cards.setStatusColor(menu);
       document.body.appendChild(menu);
 
-      var formSubmit = (function(evt) {
+      var formSubmit = (evt) => {
         cards.setStatusColor();
         document.body.removeChild(menu);
         this._savePromptMenu = null;
@@ -917,7 +929,7 @@ return [
             break;
         }
         return false;
-      }).bind(this);
+      };
       menu.addEventListener('submit', formSubmit);
     },
 
@@ -936,7 +948,7 @@ return [
      * Validate that the provided addresses are valid. Enable the send
      * button conditional on all addresses being correct. If all
      * addresses are correct and we had previously displayed a
-     * sendStatus error, hide the sendStatus error display.
+     * sendProblems error, hide the sendProblems error display.
      *
      * @return {Boolean}
      *   True if all addresses are valid, otherwise false.
@@ -1002,7 +1014,7 @@ return [
       console.log('compose: initiating send');
       evt.emit('uiDataOperationStart', this._dataIdSendEmail);
 
-      this.composer.finishCompositionSendMessage(function(sendInfo) {
+      this.composer.finishCompositionSendMessage((sendInfo) => {
         evt.emit('uiDataOperationStop', this._dataIdSendEmail);
 
         // Card could have been destroyed in the meantime,
@@ -1022,7 +1034,7 @@ return [
 
         this._closeCard();
 
-      }.bind(this));
+      });
     },
 
     onContactAdd: function(event) {
@@ -1080,10 +1092,10 @@ return [
             nocrop: true
           }
         });
-        activity.onsuccess = (function success() {
+        activity.onsuccess = () => {
           // Load the util on demand, since one small codepath needs it, and
           // it avoids needing to bundle util's dependencies in a built layer.
-          require(['attachment_name'], function(attachmentName) {
+          require(['attachment_name'], (attachmentName) => {
             var blob = activity.result.blob,
                 name = activity.result.blob.name || activity.result.name,
                 count = this.composer.attachments.length + 1;
@@ -1098,14 +1110,14 @@ return [
               name: name,
               blob: activity.result.blob
             }]);
-          }.bind(this));
-        }).bind(this);
+          });
+        };
       } catch (e) {
         console.log('WebActivities unavailable? : ' + e);
       }
     },
 
-    die: function() {
+    release: function() {
       // If confirming for prompt when destroyed, just remove
       // and if save is needed, it will be autosaved below.
       if (this._savePromptMenu) {
@@ -1114,7 +1126,7 @@ return [
       }
 
       // If something else besides the card causes this card
-      // to die, but we have a draft to save, do it now.
+      // to release, but we have a draft to save, do it now.
       // However, wait for the draft save to complete before
       // completely shutting down the composer.
       if (!this._selfClosed && this._saveNeeded()) {
@@ -1123,7 +1135,7 @@ return [
       }
 
       if (this.composer) {
-        this.composer.die();
+        this.composer.release();
         this.composer = null;
       }
     }

@@ -32,7 +32,7 @@ return [
       cards.removeCardAndSuccessors(this, 'animate', 1);
     },
 
-    die: function() {
+    release: function() {
     }
   }
 ];
