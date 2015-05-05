@@ -60,7 +60,7 @@ define(function(require) {
       cards.removeCardAndSuccessors(this, 'animate', 1, this.restoreCard);
     },
 
-    die: function() {
+    release: function() {
       // no special cleanup required
     }
   };

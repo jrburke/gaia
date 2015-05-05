@@ -89,7 +89,7 @@ return [
         'right');
     },
 
-    die: function() {
+    release: function() {
       this.formNavigation = null;
     }
   }

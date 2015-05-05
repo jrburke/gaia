@@ -108,7 +108,7 @@ return [
     learnAbout: function() {
       MailAPI.learnAboutAccount({
         emailAddress: this.args.emailAddress
-      }, function(details) {
+      }, (details) => {
         var args = this.args;
         args.configInfo = details.configInfo;
         var result = details.result;
@@ -118,7 +118,7 @@ return [
           oauthFetch(details.configInfo.oauth2Settings, {
             login_hint: args.emailAddress
           })
-          .then(function(response) {
+          .then((response) => {
             // Cancellation means lose the progress card and go back to entering
             // the user's email address.
             if (response.status === 'cancel') {
@@ -135,7 +135,7 @@ return [
               console.error('Unknown oauthFetch status: ' + response.status);
               this._divertToManualConfig();
             }
-          }.bind(this), this.onCreationError.bind(this));
+          }, this.onCreationError.bind(this));
         // We can autoconfig but we need the user's password.
         } else if (result === 'need-password') {
           // Track that a secondary card was added that could lead to a cancel
@@ -153,7 +153,7 @@ return [
         } else { // must be no-config-info and even if not, we'd want this.
           this._divertToManualConfig();
         }
-      }.bind(this));
+      });
     },
 
     /**
@@ -181,7 +181,7 @@ return [
       MailAPI.tryToCreateAccount(
         options,
         args.configInfo || null,
-        function(err, errDetails, account) {
+        (err, errDetails, account) => {
           this.creationInProcess = false;
           if (err) {
             this.onCreationError(err, errDetails);
@@ -192,7 +192,7 @@ return [
               this.onCreationSuccess(account);
             }
           }
-        }.bind(this));
+        });
     },
 
     onCreationError: function(err, errDetails) {
@@ -207,7 +207,7 @@ return [
       });
     },
 
-    die: function() {
+    release: function() {
       this.cancelCreation();
     }
   }

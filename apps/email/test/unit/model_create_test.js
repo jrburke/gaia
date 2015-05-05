@@ -31,14 +31,14 @@ suite('model_create', function() {
 
 
   suite('load default account', function() {
-    var account, acctsSlice, foldersSlice;
+    var account, acctsSlice, foldersList;
 
     setup(function(done) {
       model.init();
-      model.latestOnce('foldersSlice', function() {
+      model.latestOnce('foldersList', function() {
         account = model.account;
         acctsSlice = model.acctsSlice;
-        foldersSlice = model.foldersSlice;
+        foldersList = model.foldersList;
         done();
       });
     });

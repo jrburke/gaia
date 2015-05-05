@@ -1,5 +1,8 @@
 var window = self;
 
+// NOTE: developing in Firefox now with devtools, so clobbering the console
+// object is not what we want.
+/*
 function consoleHelper() {
   var msg = arguments[0] + ':';
   for (var i = 1; i < arguments.length; i++) {
@@ -13,6 +16,19 @@ window.console = {
   error: consoleHelper.bind(null, '\x1b[31mWERR'),
   info: consoleHelper.bind(null, '\x1b[36mWINF'),
   warn: consoleHelper.bind(null, '\x1b[33mWWAR')
+};
+*/
+
+// XXX adopt a better solution for logic.js and Maps/Sets
+
+Map.prototype.toJSON = function toJSON() {
+  'use strict';
+  return [...Map.prototype.entries.call(this)];
+};
+
+Set.prototype.toJSON = function toJSON() {
+  'use strict';
+  return [...Set.prototype.values.call(this)];
 };
 
 // These pragmas are for r.js and tell it to remove this code section. It will

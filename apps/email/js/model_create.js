@@ -61,11 +61,11 @@ define(function(require) {
     account: null,
 
     /**
-    * foldersSlice event is fired when the property changes.
-    * event: foldersSlice
-    * @param {Object} the foldersSlice object.
+    * foldersList event is fired when the property changes.
+    * event: foldersList
+    * @param {Object} the foldersList object.
     **/
-    foldersSlice: null,
+    foldersList: null,
 
     /**
     * folder event is fired when the property changes.
@@ -151,7 +151,7 @@ define(function(require) {
      * account.
      */
     init: function(showLatest, callback) {
-      require(['api'], function(api) {
+      require(['api'], (api) => {
         // Multiple model instances can be created, but only one init needs
         // to be done with the backend API.
         if (this === modelCreate.defaultModel) {
@@ -161,14 +161,15 @@ define(function(require) {
         this.api = api;
 
         // If already initialized before, clear out previous state.
-        this.die();
+        this.release();
 
-        var acctsSlice = api.viewAccounts(false);
-        acctsSlice.oncomplete = (function() {
+        var acctsSlice = api.accounts;
+
+        acctsSlice.on('complete', () => {
           // To prevent a race between Model.init() and
-          // acctsSlice.oncomplete, only assign model.acctsSlice when
+          // acctsSlice.on('complete'), only assign model.acctsSlice when
           // the slice has actually loaded (i.e. after
-          // acctsSlice.oncomplete fires).
+          // acctsSlice.on('complete') fires).
           this.acctsSlice = acctsSlice;
 
           saveHasAccount(acctsSlice);
@@ -195,17 +196,17 @@ define(function(require) {
           if (this === modelCreate.defaultModel) {
             evt.emitWhenListener('metrics:apiDone');
           }
-        }).bind(this);
+        });
 
-        acctsSlice.onchange = function() {
-          saveHasAccount(acctsSlice);
-        }.bind(this);
-      }.bind(this));
+        acctsSlice.on('change', () => {
+          saveHasAccount(this, acctsSlice);
+        });
+      });
     },
 
     /**
      * Changes the current account tracked by the model. This results
-     * in changes to the 'account', 'foldersSlice' and 'folder' properties.
+     * in changes to the 'account', 'foldersList' and 'folder' properties.
      * @param  {Object}   account  the account object.
      * @param  {Function} callback function to call once the account and
      * related folder data has changed.
@@ -219,18 +220,24 @@ define(function(require) {
         return;
       }
 
-      this._dieFolders();
+      this._releaseFolders();
 
       this.account = account;
       this._callEmit('account');
 
-      var foldersSlice = this.api.viewFolders('account', account);
-      foldersSlice.oncomplete = (function() {
-        this.foldersSlice = foldersSlice;
-        this.foldersSlice.onchange = this.notifyFoldersSliceOnChange.bind(this);
+      var onFolderListComplete = () => {
+        this.foldersList = foldersList;
+        this.foldersList.on('change', this, 'notifyFoldersListOnChange');
         this.selectInbox(callback);
-        this._callEmit('foldersSlice');
-      }).bind(this);
+        this._callEmit('foldersList');
+      };
+
+      var foldersList = this.account.folders;
+      if (foldersList.complete) {
+        onFolderListComplete();
+      } else {
+        foldersList.on('complete', onFolderListComplete);
+      }
     },
 
     /**
@@ -243,12 +250,12 @@ define(function(require) {
         throw new Error('No accounts available');
       }
 
-      this.acctsSlice.items.some(function(account) {
+      this.acctsSlice.items.some((account) => {
         if (account.id === accountId) {
           this.changeAccount(account, callback);
           return true;
         }
-      }.bind(this));
+      });
     },
 
     /**
@@ -267,7 +274,7 @@ define(function(require) {
     },
 
     /**
-     * For the already loaded account and associated foldersSlice,
+     * For the already loaded account and associated foldersList,
      * set the inbox as the tracked 'folder'.
      * @param  {Function} callback function called once the inbox
      * has been selected.
@@ -277,19 +284,19 @@ define(function(require) {
     },
 
     /**
-     * For the already loaded account and associated foldersSlice, set
+     * For the already loaded account and associated foldersList, set
      * the given folder as the tracked folder. The account MUST have a
      * folder with the given type, or a fatal error will occur.
      */
     selectFirstFolderWithType: function(folderType, callback) {
-      if (!this.foldersSlice) {
-        throw new Error('No foldersSlice available');
+      if (!this.foldersList) {
+        throw new Error('No foldersList available');
       }
 
-      var folder = this.foldersSlice.getFirstFolderWithType(folderType);
+      var folder = this.foldersList.getFirstFolderWithType(folderType);
       if (!folder) {
         dieOnFatalError('We have an account without a folderType ' +
-                        folderType + '!', this.foldersSlice.items);
+                        folderType + '!', this.foldersList.items);
       }
 
       if (this.folder && this.folder.id === folder.id) {
@@ -318,11 +325,11 @@ define(function(require) {
     },
 
     /**
-     * Triggered by the foldersSlice onchange event
+     * Triggered by the foldersList onchange event
      * @param  {Object} folder the folder that changed.
      */
-    notifyFoldersSliceOnChange: function(folder) {
-      this.emit('foldersSliceOnChange', folder);
+    notifyFoldersListOnChange: function(folder) {
+      this.emit('foldersListOnChange', folder);
     },
 
     notifyBackgroundSendStatus: function(data) {
@@ -331,23 +338,23 @@ define(function(require) {
 
     // Lifecycle
 
-    _dieFolders: function() {
-      if (this.foldersSlice) {
-        this.foldersSlice.die();
+    _releaseFolders: function() {
+      if (this.foldersList) {
+        this.foldersList.release();
       }
-      this.foldersSlice = null;
+      this.foldersList = null;
 
       this.folder = null;
     },
 
-    die: function() {
+    release: function() {
       if (this.acctsSlice) {
-        this.acctsSlice.die();
+        this.acctsSlice.release();
       }
       this.acctsSlice = null;
       this.account = null;
 
-      this._dieFolders();
+      this._releaseFolders();
     }
   };
 

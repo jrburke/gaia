@@ -288,7 +288,7 @@ var iframeShimsOpts = {
  *   }
  * ]
  */
-function createAndInsertIframeForContent(htmlStr, scrollContainer,
+function createAndInsertIframeForContent(blob, scrollContainer,
                                          parentNode, beforeNode,
                                          interactiveMode,
                                          clickHandler) {
@@ -336,312 +336,333 @@ function createAndInsertIframeForContent(htmlStr, scrollContainer,
   viewport.appendChild(iframe);
   parentNode.insertBefore(viewport, beforeNode);
 
-  // we want this fully synchronous so we can know the size of the document
-  iframe.contentDocument.open();
-  iframe.contentDocument.write('<!doctype html><html><head>');
-  iframe.contentDocument.write(DEFAULT_STYLE_TAG);
-  iframe.contentDocument.write('</head><body>');
-  // (currently our sanitization only generates a body payload...)
-  iframe.contentDocument.write(htmlStr);
-  iframe.contentDocument.write('</body>');
-  iframe.contentDocument.close();
-  var iframeBody = iframe.contentDocument.body;
 
-  // NOTE.  This has gone through some historical iterations here AKA is
-  // evolved.  Technically, getBoundingClientRect() may be superior since it can
-  // have fractional parts.  I believe I tried using it with
-  // iframe.contentDocument.documentElement and it ended up betraying me by
-  // reporting clientWidth/clientHeight instead of scrollWidth, whereas
-  // scrollWidth/scrollHeight worked better.  However I was trying a lot of
-  // things; I might just have been confused by some APZ glitches where panning
-  // right would not work immediately after zooming and you'd have to pan left
-  // first in order to pan all the way to the newly expaned right.  What we know
-  // right now is this gives the desired behaviour sizing behaviour.
-  var scrollWidth = iframeBody.scrollWidth;
-  var scrollHeight = iframeBody.scrollHeight;
+  var superBlob = new Blob(
+    [
+      '<!doctype html><html><head>',
+      DEFAULT_STYLE_TAG,
+      '</head><body>',
+      blob,
+      '</body>'
+    ],
+    { type: 'text/html'});
+  var ownerDoc = parentNode.ownerDocument;
+  var superBlobUrl = ownerDoc.defaultView.URL.createObjectURL(superBlob);
 
-  // fit-to-width scale.
-  var baseScale = Math.min(1, viewportWidth / scrollWidth),
-      // If there's an initial scale, use that, otherwise fall back to the base
-      // (fit-to-width) scale
-      lastRequestedScale = iframeShimsOpts.initialScale || baseScale,
-      scale = lastRequestedScale,
-      lastDoubleTapScale = scale,
-      scaleMode = 0;
+  var resolve, reject;
+  var p = new Promise(function (res, rej) {
+    resolve = res;
+    reject = rej;
+  });
 
-  viewport.style.width = Math.ceil(scrollWidth * scale) + 'px';
-  viewport.style.height = Math.ceil(scrollHeight * scale) + 'px';
+  var onLoadEnd = (evt) => {
+    URL.revokeObjectURL(superBlobUrl);
+    iframe.removeEventListener('loadend', onLoadEnd);
 
-  // setting iframe.style.height is not sticky, so be heavy-handed.
-  // Also, do not set overflow: hidden since we are already clipped by our
-  // viewport or our containing card and Gecko slows down a lot because of the
-  // extra clipping.
-  iframe.style.width = scrollWidth + 'px';
+    var iframeBody = iframe.contentDocument.body;
 
-  var resizeFrame = function(why) {
-    if (why === 'initial' || why === 'poll') {
-      scrollWidth = iframeBody.scrollWidth;
-      scrollHeight = iframeBody.scrollHeight;
-      // the baseScale will almost certainly have changed
-      var oldBaseScale = baseScale;
-      baseScale = Math.min(1, viewportWidth / scrollWidth);
-      if (scale === oldBaseScale) {
-        scale = baseScale;
-      }
-      iframe.style.width = scrollWidth + 'px';
-      console.log('iframe_shims: recalculating height / width because', why,
-                  'sw', scrollWidth, 'sh', scrollHeight, 'bs', baseScale);
-    }
-    console.log('iframe_shims: scale:', scale);
-    iframe.style.transform = 'scale(' + scale + ')';
-    iframe.style.height =
-      ((scrollHeight * Math.max(1, scale)) + scrollPad) + 'px';
-    viewport.style.width = Math.ceil(scrollWidth * scale) + 'px';
-    viewport.style.height = (Math.ceil(scrollHeight * scale) + scrollPad) +
-                              'px';
-  };
-  resizeFrame('initial');
+    // NOTE.  This has gone through some historical iterations here AKA is
+    // evolved.  Technically, getBoundingClientRect() may be superior since it
+    // can have fractional parts.  I believe I tried using it with
+    // iframe.contentDocument.documentElement and it ended up betraying me by
+    // reporting clientWidth/clientHeight instead of scrollWidth, whereas
+    // scrollWidth/scrollHeight worked better.  However I was trying a lot of
+    // things; I might just have been confused by some APZ glitches where
+    // panning right would not work immediately after zooming and you'd have to
+    // pan left first in order to pan all the way to the newly expaned right.
+    // What we know right now is this gives the desired behaviour sizing
+    // behaviour.
+    var scrollWidth = iframeBody.scrollWidth;
+    var scrollHeight = iframeBody.scrollHeight;
 
-  var activeZoom = false, lastCenterX, lastCenterY;
-  /**
-   * Zoom to the given scale, eventually.  If we are actively zooming or have
-   * recently zoomed and need for various async things to catch up, we will
-   * wait a bit before actually zooming to that scale.  We latch the most recent
-   * value in all cases.
-   */
-  var zoomFrame = function(newScale, centerX, centerY) {
-    // There is nothing to do if we are actually already at this scale level.
-    // (Note that there still is something to do if newScale ===
-    //  lastRequestedScale, though!)
-    if (newScale === scale) {
-      return;
-    }
-    lastRequestedScale = newScale;
-    lastCenterX = centerX;
-    lastCenterY = centerY;
-    if (activeZoom) {
-      return;
-    }
-    activeZoom = true;
-
-    // Our goal is to figure out how to scroll the window so that the
-    // location on the iframe corresponding to centerX/centerY maintains
-    // its position after zooming.
-
-    // centerX, centerY  are in screen coordinates.  Offset coordinates of
-    // the scrollContainer are screen (card) relative, but those of things
-    // inside the scrollContainer exist within that coordinate space and
-    // do not change as we scroll.
-    // console.log('----ZOOM from', scale, 'to', newScale);
-    // console.log('cx', centerX, 'cy', centerY,
-    //             'vl', viewport.offsetLeft,
-    //             'vt', viewport.offsetTop);
-    // console.log('sl', scrollContainer.offsetLeft,
-    //             'st', scrollContainer.offsetTop);
-
-    // Figure out how much of our iframe is scrolled off the screen.
-    var iframeScrolledTop = scrollContainer.scrollTop - extraHeight,
-        iframeScrolledLeft = scrollContainer.scrollLeft;
-
-    // and now convert those into iframe-relative coords
-    var ix = centerX + iframeScrolledLeft,
-        iy = centerY + iframeScrolledTop;
-
-    var scaleDelta = (newScale / scale);
-
-    var vertScrollDelta = Math.ceil(iy * scaleDelta),
-        horizScrollDelta = Math.ceil(ix * scaleDelta);
-
-    scale = newScale;
-    resizeFrame('zoom');
-    scrollContainer.scrollTop = vertScrollDelta + extraHeight - centerY;
-    scrollContainer.scrollLeft = horizScrollDelta - centerX;
-
-    // Right, so on a Flame device I'm noticing serious delays in getting all
-    // this painting and such done, so it seems like we really want to up this
-    // constant to let any async stuff happen and to give the system some time
-    // to recover and maybe run a GC.  Because there is a very real chance of
-    // someone happilly zooming in-and-out over and over to cause us to hit a
-    // GC ceiling.
-    window.setTimeout(clearActiveZoom, iframeShimsOpts.zoomDelayMS);
-  };
-  var clearActiveZoom = function() {
-    activeZoom = false;
-    if (scale !== lastRequestedScale) {
-      window.requestAnimationFrame(function() {
-        // This is almost certainly going to cause a memory spike, so log it.
-        // ugh.
-        console.log('delayed zoomFrame timeout, probably causing a mem-spike');
-        zoomFrame(lastRequestedScale, lastCenterX, lastCenterY);
-      });
-    }
-  };
-
-  // See giant block comment and timer constants for a description of our
-  // polling logic and knobs.
-  var resizePollerTimeout = null;
-  // track how many times we've checked.  We want to bound this for battery life
-  // purposes and also to avoid weird sad cases.
-  var resizePollCount = 0;
-  var pollResize = function() {
-    var opts = iframeShimsOpts;
-    var desiredScrollWidth = iframeBody.scrollWidth;
-    var desiredScrollHeight = iframeBody.scrollHeight;
-    var resized = false;
-    // if we need to grow, grow.  (for stability reasons, we never want to
-    // shrink since it could lead to infinite oscillation)
-    if (desiredScrollWidth > scrollWidth ||
-        desiredScrollHeight > scrollHeight) {
-      resizeFrame('poll');
-      resized = true;
-    }
-
-    if (++resizePollCount < opts.resizeLimit) {
-      // we manually schedule ourselves for slack purposes
-      resizePollerTimeout = window.setTimeout(
-        pollResize,
-        resized ? opts.didResizePollIntervalMS : opts.noResizePollIntervalMS);
-    } else {
-      resizePollerTimeout = null;
-    }
-  };
-  resizePollerTimeout = window.setTimeout(
-    pollResize, iframeShimsOpts.initialResizePollIntervalMS);
-
-  var iframeShims = {
-    iframe: iframe,
-    // (This is invoked each time an image "load" event fires.)
-    resizeHandler: function() {
-      resizePollCount = 0;
-      // Reset the existing timeout because many emails with external images
-      // will have a LOT of external images so it could take a while for them
-      // all to load.
-      if (resizePollerTimeout) {
-        window.clearTimeout(resizePollerTimeout);
-      }
-      resizePollerTimeout = window.setTimeout(
-        pollResize, iframeShimsOpts.pictureDelayPollIntervalMS);
-    }
-  };
-
-  if (interactiveMode !== 'interactive') {
-    return iframeShims;
-  }
-
-  var detectorTarget = viewport;
-  var detector = new GestureDetector(detectorTarget);
-  // We don't need to ever stopDetecting since the closures that keep it
-  // alive are just the event listeners on the iframe.
-  detector.startDetecting();
-  // Using tap gesture event for URL link handling.
-  if (clickHandler) {
-    viewport.removeEventListener('click', clickHandler);
-    bindSanitizedClickHandler(viewport, clickHandler, null, iframe);
-  }
-
-  var title = document.getElementsByClassName('msg-reader-header')[0];
-  var header = document.getElementsByClassName('msg-envelope-bar')[0];
-  var extraHeight = title.clientHeight + header.clientHeight;
-
-  // -- Double-tap zoom idiom
-  detectorTarget.addEventListener('dbltap', function(e) {
-    var newScale = scale;
-    if (lastDoubleTapScale === lastRequestedScale) {
-      scaleMode = (scaleMode + 1) % 3;
-      switch (scaleMode) {
-        case 0:
-          newScale = baseScale;
-          break;
-        case 1:
-          newScale = 1;
-          break;
-        case 2:
-          newScale = 2;
-          break;
-      }
-      console.log('already in double-tap, deciding on new scale', newScale);
-    }
-    else {
-      // If already zoomed in, zoom out to starting scale
-      if (lastRequestedScale > 1) {
-        newScale = lastDoubleTapScale;
+    // fit-to-width scale.
+    var baseScale = Math.min(1, viewportWidth / scrollWidth),
+        // If there's an initial scale, use that, otherwise fall back to the
+        // base (fit-to-width) scale
+        lastRequestedScale = iframeShimsOpts.initialScale || baseScale,
+        scale = lastRequestedScale,
+        lastDoubleTapScale = scale,
         scaleMode = 0;
+
+    viewport.style.width = Math.ceil(scrollWidth * scale) + 'px';
+    viewport.style.height = Math.ceil(scrollHeight * scale) + 'px';
+
+    // setting iframe.style.height is not sticky, so be heavy-handed.
+    // Also, do not set overflow: hidden since we are already clipped by our
+    // viewport or our containing card and Gecko slows down a lot because of the
+    // extra clipping.
+    iframe.style.width = scrollWidth + 'px';
+
+    var resizeFrame = function(why) {
+      if (why === 'initial' || why === 'poll') {
+        scrollWidth = iframeBody.scrollWidth;
+        scrollHeight = iframeBody.scrollHeight;
+        // the baseScale will almost certainly have changed
+        var oldBaseScale = baseScale;
+        baseScale = Math.min(1, viewportWidth / scrollWidth);
+        if (scale === oldBaseScale) {
+          scale = baseScale;
+        }
+        iframe.style.width = scrollWidth + 'px';
+        console.log('iframe_shims: recalculating height / width because', why,
+                    'sw', scrollWidth, 'sh', scrollHeight, 'bs', baseScale);
       }
-      // Otherwise zoom in to 2x
+      console.log('iframe_shims: scale:', scale);
+      iframe.style.transform = 'scale(' + scale + ')';
+      iframe.style.height =
+        ((scrollHeight * Math.max(1, scale)) + scrollPad) + 'px';
+      viewport.style.width = Math.ceil(scrollWidth * scale) + 'px';
+      viewport.style.height = (Math.ceil(scrollHeight * scale) + scrollPad) +
+                                'px';
+    };
+    resizeFrame('initial');
+
+    var activeZoom = false, lastCenterX, lastCenterY;
+    /**
+     * Zoom to the given scale, eventually.  If we are actively zooming or have
+     * recently zoomed and need for various async things to catch up, we will
+     * wait a bit before actually zooming to that scale.  We latch the most
+     * recent value in all cases.
+     */
+    var zoomFrame = function(newScale, centerX, centerY) {
+      // There is nothing to do if we are actually already at this scale level.
+      // (Note that there still is something to do if newScale ===
+      //  lastRequestedScale, though!)
+      if (newScale === scale) {
+        return;
+      }
+      lastRequestedScale = newScale;
+      lastCenterX = centerX;
+      lastCenterY = centerY;
+      if (activeZoom) {
+        return;
+      }
+      activeZoom = true;
+
+      // Our goal is to figure out how to scroll the window so that the
+      // location on the iframe corresponding to centerX/centerY maintains
+      // its position after zooming.
+
+      // centerX, centerY  are in screen coordinates.  Offset coordinates of
+      // the scrollContainer are screen (card) relative, but those of things
+      // inside the scrollContainer exist within that coordinate space and
+      // do not change as we scroll.
+      // console.log('----ZOOM from', scale, 'to', newScale);
+      // console.log('cx', centerX, 'cy', centerY,
+      //             'vl', viewport.offsetLeft,
+      //             'vt', viewport.offsetTop);
+      // console.log('sl', scrollContainer.offsetLeft,
+      //             'st', scrollContainer.offsetTop);
+
+      // Figure out how much of our iframe is scrolled off the screen.
+      var iframeScrolledTop = scrollContainer.scrollTop - extraHeight,
+          iframeScrolledLeft = scrollContainer.scrollLeft;
+
+      // and now convert those into iframe-relative coords
+      var ix = centerX + iframeScrolledLeft,
+          iy = centerY + iframeScrolledTop;
+
+      var scaleDelta = (newScale / scale);
+
+      var vertScrollDelta = Math.ceil(iy * scaleDelta),
+          horizScrollDelta = Math.ceil(ix * scaleDelta);
+
+      scale = newScale;
+      resizeFrame('zoom');
+      scrollContainer.scrollTop = vertScrollDelta + extraHeight - centerY;
+      scrollContainer.scrollLeft = horizScrollDelta - centerX;
+
+      // Right, so on a Flame device I'm noticing serious delays in getting all
+      // this painting and such done, so it seems like we really want to up this
+      // constant to let any async stuff happen and to give the system some time
+      // to recover and maybe run a GC.  Because there is a very real chance of
+      // someone happilly zooming in-and-out over and over to cause us to hit a
+      // GC ceiling.
+      window.setTimeout(clearActiveZoom, iframeShimsOpts.zoomDelayMS);
+    };
+    var clearActiveZoom = function() {
+      activeZoom = false;
+      if (scale !== lastRequestedScale) {
+        window.requestAnimationFrame(function() {
+          // This is almost certainly going to cause a memory spike, so log it.
+          // ugh.
+          console.log('delayed zoomFrame timeout, ' +
+                      'probably causing a mem-spike');
+          zoomFrame(lastRequestedScale, lastCenterX, lastCenterY);
+        });
+      }
+    };
+
+    // See giant block comment and timer constants for a description of our
+    // polling logic and knobs.
+    var resizePollerTimeout = null;
+    // track how many times we've checked.  We want to bound this for battery
+    // life purposes and also to avoid weird sad cases.
+    var resizePollCount = 0;
+    var pollResize = function() {
+      var opts = iframeShimsOpts;
+      var desiredScrollWidth = iframeBody.scrollWidth;
+      var desiredScrollHeight = iframeBody.scrollHeight;
+      var resized = false;
+      // if we need to grow, grow.  (for stability reasons, we never want to
+      // shrink since it could lead to infinite oscillation)
+      if (desiredScrollWidth > scrollWidth ||
+          desiredScrollHeight > scrollHeight) {
+        resizeFrame('poll');
+        resized = true;
+      }
+
+      if (++resizePollCount < opts.resizeLimit) {
+        // we manually schedule ourselves for slack purposes
+        resizePollerTimeout = window.setTimeout(
+          pollResize,
+          resized ? opts.didResizePollIntervalMS : opts.noResizePollIntervalMS);
+      } else {
+        resizePollerTimeout = null;
+      }
+    };
+    resizePollerTimeout = window.setTimeout(
+      pollResize, iframeShimsOpts.initialResizePollIntervalMS);
+
+    var iframeShims = {
+      iframe: iframe,
+      // (This is invoked each time an image "load" event fires.)
+      resizeHandler: function() {
+        resizePollCount = 0;
+        // Reset the existing timeout because many emails with external images
+        // will have a LOT of external images so it could take a while for them
+        // all to load.
+        if (resizePollerTimeout) {
+          window.clearTimeout(resizePollerTimeout);
+        }
+        resizePollerTimeout = window.setTimeout(
+          pollResize, iframeShimsOpts.pictureDelayPollIntervalMS);
+      }
+    };
+
+    if (interactiveMode !== 'interactive') {
+      return resolve(iframeShims);
+    }
+
+    var detectorTarget = viewport;
+    var detector = new GestureDetector(detectorTarget);
+    // We don't need to ever stopDetecting since the closures that keep it
+    // alive are just the event listeners on the iframe.
+    detector.startDetecting();
+    // Using tap gesture event for URL link handling.
+    if (clickHandler) {
+      viewport.removeEventListener('click', clickHandler);
+      bindSanitizedClickHandler(viewport, clickHandler, null, iframe);
+    }
+
+    var title = document.getElementsByClassName('msg-reader-header')[0];
+    var header = document.getElementsByTagName('msg-envelope-bar')[0];
+    var extraHeight = title.clientHeight + header.clientHeight;
+
+    // -- Double-tap zoom idiom
+    detectorTarget.addEventListener('dbltap', function(e) {
+      var newScale = scale;
+      if (lastDoubleTapScale === lastRequestedScale) {
+        scaleMode = (scaleMode + 1) % 3;
+        switch (scaleMode) {
+          case 0:
+            newScale = baseScale;
+            break;
+          case 1:
+            newScale = 1;
+            break;
+          case 2:
+            newScale = 2;
+            break;
+        }
+        console.log('already in double-tap, deciding on new scale', newScale);
+      }
       else {
-        newScale = 2;
-        scaleMode = 2;
+        // If already zoomed in, zoom out to starting scale
+        if (lastRequestedScale > 1) {
+          newScale = lastDoubleTapScale;
+          scaleMode = 0;
+        }
+        // Otherwise zoom in to 2x
+        else {
+          newScale = 2;
+          scaleMode = 2;
+        }
+        console.log('user was not in double-tap switching to double-tap with',
+                    newScale);
       }
-      console.log('user was not in double-tap switching to double-tap with',
-                  newScale);
-    }
-    lastDoubleTapScale = newScale;
-    try {
-      zoomFrame(newScale, e.detail.clientX, e.detail.clientY);
-    } catch (ex) {
-      console.error('zoom bug!', ex, '\n', ex.stack);
-    }
-  });
+      lastDoubleTapScale = newScale;
+      try {
+        zoomFrame(newScale, e.detail.clientX, e.detail.clientY);
+      } catch (ex) {
+        console.error('zoom bug!', ex, '\n', ex.stack);
+      }
+    });
 
-  // -- quantized pinchy-zoomy idiom
-  // track whether we've already transformed this transform event cycle
-  var transformDone = false;
-  // reset when the transform has ended.  (there is no transformbegin event)
-  detectorTarget.addEventListener('transformend', function(e) {
-    transformDone = false;
-  });
-  detectorTarget.addEventListener('transform', function(e) {
-    // if we already zoomed in/out this time, then just bail
-    if (transformDone) {
-      return;
-    }
+    // -- quantized pinchy-zoomy idiom
+    // track whether we've already transformed this transform event cycle
+    var transformDone = false;
+    // reset when the transform has ended.  (there is no transformbegin event)
+    detectorTarget.addEventListener('transformend', function(e) {
+      transformDone = false;
+    });
+    detectorTarget.addEventListener('transform', function(e) {
+      // if we already zoomed in/out this time, then just bail
+      if (transformDone) {
+        return;
+      }
 
-    var scaleFactor = e.detail.absolute.scale;
-    var newScale = lastRequestedScale;
-    // once it's clear this is a zoom-in, we can handle
-    if (scaleFactor > 1.15) {
-      transformDone = true;
-      // Zoom in if we can.
-      // (Note that if baseScale is 1, we will properly go direct to 1.5 from
-      // baseScale.  Hooray!)
-      if (lastRequestedScale < 1) {
-        newScale = 1;
+      var scaleFactor = e.detail.absolute.scale;
+      var newScale = lastRequestedScale;
+      // once it's clear this is a zoom-in, we can handle
+      if (scaleFactor > 1.15) {
+        transformDone = true;
+        // Zoom in if we can.
+        // (Note that if baseScale is 1, we will properly go direct to 1.5 from
+        // baseScale.  Hooray!)
+        if (lastRequestedScale < 1) {
+          newScale = 1;
+        }
+        else if (lastRequestedScale < 1.5) {
+          newScale = 1.5;
+        }
+        else if (lastRequestedScale < 2) {
+          newScale = 2;
+        }
+        else {
+          return;
+        }
       }
-      else if (lastRequestedScale < 1.5) {
-        newScale = 1.5;
-      }
-      else if (lastRequestedScale < 2) {
-        newScale = 2;
+      else if (scaleFactor < 0.9) {
+        transformDone = true;
+        if (lastRequestedScale > 1.5) {
+          newScale = 1.5;
+        }
+        else if (lastRequestedScale > 1) {
+          newScale = 1;
+        }
+        else if (lastRequestedScale > baseScale) {
+          newScale = baseScale;
+        }
+        else {
+          return;
+        }
       }
       else {
         return;
       }
-    }
-    else if (scaleFactor < 0.9) {
-      transformDone = true;
-      if (lastRequestedScale > 1.5) {
-        newScale = 1.5;
-      }
-      else if (lastRequestedScale > 1) {
-        newScale = 1;
-      }
-      else if (lastRequestedScale > baseScale) {
-        newScale = baseScale;
-      }
-      else {
-        return;
-      }
-    }
-    else {
-      return;
-    }
-    zoomFrame(
-      newScale,
-      e.detail.midpoint.clientX, e.detail.midpoint.clientY);
-  });
+      zoomFrame(
+        newScale,
+        e.detail.midpoint.clientX, e.detail.midpoint.clientY);
+    });
 
+    resolve(iframeShims);
+  };
 
-  return iframeShims;
+  iframe.addEventListener('load', onLoadEnd);
+  iframe.setAttribute('src', superBlobUrl);
+
+  return p;
 }
 
 function bindSanitizedClickHandler(target, clickHandler, topNode, iframe) {
@@ -655,7 +676,7 @@ function bindSanitizedClickHandler(target, clickHandler, topNode, iframe) {
   if (iframe) {
     root = document.getElementsByClassName('scrollregion-horizontal-too')[0];
     title = document.getElementsByClassName('msg-reader-header')[0];
-    header = document.getElementsByClassName('msg-envelope-bar')[0];
+    header = document.getElementsByTagName('msg-envelope-bar')[0];
     attachmentsContainer =
       document.getElementsByClassName('msg-attachments-container')[0];
     loadBar = document.getElementsByClassName('msg-reader-load-infobar')[0];

@@ -10,7 +10,10 @@
       l10nbase: '../shared/js/l10n',
       moz_intl: '../shared/test/unit/mocks/mock_moz_intl',
       style: '../style',
-      shared: '../shared'
+      shared: '../shared',
+      app_logic: 'api_app_logic',
+      logic: 'ext/logic',
+      gelam: 'ext'
     },
     map: {
       '*': {

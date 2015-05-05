@@ -1,6 +1,6 @@
 <!-- Non-search header -->
 <section data-prop="normalHeader"
-         class="msg-list-header msg-nonsearch-only"
+         class="msg-list-header"
          data-statuscolor="default"
          role="region">
   <header>
@@ -41,7 +41,7 @@
          As soon as any typing happens in it, we push the search
          controls card. -->
     <form role="search" data-prop="searchBar"
-          class="msg-search-tease-bar msg-nonsearch-only">
+          class="msg-search-tease-bar">
       <p>
         <input data-event="focus:onSearchButton"
                data-prop="searchTextTease"
@@ -63,13 +63,13 @@
 <!-- Toolbar for non-multi-edit state -->
 <ul data-prop="normalToolbar" class="bb-tablist msg-list-action-toolbar"
     role="toolbar">
-  <li role="presentation" class="msg-nonsearch-only">
+  <li role="presentation">
     <button data-prop="refreshBtn" data-event="click:onRefresh"
             class="icon msg-refresh-btn" data-state="synchronized"
             data-l10n-id="messages-refresh-button">
     </button>
   </li>
-  <li role="status" class="msg-nonsearch-only msg-last-sync">
+  <li role="status" class="msg-last-sync">
     <span data-prop="lastSyncedLabel"
           class="msg-last-synced-label"
           data-l10n-id="folder-last-synced-label"></span>

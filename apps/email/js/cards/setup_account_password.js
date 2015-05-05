@@ -60,7 +60,7 @@ return [
       this.nextButton.disabled = !this.formNode.checkValidity();
     },
 
-    die: function() {
+    release: function() {
     }
   }
 ];

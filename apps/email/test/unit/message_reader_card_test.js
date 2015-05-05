@@ -7,10 +7,10 @@ requireApp('email/test/config.js');
 
 suite('message_reader', function() {
   var subject, MessageReader, evt;
-  function MockMailHeader() {}
-  MockMailHeader.prototype = {
+  function MockMailMessage() {}
+  MockMailMessage.prototype = {
     makeCopy: function() {
-      var copy = new MockMailHeader();
+      var copy = new MockMailMessage();
       copy.isRead = this.isRead;
       copy.isStarred = this.isStarred;
       return copy;
@@ -45,41 +45,41 @@ suite('message_reader', function() {
     subject = new MessageReader();
   });
 
-  suite('_setHeader', function() {
-    var header;
+  suite('_setMessage', function() {
+    var message;
     setup(function() {
-      header = new MockMailHeader();
+      message = new MockMailMessage();
       subject.readBtn.removeAttribute('data-l10n-id');
     });
 
     test('isRead', function() {
-      header.isRead = true;
-      subject._setHeader(header);
+      message.isRead = true;
+      subject._setMessage(message);
       assert.equal(subject.readBtn.getAttribute('data-l10n-id'),
         'message-mark-read-button');
     });
 
     test('!isRead', function() {
-      subject._setHeader(header);
+      subject._setMessage(message);
       assert.isNull(subject.readBtn.getAttribute('data-l10n-id'));
     });
 
     test('isStarred', function() {
-      header.isStarred = true;
-      subject._setHeader(header);
+      message.isStarred = true;
+      subject._setMessage(message);
       assert.equal(subject.starBtn.getAttribute('aria-pressed'), 'true');
     });
 
     test('!isStarred', function() {
-      subject._setHeader(header);
+      subject._setMessage(message);
       assert.equal(subject.starBtn.getAttribute('aria-pressed'), 'false');
     });
   });
 
   suite('onToggleStar', function() {
     setup(function() {
-      subject.hackMutationHeader = new MockMailHeader();
-      subject.header = new MockMailHeader();
+      subject.hackMutationMessage = new MockMailMessage();
+      subject.message = new MockMailMessage();
     });
 
     test('isStarred', function() {
@@ -89,7 +89,7 @@ suite('message_reader', function() {
     });
 
     test('!isStarred', function() {
-      subject.hackMutationHeader.isStarred = true;
+      subject.hackMutationMessage.isStarred = true;
       subject.onToggleStar();
       assert.isFalse(subject.starBtn.classList.contains('msg-star-btn-on'));
       assert.equal(subject.starBtn.getAttribute('aria-pressed'), 'false');
@@ -98,8 +98,8 @@ suite('message_reader', function() {
 
   suite('setRead', function() {
     setup(function() {
-      subject.hackMutationHeader = new MockMailHeader();
-      subject.header = new MockMailHeader();
+      subject.hackMutationMessage = new MockMailMessage();
+      subject.message = new MockMailMessage();
     });
 
     test('isRead', function() {
@@ -135,7 +135,7 @@ suite('message_reader', function() {
   suite('buildBodyDom', function() {
     setup(function() {
       subject.body = mockBody;
-      subject.header = new MockMailHeader();
+      subject.message = new MockMailMessage();
     });
 
     test('disabled attachments accessibility', function(done) {

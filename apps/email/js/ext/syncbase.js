@@ -7,6 +7,7 @@ define(
     $date,
     exports
   ) {
+'use strict';
 
 ////////////////////////////////////////////////////////////////////////////////
 // IMAP time constants
@@ -251,37 +252,6 @@ exports.TOO_MANY_MESSAGES = 2000;
  */
 exports.IMAP_SEARCH_AMBIGUITY_MS = $date.DAY_MILLIS;
 
-////////////////////////////////////////////////////////////////////////////////
-// Size Estimate Constants
-
-/**
- * The estimated size of a `HeaderInfo` structure.  We are using a constant
- * since there is not a lot of variability in what we are storing and this
- * is probably good enough.
- *
- * Our estimate is based on guesses based on presumed structured clone encoding
- * costs for each field using a reasonable upper bound for length.  Our
- * estimates are trying not to factor in compressability too much since our
- * block size targets are based on the uncompressed size.
- * - id: 4: integer less than 64k
- * - srvid: 40: 38 char uuid with {}'s, (these are uuid's on hotmail)
- * - suid: 13: 'xx/xx/xxxxx' (11)
- * - guid: 80: 66 character (unquoted) message-id from gmail, 48 from moco.
- *         This is unlikely to compress well and there could be more entropy
- *         out there, so guess high.
- * - author: 70: 32 for the e-mail address covers to 99%, another 32 for the
- *           display name which will usually be shorter than 32 but could
- *           involve encoded characters that bloat the utf8 persistence.
- * - date: 9: double that will be largely used)
- * - flags: 32: list which should normally top out at ['\Seen', '\Flagged'], but
- *              could end up with non-junk markers, etc. so plan for at least
- *              one extra.
- * - hasAttachments: 2: boolean
- * - subject: 80
- * - snippet: 100 (we target 100, it will come in under)
- */
-exports.HEADER_EST_SIZE_IN_BYTES = 430;
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // Error / Retry Constants
@@ -390,6 +360,29 @@ exports.SYNC_RANGE_ENUMS_TO_MS = {
    'all': 30 * 365 * DAY_MILLIS,
 };
 
+/**
+ * What should our target be for snippet length?  In v1 this was 100, for v3
+ * we want two lines worth, so we're bumping a little bit.  But this should
+ * really just be parametrized by the consumer.
+ */
+exports.DESIRED_SNIPPET_LENGTH = 160;
+
+/**
+ * How big a chunk of an attachment should we encode in a single read?  Because
+ * we want our base64-encoded lines to be 76 bytes long (before newlines) and
+ * there's a 4/3 expansion factor, we want to read a multiple of 57 bytes.
+ *
+ * I initially chose the largest value just under 1MiB.  This appeared too
+ * chunky on the ZTE open, so I'm halving to just under 512KiB.  Calculated via
+ * Math.floor(512 * 1024 / 57) = 9198.  The encoded size of this ends up to be
+ * 9198 * 78 which is ~700 KiB.  So together that's ~1.2 megs if we don't
+ * generate a ton of garbage by creating a lot of intermediary strings.
+ *
+ * This seems reasonable given goals of not requiring the GC to run after every
+ * block and not having us tie up the CPU too long during our encoding.
+ */
+exports.BLOB_BASE64_BATCH_CONVERT_SIZE = 9198 * 57;
+
 ////////////////////////////////////////////////////////////////////////////////
 // Cronsync/periodic sync stuff
 
@@ -460,15 +453,17 @@ exports.TEST_adjustSyncValues = function TEST_adjustSyncValues(syncValues) {
     growRefreshThresh: 'GROW_REFRESH_THRESH_MS',
   };
 
-  for (var key in syncValues) if (syncValues.hasOwnProperty(key)) {
-    var outKey = legacyKeys[key] || key;
-    if (exports.hasOwnProperty(outKey)) {
-      exports[outKey] = syncValues[key];
-    } else {
-      // In the future (after we have a chance to review all calls to
-      // this function), we could make this throw an exception
-      // instead.
-      console.warn('Invalid key for TEST_adjustSyncValues: ' + key);
+  for (var key in syncValues) {
+    if (syncValues.hasOwnProperty(key)) {
+      var outKey = legacyKeys[key] || key;
+      if (exports.hasOwnProperty(outKey)) {
+        exports[outKey] = syncValues[key];
+      } else {
+        // In the future (after we have a chance to review all calls to
+        // this function), we could make this throw an exception
+        // instead.
+        console.warn('Invalid key for TEST_adjustSyncValues: ' + key);
+      }
     }
   }
 };

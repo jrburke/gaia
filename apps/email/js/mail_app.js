@@ -12,7 +12,7 @@ var mozL10n = require('l10n!'),
     cards = require('cards'),
     evt = require('evt'),
     model = require('model_create').defaultModel,
-    HeaderCursor = require('header_cursor'),
+    ListCursor = require('list_cursor'),
     htmlCache = require('html_cache'),
     waitingRawActivity, activityCallback;
 
@@ -111,7 +111,7 @@ evt.on('setupAccountCanceled', function(fromCard) {
     waitingRawActivity.postError('cancelled');
   }
 
-  if (!model.foldersSlice) {
+  if (!model.foldersList) {
     // No account has been formally initialized, but one likely exists given
     // that this back button should only be available for cases that have
     // accounts. Likely just need the app to reset to load model.
@@ -228,7 +228,7 @@ var startupData = globalOnAppMessage({
     var type = data.type || '';
     var folderType = data.folderType || 'inbox';
 
-    model.latestOnce('foldersSlice', function latestFolderSlice() {
+    model.latestOnce('foldersList', function() {
       function onCorrectFolder() {
         // Remove previous cards because the card stack could get weird if
         // inserting a new card that would not normally be at that stack level.
@@ -245,12 +245,12 @@ var startupData = globalOnAppMessage({
         if (type === 'message_list') {
           pushStartCard('message_list', {});
         } else if (type === 'message_reader') {
-          var headerCursor = new HeaderCursor(model);
-          headerCursor.setCurrentMessageBySuid(data.messageSuid);
+          var listCursor = new ListCursor();
+          listCursor.setCurrentItemBySuid(data.messageSuid);
 
           pushStartCard(type, {
               messageSuid: data.messageSuid,
-              headerCursor: headerCursor
+              listCursor: listCursor
           });
         } else {
           console.error('unhandled notification type: ' + type);

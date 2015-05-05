@@ -6,7 +6,7 @@ var accessibilityHelper = require('shared/js/accessibility_helper'),
     cards = require('cards'),
     containerListen = require('container_listen'),
     date = require('date'),
-    HeaderCursor = require('header_cursor'),
+    ListCursor = require('list_cursor'),
     messageDisplay = require('message_display'),
     MessageListTopBar = require('message_list_topbar'),
     updatePeepDom = require('./lst/peep_dom').update;
@@ -15,7 +15,7 @@ var accessibilityHelper = require('shared/js/accessibility_helper'),
 // pretending exist so that the UI has a reason to poke the search
 // slice to do more work.
 var defaultSearchVScrollData = {
-  header: require('./lst/default_vscroll_data'),
+  message: require('./lst/default_vscroll_data'),
   matches: []
 };
 
@@ -67,31 +67,32 @@ return [
       // Binding "this" to some functions as they are used for event listeners.
       this._folderChanged = this._folderChanged.bind(this);
 
-      this.msgVScroll.on('emptyLayoutShown', function() {
+      this.msgVScroll.on('emptyLayoutShown', this, function() {
         this.editBtn.disabled = true;
-      }.bind(this));
+      });
 
-      this.msgVScroll.on('emptyLayoutHidden', function() {
+      this.msgVScroll.on('emptyLayoutHidden', this, function() {
         this.editBtn.disabled = false;
-      }.bind(this));
+      });
 
-      this.msgVScroll.on('messagesChange', function(message, index) {
+      this.msgVScroll.on('messagesChange', this, function(message, index) {
         this.updateMatchedMessageDom(message);
-      }.bind(this));
+      });
 
-      this.msgVScroll.on('messagesComplete', function(newEmailCount) {
+      this.msgVScroll.on('messagesComplete', this, function(newEmailCount) {
         // Search does not trigger normal conditions for a folder changed,
         // so if vScroll is missing its data, set it up now.
         if (!this.msgVScroll.vScroll.list) {
           this.msgVScroll.vScroll.setData(this.msgVScroll.listFunc);
         }
-      }.bind(this));
+      });
 
-      var vScrollBindData = (function bindSearch(model, node) {
+      var vScrollBindData = (model, node) => {
         model.element = node;
-        node.message = model.header;
+        node.message = model.message;
         this.updateMatchedMessageDom(model);
-      }).bind(this);
+      };
+
       this.msgVScroll.init(this.scrollContainer,
                            vScrollBindData,
                            defaultSearchVScrollData);
@@ -105,9 +106,8 @@ return [
 
     onArgs: function(args) {
       var model = this.model = args.model;
-      var headerCursor = this.headerCursor = args.headerCursor ||
-                                             new HeaderCursor(model);
-      this.msgVScroll.setHeaderCursor(headerCursor);
+      var listCursor = this.listCursor = args.listCursor || new ListCursor();
+      this.msgVScroll.setListCursor(listCursor);
 
       model.latest('folder', this._folderChanged);
 
@@ -127,6 +127,21 @@ return [
       this.isFirstTimeVisible = false;
     },
 
+    startSearch: function(phrase, whatToSearch) {
+      this.bindToList(this.model.api.searchFolderMessages(this.model.folder,
+                                                           phrase,
+                                                           whatToSearch));
+    },
+
+    endSearch: function() {
+      this.release();
+      this.freshMessagesList();
+    },
+
+    freshMessagesList: function() {
+      this.listCursor.bindToList(this.model.api
+                                  .viewFolderConversations(this.model.folder));
+    },
 
     showSearch: function(phrase, filter) {
       console.log('sf: showSearch. phrase:', phrase, phrase.length);
@@ -142,7 +157,7 @@ return [
       // Don't bother the new slice with requests until we hears it completion
       // event.
       this.msgVScroll.waitingOnChunk = true;
-      this.headerCursor.startSearch(phrase, {
+      this.startSearch(phrase, {
         author: filter === 'all' || filter === 'author',
         recipients: filter === 'all' || filter === 'recipients',
         subject: filter === 'all' || filter === 'subject',
@@ -190,7 +205,7 @@ return [
       }
 
       try {
-        this.headerCursor.endSearch();
+        this.endSearch();
       }
       catch (ex) {
         console.error('problem killing slice:', ex, '\n', ex.stack);
@@ -217,10 +232,10 @@ return [
       }
     },
 
-    updateMatchedMessageDom: function(matchedHeader) {
-      var msgNode = matchedHeader.element,
-          matches = matchedHeader.matches,
-          message = matchedHeader.header;
+    updateMatchedMessageDom: function(matchedMessage) {
+      var msgNode = matchedMessage.element,
+          matches = matchedMessage.matches,
+          message = matchedMessage.message;
 
       if (!msgNode) {
         return;
@@ -236,7 +251,7 @@ return [
       // which likely will not be cached, the dataset.is is set to
       // maintain parity withe updateMessageDom and so click handlers
       // can always just use the dataset property.
-      msgNode.dataset.id = matchedHeader.id;
+      msgNode.dataset.id = matchedMessage.id;
 
       // some things only need to be done once
       var dateNode = msgNode.querySelector('.msg-header-date');
@@ -289,8 +304,8 @@ return [
       msgNode.classList.toggle('unread', !message.isRead);
 
       // star
-      var starNode = msgNode.querySelector('.msg-header-star');
-      starNode.classList.toggle('msg-header-star-starred', message.isStarred);
+      var starNode = msgNode.querySelector('.msg-message-star');
+      starNode.classList.toggle('msg-message-star-starred', message.isStarred);
       // subject needs to give space for star if it is visible
       subjectNode.classList.toggle('icon-short', message.isStarred);
 
@@ -300,11 +315,11 @@ return [
 
     _folderChanged: function(folder) {
       // It is possible that the notification of latest folder is fired
-      // but in the meantime the foldersSlice could be cleared due to
+      // but in the meantime the foldersList could be cleared due to
       // a change in the current account, before this listener is called.
-      // So skip this work if no foldersSlice, this method will be called
+      // So skip this work if no foldersList, this method will be called
       // again soon.
-      if (!this.model.foldersSlice) {
+      if (!this.model.foldersList) {
         return;
       }
 
@@ -313,9 +328,8 @@ return [
       this.showSearch('', 'all');
     },
 
-    die: function() {
-      this.msgVScroll.die();
-      this.model.removeListener('folder', this._folderChanged);
+    release: function() {
+      this.msgVScroll.release();
     }
   }
 ];

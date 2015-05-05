@@ -290,9 +290,9 @@ define(function(require, exports, module) {
       if (this.oldListSize !== this.list.size() || removedCount) {
         if (!this.waitingForRecalculate) {
           this.waitingForRecalculate = true;
-          this.once('scrollStopped', function() {
+          this.once('scrollStopped', () => {
             this._recalculate(index);
-          }.bind(this));
+          });
         }
         return;
       }

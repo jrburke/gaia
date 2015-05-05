@@ -51,7 +51,7 @@ return [
       console.log('htmlCache.reset done');
     },
 
-    die: function() {
+    release: function() {
     }
   }
 ];

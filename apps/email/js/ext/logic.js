@@ -156,9 +156,7 @@
  */
 define(function(require) {
   var evt = require('evt');
-  // Use a relative path here to avoid having consumers need special require
-  // configs (we already specify 'evt' in the frontend).
-  var equal = require('./ext/equal');
+  var equal = require('gelam/ext/equal');
 
   /**
    * The `logic` module is callable, as a shorthand for `logic.event()`.
@@ -298,7 +296,6 @@ define(function(require) {
 
   // True when being run within a test.
   logic.underTest = false;
-  logic._currentTestRejectFunction = null;
 
   /**
    * Immediately fail the current test with the given exception. If no test is
@@ -309,15 +306,7 @@ define(function(require) {
    *   Exception object, as with Promise.reject()
    */
   logic.fail = function(ex) {
-    if (logic.underTest) {
-      if (logic._currentTestRejectFunction) {
-        logic._currentTestRejectFunction(ex);
-      } else {
-        throw ex;
-      }
-    } else {
-      console.error('Logic fail:', ex);
-    }
+    console.error('Not in a test, cannot logic.fail(' + ex + ')');
   };
 
 
@@ -394,7 +383,7 @@ define(function(require) {
           ' to not occur (failIfMatched ' + this.matcher + ').';
       } else {
         return 'MismatchError: expected ' + this.event +
-          ' to match ' + JSON.stringify(this.matcher.detailPredicate) + '.';
+          ' to match ' + this.matcher + '.';
       }
     }}
   });
@@ -425,12 +414,10 @@ define(function(require) {
 
     logic.defineScope(this, 'LogicMatcher');
 
-    var hasPrevPromise = !!opts.prevPromise;
-    var normalizedPrevPromise = opts.prevPromise || Promise.resolve();
+    var prevPromise = opts.prevPromise || Promise.resolve();
 
     if (this.not) {
-      // XXX this should probably bind instantly like the next case.
-      this.promise = normalizedPrevPromise.then(() => {
+      this.promise = prevPromise.then(() => {
         this.capturedLogs.some((event) => {
           if ((!this.ns || event.namespace === this.ns) &&
               event.matches(this.type, this.detailPredicate)) {
@@ -444,13 +431,6 @@ define(function(require) {
         // subscribe to a following match.
         var subscribeToNextMatch = () => {
           var timeoutId = setTimeout(() => {
-            logic(this, 'failedMatch',
-                  {
-                    ns: this.ns,
-                    type: this.type,
-                    detailPredicate: this.detailPredicate,
-                    capturedLogs: this.capturedLogs
-                  });
             reject(new Error('LogicMatcherTimeout: ' + this));
           }, this.timeoutMS);
 
@@ -523,8 +503,8 @@ define(function(require) {
           }
         }
 
-        if (hasPrevPromise) {
-          normalizedPrevPromise.then(subscribeToNextMatch, (e) => reject(e) );
+        if (prevPromise) {
+          prevPromise.then(subscribeToNextMatch, (e) => reject(e) );
         } else {
           try {
             subscribeToNextMatch();
@@ -536,7 +516,7 @@ define(function(require) {
     } else {
       // This is the '.then()' case; we still want to return a
       // LogicMatcher so they can chain, but without any further expectations.
-      this.promise = normalizedPrevPromise;
+      this.promise = prevPromise;
     }
   }
 
@@ -613,7 +593,7 @@ define(function(require) {
     this.maxDepth = opts.maxDepth || 10;
     this.maxStringLength = opts.maxStringLength || 1000;
     this.maxArrayLength = opts.maxArrayLength || 1000;
-    this.maxObjectLength = opts.maxObjectLength || 10;
+    this.maxObjectLength = opts.maxObjectLength || 100;
   }
 
   ObjectSimplifier.prototype = {
@@ -714,8 +694,11 @@ define(function(require) {
     },
 
     toString: function() {
-      return '<LogicEvent ' + this.namespace + '/' + this.type + ' ' +
-        JSON.stringify(this.jsonRepresentation.details) + '>';
+      // XXX handle coloring more responsibly.  (not all toString invocations
+      // want color codes... but the ones we hvae do do :)
+      return '<LogicEvent \x1b[34m' + this.namespace + '\x1b[0m/\x1b[36m' +
+        this.type + '\x1b[0m\n\x1b[37m' +
+        JSON.stringify(this.jsonRepresentation.details, null, 2) + '\x1b[0m>';
     },
 
     /**
@@ -853,7 +836,7 @@ define(function(require) {
       details = null;
     }
 
-    scope = logic.subscope(scope, details).subscope(scope);
+    scope = logic.subscope(scope, details);
 
     var startEvent = promiseToStartEventMap.get(promise);
     var awaitEvent = logic.event(scope, 'await ' + type, {

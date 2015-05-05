@@ -4,8 +4,6 @@ define([
   '../composite/incoming',
   './sync',
   '../errorutils',
-  './jobs',
-  '../drafts/draft_rep',
   '../disaster-recovery',
   'module',
   'require',
@@ -16,13 +14,12 @@ function(
   incoming,
   pop3sync,
   errorutils,
-  pop3jobs,
-  draftRep,
   DisasterRecovery,
   module,
   require,
   exports
 ) {
+'use strict';
 
 var CompositeIncomingAccount = incoming.CompositeIncomingAccount;
 
@@ -32,12 +29,11 @@ var CompositeIncomingAccount = incoming.CompositeIncomingAccount;
  * CompositeIncomingAccount.
  */
 function Pop3Account(universe, compositeAccount, accountId, credentials,
-                     connInfo, folderInfos, dbConn, existingProtoConn) {
+                     connInfo, foldersTOC, dbConn, existingProtoConn) {
   logic.defineScope(this, 'Account', { accountId: accountId,
                                        accountType: 'pop3' });
 
-  CompositeIncomingAccount.apply(
-      this, [pop3sync.Pop3FolderSyncer].concat(Array.slice(arguments)));
+  CompositeIncomingAccount.apply(this, arguments);
 
   // Set up connection information. We can't make much use of
   // connection pooling since the POP3 protocol only allows one client
@@ -56,10 +52,7 @@ function Pop3Account(universe, compositeAccount, accountId, credentials,
 
   // Immediately ensure that we have any required local-only folders,
   // as those can be created even while offline.
-  this.ensureEssentialOfflineFolders();
-
-  this._jobDriver = new pop3jobs.Pop3JobDriver(
-      this, this._folderInfos.$mutationState);
+  //this.ensureEssentialOfflineFolders();
 }
 exports.Account = exports.Pop3Account = Pop3Account;
 Pop3Account.prototype = Object.create(CompositeIncomingAccount.prototype);
@@ -107,8 +100,36 @@ var properties = {
     }
   },
 
+  /**
+   * Hacky mechanism that depends on the current single-task-at-a-time
+   * implementation limitation of the task infrastructure to insure mutually
+   * exclusive access to the connection.
+   *
+   * We use withConnection which is mainly just concerned about life-cycle
+   * management.  The right future mechanism for this is likely to make the
+   * connection a RefedResource, possibly one that will only let itself be
+   * acquired by one thing at a time.  However, the exclusiveResources mechanism
+   * planned for the task maanger already potentially covers this, so maybe not.
+   *
+   * TODO: address the connection life-cycle issues better.
+   */
+  ensureConnection: function() {
+    if (this._conn && this._conn.state !== 'disconnected') {
+      return Promise.resolve(this._conn);
+    }
+    return new Promise((resolve, reject) => {
+      this.withConnection((err, conn) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(conn);
+        }
+      });
+    });
+  },
+
   /** @override */
-  __folderDoneWithConnection: function(conn) {
+  __folderDoneWithConnection: function(/*conn*/) {
     // IMAP uses this function to perform folder-specific connection cleanup.
     // We don't need to do anything here.
   },
@@ -186,39 +207,6 @@ var properties = {
   },
 
   /**
-   * Save an attachment-stripped version of the sent draft to our sent folder.
-   */
-  saveSentMessage: function(composer) {
-    var sentFolder = this.getFirstFolderWithType('sent');
-    if (!sentFolder) {
-      return;
-    }
-
-    var sentStorage = this.getFolderStorageForFolderId(sentFolder.id);
-    var id = sentStorage._issueNewHeaderId();
-    var suid = sentStorage.folderId + '/' + id;
-
-    var sentPieces = draftRep.cloneDraftMessageForSentFolderWithoutAttachments(
-      composer.header, composer.body, { id: id, suid: suid });
-
-    this.universe.saveSentDraft(sentFolder.id,
-                                sentPieces.header, sentPieces.body);
-  },
-
-  /**
-   * Delete the given folder. (This always happens locally.)
-   */
-  deleteFolder: function(folderId, callback) {
-    if (!this._folderInfos.hasOwnProperty(folderId)) {
-      throw new Error("No such folder: " + folderId);
-    }
-    var folderMeta = this._folderInfos[folderId].$meta;
-    logic(self, 'deleteFolder', { path: folderMeta.path });
-    self._forgetFolder(folderId);
-    callback && callback(null, folderMeta);
-  },
-
-  /**
    * Shut down the account and close the connection.
    */
   shutdown: function(callback) {
@@ -267,6 +255,7 @@ var properties = {
         this._learnAboutFolder(
           /* name: */ folderType,
           /* path: */ folderType,
+          /* serverPath: */ null,
           /* parentId: */ null,
           /* type: */ folderType,
           /* delim: */ '',

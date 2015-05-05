@@ -44,9 +44,11 @@ exports.countHeaders = function(storage, filter, options, callback) {
         startUID = lastHeader.id;
     }
 
+
     var checkHandle = function checkHandle(headers) {
+
       // Update the matched count
-      for (var i = 0; i < headers.length; i++) {
+      for (i = 0; i < headers.length; i++) {
         var header = headers[i];
         var isMatch = filter(header);
         if (isMatch) {
@@ -68,7 +70,7 @@ exports.countHeaders = function(storage, filter, options, callback) {
 
       // (otherwise we need to wait for the additional messages to show before
       //  doing anything conclusive)
-    };
+    }
 
     checkHandle(headers);
   }

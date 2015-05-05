@@ -43,7 +43,7 @@ define(function(require, exports) {
       }
 
       // Reset checked mode for all message items.
-      var msgNodes = this.msgVScroll.querySelectorAll('.msg-header-item');
+      var msgNodes = this.msgVScroll.querySelectorAll('.msg-message-item');
       for (i = 0; i < msgNodes.length; i++) {
         this.updateDomMessageChecked(msgNodes[i], false);
       }
@@ -150,11 +150,11 @@ define(function(require, exports) {
       ConfirmDialog.show(dialog,
         { // Confirm
           id: 'msg-delete-ok',
-          handler: function() {
+          handler: () => {
             var op = this.model.api.deleteMessages(this.selectedMessages);
             toaster.toastOperation(op);
             this.setEditMode(false);
-          }.bind(this)
+          }
         },
         { // Cancel
           id: 'msg-delete-cancel',
@@ -178,11 +178,11 @@ define(function(require, exports) {
     },
 
     onMoveMessages: function() {
-      cards.folderSelector(this.model, function(folder) {
+      cards.folderSelector(this.model, (folder) => {
         var op = this.model.api.moveMessages(this.selectedMessages, folder);
         toaster.toastOperation(op);
         this.setEditMode(false);
-      }.bind(this), function(folder) {
+      }, function(folder) {
         return folder.isValidMoveTarget;
       });
     }

@@ -1,9 +1,10 @@
 define(['logic', '../util', 'module', 'require', 'exports',
-        '../mailchew', '../syncbase', '../date', '../jobmixins',
+        '../bodies/mailchew', '../syncbase', '../date', '../jobmixins',
         '../allback', './pop3'],
 function(logic, util, module, require, exports,
          mailchew, sync, date, jobmixins,
          allback, pop3) {
+'use strict';
 
 var PASTWARDS = 1;
 
@@ -202,7 +203,7 @@ Pop3FolderSyncer.prototype = {
       } else {
         header.id = knownId;
       }
-      header.suid = this.storage.folderId + '/' + header.id;
+      header.suid = this.storage.folderId + '.' + header.id;
       header.guid = header.guid || header.srvid;
     }
 

@@ -20,7 +20,7 @@ define(function() {
           account
         ],
         defaultAccount: account,
-        die: function() {}
+        release: function() {}
       };
 
       setTimeout(function() {
@@ -35,12 +35,12 @@ define(function() {
     },
 
     viewFolderMessages: function() {
-      var messagesSlice = {
+      var list = {
         items: [],
-        die: function() {}
+        release: function() {}
       };
 
-      return messagesSlice;
+      return list;
     },
 
     viewFolders: function(mode, argument) {
@@ -50,7 +50,7 @@ define(function() {
           name: 'inbox'
         };
 
-      var foldersSlice = {
+      var foldersList = {
         items: [
           inboxFolder
         ],
@@ -63,18 +63,18 @@ define(function() {
           return inboxFolder;
         },
 
-        die: function() {}
+        release: function() {}
       };
 
       setTimeout(function() {
-        if (!foldersSlice.oncomplete) {
+        if (!foldersList.oncomplete) {
           return;
         }
 
-        foldersSlice.oncomplete();
+        foldersList.oncomplete();
       });
 
-      return foldersSlice;
+      return foldersList;
     }
   };
 

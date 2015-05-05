@@ -4,11 +4,12 @@
  * imap/probe.js.
  */
 define(function(require, exports) {
+  'use strict';
 
   var BrowserBox = require('browserbox');
   var ImapClient = require('browserbox-imap');
   var imapHandler = require('imap-handler');
-  var logic = require('logic');
+  var slog = require('slog');
   var syncbase = require('../syncbase');
   var errorutils = require('../errorutils');
   var oauth = require('../oauth');
@@ -24,8 +25,6 @@ define(function(require, exports) {
   function noop() {
     // nothing
   }
-
-  var scope = logic.scope('ImapClient');
 
    /**
    * Open a connection to an IMAP server.
@@ -62,7 +61,7 @@ define(function(require, exports) {
             id: {
               vendor: 'Mozilla',
               name: 'GaiaMail',
-              version: '0.2',
+              version: '1.0alpha',
               'support-url': 'http://mzl.la/file-gaia-email-bug'
             },
             useSecureTransport: (connInfo.crypto === 'ssl' ||
@@ -83,7 +82,7 @@ define(function(require, exports) {
 
         conn.onauth = function() {
           clearTimeout(connectTimeout);
-          logic(scope, 'connected', { connInfo: connInfo });
+          slog.info('imap:connected', connInfo);
           conn.onauth = conn.onerror = noop;
           resolve(conn);
         };
@@ -91,6 +90,15 @@ define(function(require, exports) {
           clearTimeout(connectTimeout);
           // XXX: if error is just expired access token, try to refresh one time
           reject(err);
+        };
+        // Save the mailboxInfo off so we can use the precheck idiom.
+        conn.onselectmailbox = function(path, mailboxInfo) {
+          this.selectedMailboxPath = path;
+          this.selectedMailboxInfo = mailboxInfo;
+        };
+        conn.onclosemailbox = function() {
+          this.selectedMailboxPath = null;
+          this.selectedMailboxInfo = null;
         };
 
         conn.connect();
@@ -112,7 +120,7 @@ define(function(require, exports) {
                                               credsUpdatedCallback);
         });
       } else {
-        logic(scope, 'connect-error', {
+        slog.error('imap:connect-error', {
           error: errorString
         });
         throw errorString;
@@ -140,7 +148,7 @@ define(function(require, exports) {
           .toUpperCase().trim();
 
     if (['NO', 'BAD'].indexOf(cmd) !== -1) {
-      logic(scope, 'protocol-error', {
+      slog.log('imap:protocol-error', {
         humanReadable: response.humanReadable,
         responseCode: response.code,
         // Include the command structure
@@ -282,7 +290,7 @@ define(function(require, exports) {
                     protocolLevelError ||
                     'unknown');
 
-    logic(scope, 'normalized-error', {
+    slog.error('imap:normalized-error', {
       error: err,
       errorName: err && err.name,
       errorMessage: err && err.message,

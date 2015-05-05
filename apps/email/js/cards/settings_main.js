@@ -3,15 +3,19 @@
 define(function(require) {
 
 var tngAccountItemNode = require('tmpl!./tng/account_item.html'),
-    MailAPI = require('api'),
+    api = require('api'),
     cards = require('cards');
 
 return [
   require('./base_card')(require('template!./settings_main.html')),
   {
     createdCallback: function() {
-      this.acctsSlice = MailAPI.viewAccounts(false);
-      this.acctsSlice.onsplice = this.onAccountsSplice.bind(this);
+      this.accounts = api.accounts;
+      this.accounts.on('complete', this, 'onAccountChange');
+      this.accounts.on('change', this, 'onAccountChange');
+
+      // Accounts already likely loaded, so do first render.
+      this.onAccountChange();
 
       this._secretButtonClickCount = 0;
       this._secretButtonTimer = null;
@@ -23,34 +27,19 @@ return [
       cards.removeCardAndSuccessors(this, 'animate', 1, 1);
     },
 
-    onAccountsSplice: function(index, howMany, addedItems,
-                               requested, moreExpected) {
+    onAccountChange: function() {
+      // Just rerender the whole account list.
       var accountsContainer = this.accountsContainer;
+      accountsContainer.innerHTML = '';
 
-      var account;
-      if (howMany) {
-        for (var i = index + howMany - 1; i >= index; i--) {
-          account = this.acctsSlice.items[i];
-          accountsContainer.removeChild(account.element);
-        }
+      if (!this.accounts.items.length) {
+        return;
       }
 
-      var insertBuddy = (index >= accountsContainer.childElementCount) ?
-                          null : accountsContainer.children[index],
-          self = this;
-      addedItems.forEach(function(account) {
-        var accountNode = account.element =
-          tngAccountItemNode.cloneNode(true);
-        accountNode.account = account;
-        self.updateAccountDom(account, true);
-        accountsContainer.insertBefore(accountNode, insertBuddy);
-      });
-    },
-
-    updateAccountDom: function(account, firstTime) {
-      var accountNode = account.element;
-
-      if (firstTime) {
+      this.accounts.items.forEach((account, index) => {
+        var insertBuddy = (index >= accountsContainer.childElementCount) ?
+                          null : accountsContainer.children[index];
+        var accountNode = tngAccountItemNode.cloneNode(true);
         var accountLabel =
           accountNode.querySelector('.tng-account-item-label');
 
@@ -60,7 +49,9 @@ return [
         // enable activation with the screen reader.
         accountNode.addEventListener('click',
           this.onClickEnterAccount.bind(this, account), false);
-      }
+
+        accountsContainer.insertBefore(accountNode, insertBuddy);
+      });
     },
 
     onClickAddAccount: function() {
@@ -83,11 +74,10 @@ return [
 
     onClickSecretButton: function() {
       if (this._secretButtonTimer === null) {
-        this._secretButtonTimer = window.setTimeout(
-          function() {
-            this._secretButtonTimer = null;
-            this._secretButtonClickCount = 0;
-          }.bind(this), 2000);
+        this._secretButtonTimer = window.setTimeout(() => {
+          this._secretButtonTimer = null;
+          this._secretButtonClickCount = 0;
+        }, 2000);
       }
 
       if (++this._secretButtonClickCount >= 5) {
@@ -98,8 +88,8 @@ return [
       }
     },
 
-    die: function() {
-      this.acctsSlice.die();
+    release: function() {
+      this.accounts.removeObjectListener(this);
     }
   }
 ];

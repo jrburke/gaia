@@ -16,8 +16,10 @@ define(function(require) {
      * @param {Object} message the message object.
      */
     subject: function(subjectNode, message) {
-      var subject = message.subject && message.subject.trim();
+      var subject = message.firstSubject || message.subject;
+
       if (subject) {
+        subject = subject.trim();
         subjectNode.textContent = subject;
         subjectNode.classList.remove('msg-no-subject');
         subjectNode.removeAttribute('data-l10n-id');
