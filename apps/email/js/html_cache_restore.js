@@ -81,8 +81,8 @@ window.appDispatchedMessage = false;
       // it only happens on an app update situation, from cookies to
       // localStorage or some kind of localStorage reset. So a rare event, and
       // does not cause harm, just a bit of extra work in those cases once.
-      console.log('localOnModelLoaded called, hasAccount: ' +
-                  localStorage.getItem('data_has_account'));
+      // console.log('localOnModelLoaded called, hasAccount: ' +
+      //             localStorage.getItem('data_has_account'));
 
       setDefaultView();
       hydrateHtml(startupData.view);
@@ -91,14 +91,14 @@ window.appDispatchedMessage = false;
     });
   }
 
-  if (!localStorage.getItem('data_has_account')) {
+  // if (!localStorage.getItem('data_has_account')) {
     console.log('data_has_account unknown, asking for model load first');
     window.startupOnModelLoaded = localOnModelLoaded;
-  }
+  // }
 
   function hasAccount() {
     // var _1 = performance.now();
-    var has = localStorage.getItem('data_has_account') === 'yes';
+    var has = false; // localStorage.getItem('data_has_account') === 'yes';
     // console.log('@@@ LOCALSTORAGE GET data_has_account: ' +
     //             (performance.now() - _1));
     return has;
@@ -168,7 +168,7 @@ window.appDispatchedMessage = false;
   function retrieve(id) {
 
     // var _1 = performance.now();
-    var value = localStorage.getItem('html_cache_' + id) || '';
+    var value = ''; // localStorage.getItem('html_cache_' + id) || '';
     // console.log('@@@ LOCALSTORAGE GET html_cache: ' +
     // (performance.now() - _1));
 

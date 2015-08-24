@@ -47,7 +47,7 @@ exports.save = function htmlCacheSave(moduleId, html) {
   var langDir = document.querySelector('html').getAttribute('dir');
   html = window.HTML_CACHE_VERSION + (langDir ? ',' + langDir : '') +
          ':' + html;
-  localStorage.setItem('html_cache_' + id, html);
+  // localStorage.setItem('html_cache_' + id, html);
 
   console.log('htmlCache.save ' + id + ': ' +
               html.length + ', lang dir: ' + langDir);
@@ -57,7 +57,7 @@ exports.save = function htmlCacheSave(moduleId, html) {
  * Clears all the cache.
  */
 exports.reset = function() {
-  localStorage.clear();
+  // localStorage.clear();
 
   // Clear cookie cache for historical purposes, when the html cache used to be
   // a cookie cache. This can be removed once it is unlikely a person with a
