@@ -3,7 +3,7 @@ define(function(require, exports, module) {
 
 var cardsInit = require('cards_init'),
     htmlCache = require('html_cache'),
-    mozL10n = require('l10n!'),
+    mozL10n = require('l10n'),
     evt = require('evt'),
     toaster = require('toaster'),
     transitionEnd = require('transition_end'),

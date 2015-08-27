@@ -4,7 +4,7 @@ define(function(require, exports) {
   var cards = require('cards'),
       ConfirmDialog = require('confirm_dialog'),
       deleteConfirmMsgNode = require('tmpl!../msg/delete_confirm.html'),
-      mozL10n = require('l10n!'),
+      mozL10n = require('l10n'),
       toaster = require('toaster');
 
   return {

@@ -19,7 +19,7 @@ var cmpAttachmentItemNode = require('tmpl!./cmp/attachment_item.html'),
     toaster = require('toaster'),
     iframeShims = require('iframe_shims'),
     Marquee = require('marquee'),
-    mozL10n = require('l10n!'),
+    mozL10n = require('l10n'),
 
     cards = require('cards'),
     ConfirmDialog = require('confirm_dialog'),

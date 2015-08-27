@@ -1,5 +1,5 @@
 'use strict';
-define(['l10n!'], function(mozL10n) {
+define(['l10n'], function(mozL10n) {
   var tmpl = {
     pluginBuilder: './tmpl_builder',
 

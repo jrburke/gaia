@@ -1,7 +1,7 @@
 'use strict';
 
 define(function(require, exports) {
-  var mozL10n = require('l10n!');
+  var mozL10n = require('l10n');
 
   return [
     require('../base')(require('template!./edit_header.html')),

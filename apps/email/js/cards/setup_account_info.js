@@ -6,7 +6,7 @@
 define(function(require, exports, module) {
 
 var evt = require('evt'),
-    mozL10n = require('l10n!'),
+    mozL10n = require('l10n'),
     cards = require('cards'),
     htmlCache = require('html_cache'),
     FormNavigation = require('form_navigation');

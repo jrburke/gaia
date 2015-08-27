@@ -2,7 +2,7 @@
 'use strict';
 define(function(require, exports) {
 
-var mozL10n = require('l10n!');
+var mozL10n = require('l10n');
 
 /**
  * Safely clone a node so that it is inert and no document.registerElement

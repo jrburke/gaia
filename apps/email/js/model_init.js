@@ -4,7 +4,7 @@ define(function(require) {
     require('sync')(model, api);
 
     var evt = require('evt'),
-        mozL10n = require('l10n!');
+        mozL10n = require('l10n');
 
     // If our password is bad, we need to pop up a card to ask for the updated
     // password.

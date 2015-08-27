@@ -9,7 +9,7 @@ define(function(require, exports, module) {
 window.performance.mark('startMailApp');
 
 
-var mozL10n = require('l10n!'),
+var mozL10n = require('l10n'),
     activityComposerData = require('activity_composer_data'),
     cards = require('cards'),
     evt = require('evt'),

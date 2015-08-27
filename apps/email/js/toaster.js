@@ -1,6 +1,6 @@
 'use strict';
 define(function(require) {
-  var mozL10n = require('l10n!');
+  var mozL10n = require('l10n');
   var toasterNode = require('tmpl!./cards/toaster.html');
   var transitionEnd = require('transition_end');
 

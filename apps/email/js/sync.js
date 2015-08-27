@@ -6,7 +6,7 @@ define(function(require) {
   var cronSyncStartTime,
       appSelf = require('app_self'),
       evt = require('evt'),
-      mozL10n = require('l10n!'),
+      mozL10n = require('l10n'),
       notificationHelper = require('shared/js/notification_helper');
 
   // Version marker for the notification data format. It is a string because

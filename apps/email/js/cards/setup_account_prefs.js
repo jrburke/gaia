@@ -5,7 +5,7 @@
 define(function(require) {
 
 var cards = require('cards'),
-    mozL10n = require('l10n!');
+    mozL10n = require('l10n');
 
 return [
   require('./base_card')(require('template!./setup_account_prefs.html')),

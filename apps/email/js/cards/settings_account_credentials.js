@@ -1,7 +1,7 @@
 'use strict';
 define(function(require) {
 
-var mozL10n = require('l10n!'),
+var mozL10n = require('l10n'),
     cards = require('cards'),
     oauthFetch = require('./oauth2/fetch');
 

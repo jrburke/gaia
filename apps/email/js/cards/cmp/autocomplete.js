@@ -3,7 +3,7 @@ define(function(require) {
 
 var GestureDetector = require('shared/js/gesture_detector'),
     itemTemplate = require('tmpl!./autocomplete_item.html'),
-    mozL10n = require('l10n!'),
+    mozL10n = require('l10n'),
     regExpEscape = require('regExpEscape'),
     transitionEnd = require('transition_end'),
     validTypes = {

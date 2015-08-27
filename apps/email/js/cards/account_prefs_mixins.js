@@ -4,7 +4,7 @@
 /*global define, console, _secretDebug */
 
 define(function(require) {
-  var mozL10n = require('l10n!'),
+  var mozL10n = require('l10n'),
       cards = require('cards');
 
   /**

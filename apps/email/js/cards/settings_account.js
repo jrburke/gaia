@@ -6,7 +6,7 @@ var tngAccountSettingsServerNode =
     tngAccountDeleteConfirmNode =
                               require('tmpl!./tng/account_delete_confirm.html'),
     evt = require('evt'),
-    mozL10n = require('l10n!'),
+    mozL10n = require('l10n'),
     cards = require('cards'),
     ConfirmDialog = require('confirm_dialog');
 

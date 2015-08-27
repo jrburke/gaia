@@ -4,7 +4,7 @@ define(function(require, exports) {
 
 var cards = require('cards'),
     containerListen = require('container_listen'),
-    mozL10n = require('l10n!'),
+    mozL10n = require('l10n'),
     msgHeaderItemNode = require('tmpl!../msg/header_item.html'),
     toaster = require('toaster'),
     VScroll = require('vscroll');

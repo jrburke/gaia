@@ -1,7 +1,7 @@
 'use strict';
 define(function(require) {
   var SETUP_ERROR_L10N_ID_MAP = require('./setup_l10n_map'),
-      mozL10n = require('l10n!');
+      mozL10n = require('l10n');
 
   return {
     // note: this method is reused by setup_account_info and

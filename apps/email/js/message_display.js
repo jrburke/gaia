@@ -4,7 +4,7 @@
  * Helpers for displaying information about email messages.
  */
 define(function(require) {
-  var mozL10n = require('l10n!');
+  var mozL10n = require('l10n');
 
   return {
     /**

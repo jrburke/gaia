@@ -40,7 +40,7 @@
  *
  */
 define(function(require, exports, module) {
-  var mozL10n = require('l10n!'),
+  var mozL10n = require('l10n'),
       transitionEnd = require('transition_end');
 
   var proto = {
