@@ -27,7 +27,6 @@ var MAXIMUM_MS_BETWEEN_SNIPPET_REQUEST = 6000;
  */
 var MAXIMUM_BYTES_PER_MESSAGE_DURING_SCROLL = 4 * 1024;
 
-
 /**
  * Component that shows a message-based vscroll. Assumes the following are set
  * on the this component before vscroll is active:

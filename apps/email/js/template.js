@@ -85,6 +85,7 @@ define(function(require, exports, module) {
    * value.
    */
   function templateCreatedCallback() {
+    window.performance.mark('TEMPLATE-CREATED-' + this.nodeName);
       if (this.dataset.cached === 'cached' || this.template) {
         if (this.dataset.cached !== 'cached' && this.template) {
           // Clear out previous contents. If they were needed, they

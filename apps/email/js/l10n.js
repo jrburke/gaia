@@ -5,8 +5,11 @@ define({
       return onload();
     }
 
+window.performance.mark('l10n-before-require');
     require(['l10nbase', 'l10ndate'], function() {
-      navigator.mozL10n.once(function() {
+window.performance.mark('l10n-after-require');
+      //navigator.mozL10n.once(function() {
+window.performance.mark('l10n-after-once');
         // The html cache restore in html_cache_restore could have set the ltr
         // direction incorrectly. If the language goes from an RTL one to a LTR
         // one while the app is closed, this could lead to a stale value.
@@ -19,7 +22,7 @@ define({
         }
 
         onload(navigator.mozL10n);
-      });
+      //});
     });
   }
 });

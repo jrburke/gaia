@@ -1,6 +1,13 @@
 /*global requirejs, TestUrlResolver */
 'use strict';
 
+/**
+ * Version number for cache, allows expiring cache.
+ * Set by build process. Set as a global because it
+ * is also used in html_cache.js.
+ */
+window.HTML_CACHE_VERSION = '2';
+
 // Set up loading of scripts, but only if not in tests, which set up their own
 // config.
 if (typeof TestUrlResolver === 'undefined') {
@@ -62,8 +69,7 @@ if (typeof TestUrlResolver === 'undefined') {
                  .replace(/[^a-z]/g, '-');
         }
       }
-    },
-    definePrim: 'prim'
+    }
   });
 }
 
@@ -73,18 +79,6 @@ if (navigator.mozAudioChannelManager) {
   navigator.mozAudioChannelManager.volumeControlChannel = 'notification';
 }
 
-// startupOnModelLoaded can be set to a function in html_cache_restore. In that
-// case, html_cache_restore needs to know the model state, if there is an
-// account, before proceeding with the startup view to select.
-if (window.startupOnModelLoaded) {
-  requirejs(['console_hook', 'model_create'], function(hook, modelCreate) {
-    var model = modelCreate.defaultModel;
-    model.init();
-    window.startupOnModelLoaded(model, function() {
-      require(['mail_app']);
-    });
-  });
-} else {
-  // Run the app module, bring in fancy logging
-  requirejs(['console_hook', 'mail_app']);
-}
+// Run the app module, bring in fancy logging
+window.performance.mark('requirejs-console,mail_app');
+requirejs(['console_hook', 'mail_app']);

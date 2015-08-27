@@ -67,7 +67,7 @@ function writeCacheValue(options) {
   var finalDigest = getDigest(digests.join(',')),
       cacheRegExp = /HTML_CACHE_VERSION\s*=\s*["'][^"']+["']/,
       cacheFile = utils.getFile(options.STAGE_APP_DIR, 'js',
-        'html_cache_restore.js'),
+        'alameda.js'),
       contents = utils.getFileContent(cacheFile);
   contents = contents.replace(cacheRegExp,
     'HTML_CACHE_VERSION = \'' + finalDigest + '\'');
@@ -152,14 +152,6 @@ function optimize(options, r) {
   });
 }
 
-function removeLoader(options) {
-  var indexFile = utils.getFile(options.STAGE_APP_DIR, 'index.html');
-  var indexContent = utils.getFileContent(indexFile);
-  utils.writeContent(indexFile,
-    indexContent.replace(/data-loader="[^"]+"/, ''));
-  return options;
-}
-
 function removeFiles(options) {
   var files = [
     utils.getFile(options.STAGE_APP_DIR, 'js','tmpl_builder.js'),
@@ -209,7 +201,6 @@ exports.execute = function(options) {
       utils.writeContent(sharedJsonFile, JSON.stringify(shared, null, 2));
 
       writeCacheValue(options);
-      removeLoader(options);
       removeFiles(options);
     })
     .then(function() {

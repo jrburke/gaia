@@ -58,6 +58,7 @@ var cards = require('cards'),
  * care to use efficient selectors.
  *
  */
+
 return [
   require('./base_card')(require('template!./message_list.html')),
   require('./lst/edit_controller'),
@@ -188,6 +189,7 @@ return [
 
       this.onFolderPickerClosing = this.onFolderPickerClosing.bind(this);
       evt.on('folderPickerClosing', this.onFolderPickerClosing);
+window.performance.mark('MESSAGE-LIST-CREATED-END');
     },
 
     onArgs: function(args) {

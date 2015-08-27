@@ -26,18 +26,26 @@
   // waiting for modules to load in production. See js/config.js
   // for more details.
   onBuildWrite: function(id, url, contents) {
-    if (id === 'config') {
+    if (id === 'alameda') {
+      return 'var require = { skipDataMain: true }; ' +
+             contents;
+    } else if (id === 'config') {
       return contents.replace(/waitSeconds:\s*\d+/, 'waitSeconds: 0');
     } else {
-      return contents;
-    }
+    return contents.replace(/(define\s*\(\s*[^\{]*function\s*)\(/, '$1 ' +
+           id.replace(/\W/g, '_') + '(');    }
+  },
+
+  wrap: {
+    start: 'window.performance.mark(\'START-LAYER\');',
+    end: 'window.performance.mark(\'END-LAYER\');'
   },
 
   modules: [
     {
-      name: 'config',
+      name: 'alameda',
       include: [
-        'alameda',
+        'config',
         'l10nbase',
         'l10ndate',
         'tmpl',

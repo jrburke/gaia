@@ -1652,6 +1652,8 @@
   }
 
   function init(pretranslate) {
+window.performance.mark('L10N-INIT-START');
+
     if (!pretranslate) {
       // initialize MO early to collect nodes injected between now and when
       // resources are loaded because we're not going to translate the whole
@@ -1659,6 +1661,8 @@
       initObserver();
     }
     initResources.call(navigator.mozL10n);
+window.performance.mark('L10N-INIT-END');
+
   }
 
   function initResources() {
@@ -1833,9 +1837,11 @@
   }
 
   function onMutations(mutations, self) {
+window.performance.mark('L10N-ONMUTATION-START');
     self.disconnect();
     localizeMutations.call(this, mutations);
     self.observe(document, moConfig);
+window.performance.mark('L10N-ONMUTATION-END');
   }
 
   function onReady() {

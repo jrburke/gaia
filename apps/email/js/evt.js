@@ -26,6 +26,11 @@ define(function() {
 
   Emitter.prototype = {
     on: function(id, fn) {
+if (!this._events) {
+  console.error('SKIPPING on: this._events not initialized yet for ' +
+    this.nodeName);
+  return;
+}
       var listeners = this._events[id],
           pending = this._pendingEvents[id];
       if (!listeners) {
