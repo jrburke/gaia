@@ -375,7 +375,7 @@ window.appDispatchedMessage = false;
       }
     }, 300);
 
-    dispatch('notification', [msg.data]);
+    dispatch('notification', [msg.data, msg.action]);
   }
 
   var selfNode = document.querySelector('[data-loadsrc]');

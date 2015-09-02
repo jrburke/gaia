@@ -94,6 +94,13 @@ return [
                                                        addedItems,
                                                        requested,
                                                        moreExpected) {
+
+        // todo: hack.
+        if (this.onMessagesSpliceEndCallback) {
+          this.onMessagesSpliceEndCallback(this.headerCursor);
+          this.onMessagesSpliceEndCallback = null;
+        }
+
         // Only cache if it is an add or remove of items
         if (addedItems.length || howMany) {
           this._considerCacheDom(index);
@@ -192,6 +199,8 @@ return [
 
     onArgs: function(args) {
       var model = this.model = args.model;
+      this.onMessagesSpliceEndCallback = args.onMessagesSpliceEndCallback;
+
       var headerCursor = this.headerCursor = args.headerCursor ||
                                              new HeaderCursor(model);
       this.msgVScroll.setHeaderCursor(headerCursor);

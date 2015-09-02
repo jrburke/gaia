@@ -14,6 +14,7 @@ var mozL10n = require('l10n!'),
     model = require('model_create').defaultModel,
     HeaderCursor = require('header_cursor'),
     htmlCache = require('html_cache'),
+    toaster = require('toaster'),
     waitingRawActivity, activityCallback;
 
 require('shared/js/font_size_utils');
@@ -223,7 +224,7 @@ var startupData = globalOnAppMessage({
     }
   },
 
-  notification: function(data) {
+  notification: function(data, action) {
     data = data || {};
     var type = data.type || '';
     var folderType = data.folderType || 'inbox';
@@ -245,13 +246,25 @@ var startupData = globalOnAppMessage({
         if (type === 'message_list') {
           pushStartCard('message_list', {});
         } else if (type === 'message_reader') {
-          var headerCursor = new HeaderCursor(model);
-          headerCursor.setCurrentMessageBySuid(data.messageSuid);
+          if (action === 'delete') {
+            //todo: hack.
+            pushStartCard('message_list', {
+              onMessagesSpliceEndCallback: function(headerCursor) {
+                var index = headerCursor.indexOfMessageById(data.messageSuid);
+                var header = headerCursor.messagesSlice.items[index];
+                var op = model.api.deleteMessages([header]);
+                toaster.toastOperation(op);
+              }
+            });
+          } else {
+            var headerCursor = new HeaderCursor(model);
+            headerCursor.setCurrentMessageBySuid(data.messageSuid);
 
-          pushStartCard(type, {
-              messageSuid: data.messageSuid,
-              headerCursor: headerCursor
-          });
+            pushStartCard(type, {
+                messageSuid: data.messageSuid,
+                headerCursor: headerCursor
+            });
+          }
         } else {
           console.error('unhandled notification type: ' + type);
         }

@@ -48,7 +48,7 @@ define(function(require) {
       sendNotification = function() {};
     } else {
       sendNotification = function(notificationId, title, body,
-                                  iconUrl, data, behavior) {
+                                  iconUrl, data, behavior, actions) {
         console.log('Notification sent for ' + notificationId);
 
         if (Notification.permission !== 'granted') {
@@ -70,6 +70,10 @@ define(function(require) {
             noscreen: true
           }
         };
+
+        if (actions) {
+          notificationOptions.actions = actions;
+        }
 
         if (behavior) {
           Object.keys(behavior).forEach(function(key) {
@@ -268,7 +272,7 @@ define(function(require) {
             return;
           }
 
-          var dataObject, subject, body, behavior,
+          var dataObject, subject, body, actions, behavior,
               count = result.count,
               oldFromNames = [];
 
@@ -338,6 +342,10 @@ define(function(require) {
             if (model.getAccountCount() === 1) {
               subject = info.subject;
               body = info.from;
+              //TODO: Localize these.
+              actions = [
+                { action: 'delete', title: 'Delete' }
+              ];
             } else {
               subject = mozL10n.get('new-emails-notify-multiple-accounts', {
                 n: count,
@@ -356,7 +364,8 @@ define(function(require) {
             body,
             iconUrl,
             dataObject,
-            behavior
+            behavior,
+            actions
           );
         });
 
