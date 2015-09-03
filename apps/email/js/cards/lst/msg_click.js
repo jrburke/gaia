@@ -29,13 +29,10 @@ return {
   },
 
   pushCardForItem: function(mailConversation) {
-    cards.pushCard(
-      'item_detail', 'animate',
-      {
-        model: this.model,
-        listCursor: this.listCursor
-      }
-    );
+    cards.add('animate', 'item_detail', {
+      model: this.model,
+      listCursor: this.listCursor
+    });
   },
 
   onClickMessage: function(event) {
@@ -70,7 +67,7 @@ return {
         messageList.once('seeked', () => {
           var message = messageList.items[0];
           message.editAsDraft().then((composer) => {
-            cards.pushCard('compose', 'animate', {
+            cards.add('animate', 'compose', {
               model: this.model,
               composer
             });
@@ -98,7 +95,7 @@ return {
         dataItem.id = moveMap[dataItem.id];
         console.log('outbox: Editing message in localdrafts.');
         dataItem.editAsDraft().then((composer) => {
-          cards.pushCard('compose', 'animate', {
+          cards.add('animate', 'compose', {
             model: this.model,
             composer
           });

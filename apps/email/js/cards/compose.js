@@ -423,7 +423,7 @@ return [
 
     _closeCard: function() {
       this._selfClosed = true;
-      cards.removeCardAndSuccessors(this, 'animate');
+      cards.back('animate');
     },
 
     _saveNeeded: function() {

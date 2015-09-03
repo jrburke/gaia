@@ -392,7 +392,7 @@ window.appDispatchedMessage = false;
     // Automatically restore the HTML as soon as module is executed.
     // ASSUMES card node is available (DOMContentLoaded or execution of
     // module after DOM node is in doc)
-    var cardsNode = document.getElementById(selfNode.dataset.targetid);
+    var cardsNode = document.querySelector(selfNode.dataset.targetid);
 
     cardsNode.innerHTML = contents;
     window.startupCacheEventsSent = !!contents;

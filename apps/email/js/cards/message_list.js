@@ -245,12 +245,10 @@ return [
         return;
       }
 
-      cards.pushCard(
-        'message_list_search', 'animate',
-        {
-          model: this.model,
-          folder: this.curFolder
-        });
+      cards.add('animate', 'message_list_search', {
+        model: this.model,
+        folder: this.curFolder
+      });
     },
 
     _hideSearchBoxByScrolling: function() {
@@ -282,16 +280,15 @@ return [
     },
 
     onShowFolders: function() {
-      cards.pushCard('folder_picker', 'immediate', {
-        model: this.model,
-        onPushed: () => {
-          this.headerMenuNode.classList.add('transparent');
-        }
+      cards.add('immediate', 'folder_picker', {
+        model: this.model
+      }).then((domNode) => {
+        this.headerMenuNode.classList.add('transparent');
       });
     },
 
     onCompose: function() {
-      cards.pushCard('compose', 'animate', {
+      cards.add('animate', 'compose', {
         model: this.model
       });
     },

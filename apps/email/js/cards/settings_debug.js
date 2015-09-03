@@ -25,7 +25,7 @@ return [
     },
 
     onClose: function() {
-      cards.removeCardAndSuccessors(this, 'animate', 1);
+      cards.back('animate');
     },
 
     resetApp: function() {

@@ -18,7 +18,6 @@ return [
   require('./setup_account_error_mixin'),
   {
     onArgs: function(args) {
-      this.args = args;
       this.emailAddress = args.emailAddress;
 
       this.emailNode.textContent = this.emailAddress;
@@ -36,24 +35,17 @@ return [
       }
     },
 
-    onBack: function(event) {
-      cards.removeCardAndSuccessors(this, 'animate', 1);
-    },
     onNext: function(event) {
       event.preventDefault(); // Prevent FormNavigation from taking over.
 
       this.args.password = this.passwordNode.value;
 
       // The progress card is the dude that actually tries to create the
-      // account.
-      cards.pushCard(
-        'setup_progress', 'animate',
-        // Send a new object for sanitation, avoid state modifications
-        // downstream.
-        mix({
-          callingCard: this
-        }, this.args),
-        'right');
+      // account. Send a new object for sanitation, avoid state modifications
+      // downstream.
+      cards.add('animate', 'setup_progress', mix({
+        callingCard: this
+      }, this.args));
     },
 
     onInfoInput: function(event) {

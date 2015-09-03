@@ -5,8 +5,7 @@
 'use strict';
 define(function(require) {
 
-var mozL10n = require('l10n!'),
-    cards = require('cards');
+var mozL10n = require('l10n!');
 
 return [
   require('./base_card')
@@ -26,10 +25,6 @@ return [
                                 this.server.connInfo.server;
       // port is meaningless for activesync; display empty value
       this.portNodeInput.value = this.server.connInfo.port || '';
-    },
-
-    onBack: function() {
-      cards.removeCardAndSuccessors(this, 'animate', 1);
     },
 
     release: function() {

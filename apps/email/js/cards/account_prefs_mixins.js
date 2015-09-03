@@ -143,13 +143,10 @@ define(function(require) {
     },
 
     onClickSignature: function(index) {
-     cards.pushCard(
-        'settings_signature', 'animate',
-        {
-          account: this.account,
-          index: index
-        },
-        'right');
+      cards.add('animate', 'settings_signature', {
+        account: this.account,
+        index: index
+      });
     }
   };
 });

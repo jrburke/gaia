@@ -131,7 +131,7 @@ return [
           // All of these mutations are immediately reflected, easily observed
           // and easily undone, so we don't show them as toaster actions.
           case 'msg-contact-menu-new':
-            cards.pushCard('compose', 'animate', {
+            cards.add('animate', 'compose', {
               model: this.model,
               composerData: {
                 message: this._message,
@@ -191,7 +191,7 @@ return [
             break;
           case 'msg-contact-menu-reply':
             this._message.replyToMessage('sender').then((composer) => {
-              cards.pushCard('compose', 'animate', {
+              cards.add('animate', 'compose', {
                 model: this.model,
                 composer: composer
               });

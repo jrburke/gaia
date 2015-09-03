@@ -3,6 +3,7 @@ define(function(require) {
   var queryString = require('query_string');
   var services = require('services');
   var cards = require('cards');
+  var mix = require('mix');
 
   // All of the oauthSecrets we know.
   var oauthSecrets = services.oauth2;
@@ -154,6 +155,9 @@ define(function(require) {
    * The property names in the extraQueryObject will be mapped to the provider's
    * preferred names by using o2Settings.extraArgsMap
    *
+   * @param {Object} [oauthCardArgs] an args object that will be passed to the
+   * setup_oauth2 card instance used to complete this task.
+   *
    * @return {Promise} The resolved value will be an object with these
    * properties:
    * * status: String indicating status of the request. 'succcess' and 'cancel'
@@ -162,7 +166,7 @@ define(function(require) {
    *   { accessToken, refreshToken, expireTimeMS }
    * * secrets: The clientId and clientSecret used for this oauth.
    */
-  return function oauth2Fetch(o2Settings, extraQueryObject) {
+  return function oauth2Fetch(o2Settings, extraQueryObject, oauthCardArgs) {
     // Only one auth session at a time.
     if (deferred) {
       reset('reject', new Error('Multiple oauth calls, starting new one'));
@@ -218,10 +222,10 @@ define(function(require) {
       }
     }
 
-    cards.pushCard('setup_oauth2', 'animate', {
-      url: url,
-      onBrowserComplete: onBrowserComplete
-    });
+    cards.add('animate', 'setup_oauth2', mix({
+      url,
+      onBrowserComplete
+    }, oauthCardArgs));
 
     return p;
   };

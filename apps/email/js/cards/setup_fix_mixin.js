@@ -13,7 +13,6 @@ define(function(require) {
     onArgs: function(args) {
       this.account = args.account;
       this.whichSide = args.whichSide; // incoming or outgoing
-      this.restoreCard = args.restoreCard;
 
       var type = this.account.type;
       // In the case of IMAP/POP3, they _might_ have two different
@@ -57,7 +56,7 @@ define(function(require) {
      */
     proceed: function() {
       this.account.clearProblems();
-      cards.removeCardAndSuccessors(this, 'animate', 1, this.restoreCard);
+      cards.back('animate');
     },
 
     release: function() {

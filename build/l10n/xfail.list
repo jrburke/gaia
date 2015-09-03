@@ -39,11 +39,11 @@ apps/costcontrol/js/common.js
 apps/costcontrol/js/utils/toolkit.js
 apps/costcontrol/test/unit/mock_common.js
 apps/email/js/attachment_name.js
-apps/email/js/cards.js
 apps/email/js/cards/compose.js
 apps/email/js/cards/message_list.js
 apps/email/js/cards/settings_account_credentials.js
 apps/email/js/cards/setup_account_prefs.js
+apps/email/js/folder_selector.js
 apps/email/js/model_init.js
 apps/email/js/toaster.js
 apps/fl/js/utils.js

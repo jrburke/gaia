@@ -1,8 +1,7 @@
 'use strict';
 define(function(require) {
 
-var cards = require('cards'),
-    ListCursor = require('list_cursor');
+var ListCursor = require('list_cursor');
 
 return [
   require('./base_card')(require('template!./item_detail.html')),
@@ -43,10 +42,6 @@ return [
 
     onCardVisible: function() {
       this.convList.onCardVisible();
-    },
-
-    onBack: function(event) {
-      cards.removeCardAndSuccessors(this, 'animate');
     },
 
     readerAdvance: function (direction) {
