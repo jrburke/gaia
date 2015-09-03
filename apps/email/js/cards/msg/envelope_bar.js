@@ -42,6 +42,8 @@ return [
       this._message = message;
       var domNode = this;
 
+      this.classList.toggle('draft', message.isDraft);
+
       // -- Header
       function updatePeep(peep) {
         var nameNode = peep.element.querySelector('.msg-peep-content');
