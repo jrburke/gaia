@@ -57,7 +57,7 @@ define(function(require) {
       },
 
       hide: function() {
-        cards.removeCardAndSuccessors(this, 'immediate', 1, null, true);
+        cards.back('immediate');
       },
 
       release: function() {

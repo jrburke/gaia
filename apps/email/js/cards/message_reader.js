@@ -53,16 +53,6 @@ return [
       }
     },
 
-    told: function(args) {
-      if (args.messageSuid) {
-        this.messageSuid = args.messageSuid;
-      }
-    },
-
-    onBack: function(event) {
-      cards.removeCardAndSuccessors(this, 'animate');
-    },
-
     /**
      * Broadcast that we need to move previous if there's a previous sibling.
      *
@@ -137,9 +127,9 @@ return [
 //todo: convert cards.js to be able to remove this card after pushing the
 //compose card.
       this.onBack();
-      evt.once('cards:transitionEnd', () => {
+      cards.once('cardVisible', () => {
         this.message.editAsDraft().then((composer) => {
-          cards.pushCard('compose', 'animate', {
+          cards.add('animate', 'compose', {
             model: this.model,
             composer
           });

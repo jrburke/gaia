@@ -73,31 +73,21 @@ return [
       mozL10n.setAttributes(this.accountCredNode, credL10nId);
     },
 
-    onBack: function() {
-      cards.removeCardAndSuccessors(this, 'animate', 1);
-    },
-
     onCardVisible: function() {
       this.updateSignatureButton();
     },
 
     onClickCredentials: function() {
-      cards.pushCard(
-        'settings_account_credentials', 'animate',
-        {
-          account: this.account
-        },
-        'right');
+      cards.add('animate', 'settings_account_credentials', {
+        account: this.account
+      });
     },
 
     onClickServers: function(index) {
-      cards.pushCard(
-        'settings_account_servers', 'animate',
-        {
-          account: this.account,
-          index: index
-        },
-        'right');
+      cards.add('animate', 'settings_account_servers', {
+        account: this.account,
+        index: index
+      });
     },
 
     onChangeDefaultAccount: function(event) {

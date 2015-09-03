@@ -8,8 +8,11 @@ return [
   require('./base_card')(require('template!./setup_oauth2.html')),
   {
     onArgs: function(args) {
-      this.onBrowserComplete = args.onBrowserComplete;
+      if (args.onArgCreated) {
+        args.onArgCreated(this);
+      }
 
+      this.onBrowserComplete = args.onBrowserComplete;
 
       var browserFrame = document.createElement('iframe');
       browserFrame.classList.add('sup-oauth2-browser');
@@ -35,7 +38,15 @@ return [
     },
 
     close: function() {
-      cards.removeCardAndSuccessors(this, 'animate', 1);
+      if (this.args.intermediateCard) {
+        cards.remove(this.args.intermediateCard);
+      }
+      cards.back('animate');
+    },
+
+    // Separate function to all overrides.
+    closeFromLocationChange: function() {
+      this.close();
     },
 
     onBack: function(event) {
@@ -64,7 +75,7 @@ return [
 
       //Start closing the dialog now to avoid the user staring too long at an
       //empty white screen.
-      this.close();
+      this.closeFromLocationChange();
 
       // Should have the data we need now.
       var search = url.split('?')[1] || '';

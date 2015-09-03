@@ -4,6 +4,7 @@ define(function(require, exports) {
 
 var cards = require('cards'),
     ConfirmDialog = require('confirm_dialog'),
+    folderSelector = require('folder_selector'),
     mozL10n = require('l10n!'),
     msgAttachmentDisabledConfirmNode =
                          require('tmpl!./attachment_disabled_confirm.html'),
@@ -55,7 +56,7 @@ return [
     reply: function() {
       cards.eatEventsUntilNextCard();
       this.message.replyToMessage('sender').then((composer) => {
-        cards.pushCard('compose', 'animate', {
+        cards.add('animate', 'compose', {
           model: this.model,
           composer: composer
         });
@@ -67,7 +68,7 @@ return [
     replyAll: function() {
       cards.eatEventsUntilNextCard();
       this.message.replyToMessage('all').then((composer) => {
-        cards.pushCard('compose', 'animate', {
+        cards.add('animate', 'compose', {
           model: this.model,
           composer: composer
         });
@@ -83,7 +84,7 @@ return [
       var forwardMessage = (() => {
         cards.eatEventsUntilNextCard();
         this.message.forwardMessage('inline').then((composer) => {
-          cards.pushCard('compose', 'animate', {
+          cards.add('animate', 'compose', {
             model: this.model,
             composer: composer
           });
@@ -224,7 +225,7 @@ return [
 
     onMove: function() {
       //TODO: Please verify move functionality after api landed.
-      cards.folderSelector(this.model, (folder) => {
+      folderSelector(this.model, (folder) => {
         var op = this.message.moveMessage(folder);
         this.emitDomEvent('moved');
         toaster.toastOperation(op);

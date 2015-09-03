@@ -203,7 +203,7 @@ console.log('msg/body CALLING downloadBodyReps');
         // mean to cancel ourselves? What is the sound of one hand
         // clapping?
         var data = queryURI(linkUrl);
-        cards.pushCard('compose', 'animate', {
+        cards.add('animate', 'compose', {
           model: this.model,
           composerData: {
             onComposer: (composer, composeCard) => {

@@ -30,13 +30,13 @@ define(function(require, exports) {
       message = null;
     }
 
-    cards.pushCard('confirm_dialog', 'immediate', {
+    cards.add('immediate', 'confirm_dialog', {
       dialogBodyNode: dialogBodyNode,
       message: message,
       confirm: callback,
       callback: callback,
       cancel: cancel
-    }, 'right');
+    });
   };
 
   return ConfirmDialog;

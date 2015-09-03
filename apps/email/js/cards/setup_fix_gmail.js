@@ -13,7 +13,6 @@ return [
 
     onArgs: function(args) {
       this.account = args.account;
-      this.restoreCard = args.restoreCard;
 
       // The account name is not translatable; set it verbatim.
       this.accountNode.textContent = this.account.name;
@@ -41,8 +40,7 @@ return [
 
     onDismiss: function() {
       this.account.clearProblems();
-      cards.removeCardAndSuccessors(this, 'animate', 1,
-                                    this.restoreCard);
+      cards.back('animate');
     }
   }
 ];

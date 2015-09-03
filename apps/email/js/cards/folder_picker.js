@@ -65,7 +65,7 @@ return [
     extraClasses: ['anim-vertical', 'anim-overlay', 'one-account'],
 
     onShowSettings: function(event) {
-      cards.pushCard('settings_main', 'animate');
+      cards.add('animate', 'settings_main');
     },
 
     /**
@@ -304,7 +304,7 @@ return [
       // If this is an animation for the content closing, then
       // it means the card should be removed now.
       if (!this.classList.contains('opened')) {
-        cards.removeCardAndSuccessors(this, 'none');
+        cards.remove(this);
 
         // After card is removed, then switch the account, to provide
         // smooth animation on closing of drawer.

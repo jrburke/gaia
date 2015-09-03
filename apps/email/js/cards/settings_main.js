@@ -24,7 +24,7 @@ return [
     extraClasses: ['anim-fade', 'anim-overlay'],
 
     onClose: function() {
-      cards.removeCardAndSuccessors(this, 'animate', 1, 1);
+      cards.back('animate');
     },
 
     onAccountChange: function() {
@@ -55,21 +55,15 @@ return [
     },
 
     onClickAddAccount: function() {
-      cards.pushCard(
-        'setup_account_info', 'animate',
-        {
-          allowBack: true
-        },
-        'right');
+      cards.add('animate', 'setup_account_info', {
+        allowBack: true
+      });
     },
 
     onClickEnterAccount: function(account) {
-      cards.pushCard(
-        'settings_account', 'animate',
-        {
-          account: account
-        },
-        'right');
+      cards.add('animate', 'settings_account', {
+        account: account
+      });
     },
 
     onClickSecretButton: function() {
@@ -84,7 +78,7 @@ return [
         window.clearTimeout(this._secretButtonTimer);
         this._secretButtonTimer = null;
         this._secretButtonClickCount = 0;
-        cards.pushCard('settings_debug', 'animate', {}, 'right');
+        cards.add('animate', 'settings_debug');
       }
     },
 
