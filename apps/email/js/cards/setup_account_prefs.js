@@ -29,7 +29,7 @@ return [
     },
 
     onNext: function(event) {
-      cards.pushCard('setup_done', 'animate');
+      cards.add('animate', 'setup_done');
     },
 
     onCardVisible: function() {

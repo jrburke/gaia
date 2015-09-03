@@ -1,23 +1,25 @@
-'use strict';
+/*
+ * cards, an view navigation lib. Version 2.0.0.
+ * Copyright 2013-2015, Mozilla Foundation
+ */
+
 define(function(require, exports, module) {
 
-var cardsInit = require('cards_init'),
-    htmlCache = require('html_cache'),
-    mozL10n = require('l10n!'),
-    evt = require('evt'),
-    toaster = require('toaster'),
-    transitionEnd = require('transition_end'),
-    hookupInputAreaResetButtons = require('input_areas');
+'use strict';
 
-function addClass(domNode, name) {
-  if (domNode) {
-    domNode.classList.add(name);
+var cardsInit = require('cards_init'),
+    evt = require('evt'),
+    transitionEnd = require('transition_end');
+
+function addClass(element, name) {
+  if (element) {
+    element.classList.add(name);
   }
 }
 
-function removeClass(domNode, name) {
-  if (domNode) {
-    domNode.classList.remove(name);
+function removeClass(element, name) {
+  if (element) {
+    element.classList.remove(name);
   }
 }
 
@@ -27,53 +29,45 @@ function removeClass(domNode, name) {
  * implementation created jrburke.
  */
 var cards = {
+  /**
+   * The ".cards" node that holds the cards.
+   */
+  cardsNode: null,
+
+  /**
+   * Tracks which index in the _cardStack is the active, visible card.
+   * @type {Number}
+   */
+  activeCardIndex: -1,
+
+  /**
+   * Holds card definitions loaded by add/insert calls. If there is
+   * no existing definition, the card module is dynamically loaded then placed
+   * in _cardDefs.
+   */
   _cardDefs: {},
 
   /*
-   * Existing cards, left-to-right, new cards getting pushed onto the right.
+   * Existing cards stored here. New cards getting added onto the bottom of the
+   * stack.
    */
   _cardStack: [],
-  activeCardIndex: -1,
-  /*
-   * @oneof[null @listof[cardName modeName]]{
-   *   If a lazy load is causing us to have to wait before we push a card, this
-   *   is the type of card we are planning to push.  This is used by hasCard
-   *   to avoid returning misleading answers while an async push is happening.
-   * }
+
+  /**
+   * If a lazy load is causing us to have to wait before we insert a card, this
+   * is the type of card we are planning to insert.
    */
-  _pendingPush: null,
+  _pendingInsert: null,
 
   /**
    * Cards can stack on top of each other, make sure the stacked set is
-   * visible over the lower sets.
+   * visible over the lower sets. It is possible for this to not return to a
+   * zero value if anim-overlay cards are remove()'d directly and not
+   * through usage of back(). The long term solution is to allow instances of
+   * card stacks inside cards, but that is a bigger overhaul. This will get
+   * reset to zero though if all cards are removed and the stack starts over.
    */
   _zIndex: 0,
-
-  /**
-   * The DOM node that contains the _containerNode ("#cardContainer") and which
-   * we inject popup and masking layers into.  The choice of doing the popup
-   * stuff at this layer is arbitrary.
-   */
-  _rootNode: null,
-
-  /**
-   * The "#cardContainer" node which serves as the scroll container for the
-   * contained _cardsNode ("#cards").  It is as wide as the viewport.
-   */
-  _containerNode: null,
-
-  /**
-   * The "#cards" node that holds the cards; it is as wide as all of the cards
-   * it contains and has its left offset changed in order to change what card
-   * is visible.
-   */
-  _cardsNode: null,
-
-  /**
-   * The DOM nodes that should be removed from their parent when our current
-   * transition ends.
-   */
-  _animatingDeadDomNodes: [],
 
   /**
    * Tracks the number of transition events per card animation. Since each
@@ -84,45 +78,31 @@ var cards = {
   _transitionCount: 0,
 
   /**
-   * Tracks if startup events have been emitted. The events only need to be
-   * emitted once.
-   * @type {Boolean}
-   */
-  _startupEventsEmitted: false,
-
-  /**
-   * Is a popup visible, suggesting that any click that is not on the popup
-   * should be taken as a desire to close the popup?  This is not a boolean,
-   * but rather info on the active popup.
-   */
-  _popupActive: null,
-
-  /**
    * Are we eating all click events we see until we transition to the next
-   * card (possibly due to a call to pushCard that has not yet occurred?).
+   * card (possibly due to a call to add() that has not yet occurred?).
    * Set by calling `eatEventsUntilNextCard`.
    */
   _eatingEventsUntilNextCard: false,
 
   /**
+   * Holds promise resolution information that are resolved once the element
+   * placed in the Map reaches the cardVisible event.
+   */
+  _cardVisibleResolves: new Map(),
+
+  /**
    * Initialize and bind ourselves to the DOM which should now be fully loaded.
    */
-  init: function() {
-    this._rootNode = document.body;
-    this._containerNode = document.getElementById('cardContainer');
-    this._cardsNode = document.getElementById('cards');
+  init: function(cardsSelector) {
+    this.cardsNode = document.querySelector(cardsSelector || '.cards');
 
-    this._statusColorMeta = document.querySelector('meta[name="theme-color"]');
-
-    toaster.init(this._containerNode);
-
-    this._containerNode.addEventListener('click',
-                                         this._onMaybeIntercept.bind(this),
-                                         true);
+    this.cardsNode.addEventListener('click',
+                                    this._onMaybeIntercept.bind(this),
+                                    true);
 
     // XXX be more platform detecty. or just add more events. unless the
     // prefixes are already gone with webkit and opera?
-    transitionEnd(this._cardsNode, this._onTransitionEnd.bind(this), false);
+    transitionEnd(this.cardsNode, this._onTransitionEnd.bind(this), false);
 
     // Listen for visibility changes to let current card know of them too.
     // Do this here instead of each card needing to listen, and needing to know
@@ -138,495 +118,322 @@ var cards = {
   },
 
   /**
-   * If the tray is active and a click happens in the tray area, transition
-   * back to the visible thing (which must be to our right currently.)
+   * Converts the card type, passed to methods like add and insert,
+   * into a module ID that can be dynamically loaded. This is useful to allow
+   * shorter, app-specific names that resolve to more complete names for module
+   * loading, which may include loader plugin use.
+   * @param  {String} type The card type
+   * @return {String} The module ID.
    */
-  _onMaybeIntercept: function(event) {
-    if (this._eatingEventsUntilNextCard) {
-      event.stopPropagation();
-      event.preventDefault();
-      return;
-    }
-    if (this._popupActive) {
-      event.stopPropagation();
-      event.preventDefault();
-      this._popupActive.close();
-      return;
-    }
-
-    // Find the card containing the event target.
-    var cardNode = event.target;
-    for (cardNode = event.target; cardNode; cardNode = cardNode.parentElement) {
-      if (cardNode.classList.contains('card')) {
-        break;
-      }
-    }
+  typeToModuleId: function(type) {
+    return type;
   },
 
   /**
-   * Push a card onto the card-stack.
+   * Given a card element, return its card type. This allows the types to be
+   * shorter, app-specific names where the custom element may need more unique,
+   * longer names to not collide with other elements in the page. That custom
+   * element name may also be tied more directly with the module ID it was used
+   * to load it.
+   * @param  {Element} element The DOM element for the card.
+   * @return {String} The card type.
    */
-  /* @args[
-   *   @param[type]
-   *   @param[showMethod @oneof[
-   *     @case['animate']{
-   *       Perform an animated scrolling transition.
-   *     }
-   *     @case['immediate']{
-   *       Immediately warp to the card without animation.
-   *     }
-   *     @case['none']{
-   *       Don't touch the view at all.
-   *     }
-   *   ]]
-   *   @param[args Object]{
-   *     An arguments object to provide to the card's constructor when
-   *     instantiating.
-   *   }
-   *   @param[placement #:optional @oneof[
-   *     @case[undefined]{
-   *       The card gets pushed onto the end of the stack.
-   *     }
-   *     @case['left']{
-   *       The card gets inserted to the left of the current card.
-   *     }
-   *     @case['right']{
-   *       The card gets inserted to the right of the current card.
-   *     }
-   *   }
-   * ]
+  elementToType: function(element) {
+    return element.nodeName.toLowerCase();
+  },
+
+  /**
+   * Add a card onto the card-stack.
+   * @param  {String} showMethod 'animate' or 'immediate'.
+   * @param  {String} type Passed to insert, see notes there.
+   * @param  {Object} [args] Passed to insert, see notes there.
+   * @param  {String} [placement] Passed to insert, see notes there.
+   * @return {Promise} Resolves to the card instance once it has been placed
+   * in the DOM and is now the visible card, animation to the card has been
+   * completed.
    */
-  pushCard: function(type, showMethod, args, placement) {
-    var cardDef = this._cardDefs[type];
+  add: function(showMethod, type, args, placement) {
+    return this.insert(type, args, placement).then((element) => {
+      var promise = new Promise((resolve) => {
+        // Do not care about rejections here for simplicity. Could revisit
+        // if there are errors that should be bubbled out later.
+        this._cardVisibleResolves.set(element, resolve);
+      });
+
+      this._showCard(this.getIndexForCard(element), showMethod, 'forward');
+
+      return promise;
+    });
+  },
+
+  /**
+   * Inserts a card into the stack.
+   *
+   * @param  {String} type The type of card to insert. cards.typeToModuleId() is
+   * used to translate that type into a module ID for loading.
+   *
+   * @param  {Object} [args] Optional args object to pass to the created card.
+   * The created card's .args property will be set to this object, and if the
+   * card has an onArgs method on it, it will be called with this object.
+   *
+   * @param  {String} [placement] where to place the card in the stack, and
+   * how it should be considered in the history of cards. Possible values:
+   *
+   * - (no value): This should be the heavily favored, and is the default,
+   * option. Card placed at end of stack, regardless of the position of the
+   * active card. Considered a card in the future, relative to active card.
+   *
+   * - 'previous': Added before active card, and considered a card in the past,
+   * relative to the active card.
+   *
+   * - 'next': Card placed after active card, which may not be at the end of the
+   * card stack. Considered a card in the future, relative to active card.
+   * Usually the (no value) choice for placement should be used over this
+   * choice.
+   *
+   * - 'previousAsFuture': Card placed before the active card, but considered a
+   * card in the future, relative to the active card. Useful for side/menu cards
+   * that peek out from the opposite side of the normal navigation direction.
+   *
+   * @return {Promise} Resolves to the card instance once it has been placed
+   * in the DOM. The card may not be visible at that point, just in the DOM of
+   * the document.
+   */
+  insert: function(type, args, placement) {
+    var resolve,
+        cardDef = this._cardDefs[type],
+        promise = new Promise(function(r) {
+          // Do not care about rejections here for simplicity. Could revisit
+          // if there are errors that should be bubbled out later.
+          resolve = r;
+        });
 
     args = args || {};
 
     if (!cardDef) {
-      var cbArgs = Array.slice(arguments);
-      this._pendingPush = [type];
+      var cbArgs = Array.from(arguments);
+      this._pendingInsert = [type];
 
-      // Only eat clicks if the card will be visibly displayed.
-      if (showMethod !== 'none') {
-        this.eatEventsUntilNextCard();
-      }
+      // Avoid clicks while loading a card, to avoid insertion orders from
+      // going haywire. The event eating is just binary, so best to not also
+      // trigger a bunch of insertions programmatically, wait for promise
+      // resolutions.
+      this.eatEventsUntilNextCard();
 
-      require(['element!cards/' + type], (Ctor) => {
+      require([this.typeToModuleId(type)], (Ctor) => {
         this._cardDefs[type] = Ctor;
-        this.pushCard.apply(this, cbArgs);
+        this.insert.apply(this, cbArgs).then((element) => {
+          this.stopEatingEvents();
+          resolve(element);
+        });
       });
-      return;
+      return promise;
     }
 
-    this._pendingPush = null;
+    this._pendingInsert = null;
 
-    console.log('pushCard for type: ' + type);
+    var element = args.cachedNode || new cardDef();
+    element.classList.add('card');
 
-    var domNode = args.cachedNode || new cardDef();
+    this.emit('cardCreated', type, element);
 
-    if (args && domNode.onArgs) {
-      domNode.onArgs(args);
+    element.args = args || {};
+
+    if (args && element.onArgs) {
+      element.onArgs(args);
     }
 
     var cardIndex, insertBuddy;
     if (!placement) {
       cardIndex = this._cardStack.length;
       insertBuddy = null;
-      domNode.classList.add(cardIndex === 0 ? 'before' : 'after');
-    }
-    else if (placement === 'left') {
+      element.classList.add(cardIndex === 0 ? 'before' : 'after');
+    } else if (placement === 'previousAsFuture') {
       cardIndex = this.activeCardIndex++;
-      insertBuddy = this._cardsNode.children[cardIndex];
-      domNode.classList.add('before');
-    }
-    else if (placement === 'right') {
+      insertBuddy = this.cardsNode.children[cardIndex];
+      element.classList.add('before');
+    } else if (placement === 'next') {
       cardIndex = this.activeCardIndex + 1;
       if (cardIndex >= this._cardStack.length) {
         insertBuddy = null;
       } else {
-        insertBuddy = this._cardsNode.children[cardIndex];
+        insertBuddy = this.cardsNode.children[cardIndex];
       }
-      domNode.classList.add('after');
+      element.classList.add('after');
+    } else if (placement === 'previous') {
+      cardIndex = Math.max(this.activeCardIndex - 1, 0);
+      insertBuddy = this.cardsNode.children[this.activeCardIndex];
+      element.classList.add('before');
+      this.activeCardIndex += 1;
     }
-    this._cardStack.splice(cardIndex, 0, domNode);
+
+    this._cardStack.splice(cardIndex, 0, element);
 
     if (!args.cachedNode) {
-      this._cardsNode.insertBefore(domNode, insertBuddy);
+      this.cardsNode.insertBefore(element, insertBuddy);
     }
 
-    // If the card has any <button type="reset"> buttons,
-    // make them clear the field they're next to and not the entire form.
-    // See input_areas.js and shared/style/input_areas.css.
-    hookupInputAreaResetButtons(domNode);
+    if ('postInsert' in element) {
+      element.postInsert();
+    }
+    this.emit('postInsert', element);
 
-    // Only do auto font size watching for cards that do not have more
-    // complicated needs, like message_list, which modifies children contents
-    // that are not caught by the font_size_util.
-    if (!domNode.callHeaderFontSize) {
-      // We're appending new elements to DOM so to make sure headers are
-      // properly resized and centered, we emit a lazyload event.
-      // This will be removed when the gaia-header web component lands.
-      window.dispatchEvent(new CustomEvent('lazyload', {
-        detail: domNode
-      }));
+    // Make sure layout sees the new node so that the animation later is smooth.
+    if (!args.cachedNode) {
+      element.clientWidth;
     }
 
-    if ('postInsert' in domNode) {
-      domNode.postInsert();
-    }
-
-    if (showMethod !== 'none') {
-      // make sure the reflow sees the new node so that the animation
-      // later is smooth.
-      if (!args.cachedNode) {
-        domNode.clientWidth;
-      }
-
-      this._showCard(cardIndex, showMethod, 'forward');
-    }
-
-    if (args.onPushed) {
-      args.onPushed(domNode);
-    }
+    resolve(element);
+    return promise;
   },
 
   /**
-   * Pushes a new card if none exists, otherwise, uses existing
-   * card and passes args to that card via tellCard. Arguments
-   * are the same as pushCard.
-   * @return {Boolean} true if card was pushed.
+   * Goes "back" from the current active card one card step.
+   * @param  {String} showMethod 'animate' or 'immediate'.
+   * @return {Promise} Promise resolved to the next card that becomes visible
+   *         after the back step.
    */
-  pushOrTellCard: function(type, showMethod, args, placement) {
-    var query = type;
-    if (this.hasCard(query)) {
-      this.tellCard(query, args);
-      return false;
-    } else {
-      this.pushCard.apply(this, Array.slice(arguments));
-      return true;
-    }
-  },
-
-  /**
-   * Sets the status bar color. The element, or any of its children, can specify
-   * the color by setting data-statuscolor to one of the following values:
-   * - default: uses the default data-statuscolor set on the meta theme-color
-   * tag is used.
-   * - background: the CSS background color, via getComputedStyle, is used. This
-   * is useful if the background that is desired is not the one from the element
-   * itself, but from one of its children.
-   * - a specific color value.
-   *
-   * If no data-statuscolor attribute is found, then the background color for
-   * the element, via getComputedStyle, is used. If that value is not a valid
-   * color value, then the default statuscolor on the meta tag is used.
-   *
-   * Note that this method uses getComputedStyle. This could be expensive
-   * depending on when it is called. For the card infrastructure, since it is
-   * done as part of a card transition, and done before the card transition code
-   * applies transition styles, the target element should not be visible at the
-   * time of the query. In practice no negligble end user effect has been seen,
-   * and that query is much more desirable than hardcoding colors in JS or HTML.
-   *
-   * @param {Element} [element] the card element of interest. If no element is
-   * passed, the the current card is used.
-   */
-  setStatusColor: function(element) {
-    var color;
-    // Some use cases, like dialogs, are outside the card stack, so they may
-    // not know what element to use for a baseline. In those cases, Cards
-    // decides the target element.
-    if (!element) {
-      element = this.getActiveCard();
-    }
-
-    // Try first for specific color override. Do a node query, since for custom
-    // elements, the custom elment tag may not set its color, but the template
-    // used inside the tag may.
-    var statusElement = element.dataset.statuscolor ? element :
-                        element.querySelector('[data-statuscolor]');
-
-    if (statusElement) {
-      color = statusElement.dataset.statuscolor;
-      // Allow cards to just indicate they want the default.
-      if (color === 'default') {
-        color = null;
-      } else if (color === 'background') {
-        color = getComputedStyle(statusElement).backgroundColor;
-      }
-    } else {
-      // Just use the background color of the original element.
-      color = getComputedStyle(element).backgroundColor;
-    }
-
-    // Only use specific color values, not values like 'transparent'.
-    if (color && color.indexOf('rgb') !== 0 && color.indexOf('#') !== 0) {
-      color = null;
-    }
-
-    color = color || this._statusColorMeta.dataset.statuscolor;
-    var existingColor = this._statusColorMeta.getAttribute('content');
-    if (color !== existingColor) {
-      this._statusColorMeta.setAttribute('content', color);
-    }
-  },
-
-  _findCardUsingType: function(type) {
-    for (var i = 0; i < this._cardStack.length; i++) {
-      var domNode = this._cardStack[i];
-      if (htmlCache.nodeToKey(domNode) === type) {
-        return i;
-      }
-    }
-  },
-
-  _findCard: function(query, skipFail) {
-    var result;
-    if (typeof query === 'string') {
-      result = this._findCardUsingType(query, skipFail);
-    } else if (typeof(query) === 'number') { // index number
-      result = query;
-    } else {
-      // query is a DOM node in this case
-      result = this._cardStack.indexOf(query);
-    }
-
-    if (result > -1) {
-      return result;
-    } else if (!skipFail) {
-      throw new Error('Unable to find card with query:', query);
-    } else {
-      // Returning undefined explicitly so that index comparisons, like
-      // the one in hasCard, are correct.
-      return undefined;
-    }
-  },
-
-  hasCard: function(query) {
-    if (this._pendingPush && this._pendingPush === query) {
-      return true;
-    }
-
-    return this._findCard(query, true) > -1;
-  },
-
-  isVisible: function(domNode) {
-    return !!(domNode &&
-              domNode.classList.contains('center'));
-  },
-
-  findCardObject: function(query) {
-    return this._cardStack[this._findCard(query)];
-  },
-
-  getCurrentCardType: function() {
-    var result = null,
-        card = this.getActiveCard();
-
-    // Favor any _pendingPush value as it is about to
-    // become current, just waiting on an async cycle
-    // to finish. Otherwise use current card value.
-    if (this._pendingPush) {
-      result = this._pendingPush;
-    } else if (card) {
-      result = htmlCache.nodeToKey(card);
-    }
-    return result;
-  },
-
-  // Filter is an optional paramater. It is a function that returns
-  // true if the folder passed to it should be included in the selector
-  folderSelector: function(model, callback, filter) {
-    var self = this;
-
-    require(['value_selector'], function(ValueSelector) {
-      // XXX: Unified folders will require us to make sure we get the folder
-      //      list for the account the message originates from.
-      if (!self.folderPrompt) {
-        var selectorTitle = mozL10n.get('messages-folder-select');
-        self.folderPrompt = new ValueSelector(selectorTitle);
-      }
-
-      model.latestOnce('foldersList', function(foldersList) {
-        var folders = foldersList.items;
-        folders.forEach(function(folder) {
-          var isMatch = !filter || filter(folder);
-          if (folder.neededForHierarchy || isMatch) {
-            self.folderPrompt.addToList(folder.name, folder.depth,
-              isMatch,
-              function(folder) {
-                return function() {
-                  self.folderPrompt.hide();
-                  callback(folder);
-                };
-              }(folder));
-          }
-        });
-        self.folderPrompt.show();
-      });
-    });
-  },
-
-  moveToCard: function(query, showMethod) {
-    this._showCard(this._findCard(query), showMethod || 'animate');
-  },
-
-  tellCard: function(query, what) {
-    var cardIndex = this._findCard(query),
-        domNode = this._cardStack[cardIndex];
-    if (!('told' in domNode)) {
-      console.warn('Tried to tell a card that\'s not listening!', query, what);
-    } else {
-      domNode.told(what);
-    }
-  },
-
-  /**
-   * Remove the card identified by its DOM node and all the cards to its right.
-   * Pass null to remove all of the cards! If cardDomNode passed, but there
-   * are no cards before it, cards.getDefaultCard is called to set up a before
-   * card.
-   */
-  /* @args[
-   *   @param[cardDomNode]{
-   *     The DOM node that is the first card to remove; all of the cards to its
-   *     right will also be removed.  If null is passed it is understood you
-   *     want to remove all cards.
-   *   }
-   *   @param[showMethod @oneof[
-   *     @case['animate']{
-   *       Perform an animated scrolling transition.
-   *     }
-   *     @case['immediate']{
-   *       Immediately warp to the card without animation.
-   *     }
-   *     @case['none']{
-   *       Remove the nodes immediately, don't do anything about the view
-   *       position.  You only want to do this if you are going to push one
-   *       or more cards and the last card will use a transition of 'immediate'.
-   *     }
-   *   ]]
-   *   @param[numCards #:optional Number]{
-   *     The number of cards to remove.  If omitted, all the cards to the right
-   *     of this card are removed as well.
-   *   }
-   *   @param[nextCardSpec #:optional]{
-   *     If a showMethod is not 'none', the card to show after removal.
-   *   }
-   *   @param[skipDefault #:optional Boolean]{
-   *     Skips the default pushCard if the removal ends up with no more
-   *     cards in the stack.
-   *   }
-   * ]
-   */
-  removeCardAndSuccessors: function(cardDomNode, showMethod, numCards,
-                                    nextCardSpec, skipDefault) {
+  back: function(showMethod) {
     if (!this._cardStack.length) {
       return;
     }
 
-    if (cardDomNode && this._cardStack.length === 1 && !skipDefault) {
-      // No card to go to when done, so ask for a default
-      // card and continue work once it exists.
-      return cards.pushDefaultCard(() => {
-        this.removeCardAndSuccessors(cardDomNode, showMethod, numCards,
-                                    nextCardSpec);
-      });
-    }
+    var startElement = this.getActiveCard();
 
-    var firstIndex, iCard, domNode;
-    if (cardDomNode === undefined) {
-      throw new Error('undefined is not a valid card spec!');
-    }
-    else if (cardDomNode === null) {
-      firstIndex = 0;
+    if (this._cardStack.length === 1) {
       // reset the z-index to 0 since we may have cards in the stack that
       // adjusted the z-index (and we are definitively clearing all cards).
       this._zIndex = 0;
-    }
-    else {
-      for (iCard = this._cardStack.length - 1; iCard >= 0; iCard--) {
-        domNode = this._cardStack[iCard];
-        if (domNode === cardDomNode) {
-          firstIndex = iCard;
-          break;
-        }
-      }
-      if (firstIndex === undefined) {
-        throw new Error('No card represented by that DOM node');
-      }
-    }
-    if (!numCards) {
-      numCards = this._cardStack.length - firstIndex;
+
+      // No card to go to when done, so ask for a default
+      // card and continue work once it exists.
+      return cards.insertDefaultCard().then(() => {
+        return this.back(showMethod);
+      });
     }
 
-    if (showMethod === 'none') {
-      // If a 'none' remove, and the remove is for a DOM node that used
-      // anim-overlay, which would have increased the _zIndex when added, adjust
-      // the zIndex appropriately.
-      if (cardDomNode && cardDomNode.classList.contains('anim-overlay')) {
-        this._zIndex -= 10;
-      }
-    } else {
-      var nextCardIndex = -1;
-      if (nextCardSpec) {
-        nextCardIndex = this._findCard(nextCardSpec);
-      } else if (this._cardStack.length) {
-        nextCardIndex = Math.min(firstIndex - 1, this._cardStack.length - 1);
-      }
-
-      if (nextCardIndex > -1) {
-        this._showCard(nextCardIndex, showMethod, 'back');
-      }
+    var nextCardIndex = this.activeCardIndex - 1;
+    if (nextCardIndex === -1) {
+      throw new Error('No next card');
     }
 
-    // Update activeCardIndex if nodes were removed that would affect its
-    // value.
-    if (firstIndex <= this.activeCardIndex) {
-      this.activeCardIndex -= numCards;
-      if (this.activeCardIndex < -1) {
-        this.activeCardIndex = -1;
-      }
-    }
+    var promise = new Promise((resolve) => {
+      // Do not care about rejections here for simplicity. Could revisit if
+      // there are errors that should be bubbled out later.
+      this._cardVisibleResolves.set(this._cardStack[nextCardIndex], resolve);
+    });
 
-    var deadDomNodes = this._cardStack.splice(
-                          firstIndex, numCards);
-    for (iCard = 0; iCard < deadDomNodes.length; iCard++) {
-      domNode = deadDomNodes[iCard];
-      try {
-        domNode.release();
-      }
-      catch (ex) {
-        console.warn('Problem cleaning up card:', ex, '\n', ex.stack);
-      }
-      switch (showMethod) {
-        case 'animate':
-        case 'immediate': // XXX handle properly
-          this._animatingDeadDomNodes.push(domNode);
-          break;
-        case 'none':
-          domNode.parentNode.removeChild(domNode);
-          break;
-      }
-    }
+    this._showCard(nextCardIndex, showMethod, 'back');
 
     // Reset aria-hidden attributes to handle cards visibility.
     this._setScreenReaderVisibility();
+
+    return promise.then((element) => {
+      this.remove(startElement);
+      return element;
+    });
+  },
+
+  /**
+   * Just removes a card from the stack, no special animations. Use back() if
+   * wanting to remove with animation.
+   */
+  remove: function(element) {
+    var index = this.getIndexForCard(element);
+    if (index === -1) {
+      throw new Error('DOM node not found: ' + element.nodeName.toLowerCase());
+    }
+
+    // If the remove is for a DOM node that used anim-overlay, which would have
+    // increased the _zIndex when added, adjust the zIndex appropriately.
+    if (element && element.classList.contains('anim-overlay')) {
+      this._zIndex -= 10;
+    }
+
+    try {
+      if (element.release) {
+        element.release();
+      }
+    }
+    catch (ex) {
+      console.warn('Problem cleaning up card:', ex, '\n', ex.stack);
+    }
+
+    if (index <= this.activeCardIndex) {
+      this.activeCardIndex -= 1;
+    }
+
+    this._cardStack.splice(index, 1);
+    element.parentNode.removeChild(element);
   },
 
   /**
    * Shortcut for removing all the cards
    */
-  removeAllCards: function() {
-    return this.removeCardAndSuccessors(null, 'none');
+  removeAll: function() {
+    for (var i = this._cardStack.length - 1; i > -1; i--) {
+      this.remove(this._cardStack[i]);
+    }
   },
 
-  removeActiveCard: function(showMethod) {
-    var card = this.getActiveCard();
-    return this.removeCardAndSuccessors(card, showMethod);
+  /**
+   * Remove cards between the active card and the element that represents
+   * another card. This allows back() to work nicely between active card and the
+   * supplied card element.
+   * @param  {Element} element
+   */
+  removeBetweenActive: function(element) {
+    var startIndex = this.getIndexForCard(element);
+    if (startIndex === -1) {
+      return;
+    }
+
+    // Do not want to remove the element, but the one past it.
+    startIndex += 1;
+
+    // remove() adjusts activeCardIndex, and want to stop when the
+    // activeCardIndex gets to the startIndex, which is one greater than
+    // the target element.
+    while (this.activeCardIndex > startIndex) {
+      this.remove(this._cardStack[startIndex]);
+    }
   },
 
   getActiveCard: function() {
     return this._cardStack[this.activeCardIndex];
+  },
+
+  getIndexForCard: function(element) {
+    for (var i = this._cardStack.length - 1; i >= 0; i--) {
+      var stackNode = this._cardStack[i];
+      if (element === stackNode) {
+        return i;
+      }
+    }
+    return -1;
+  },
+
+  isVisible: function(element) {
+    return !!(element &&
+              element.classList.contains('center'));
+  },
+
+  /**
+   * @return {String}
+   */
+  getActiveCardType: function() {
+    var result = null,
+        card = this.getActiveCard();
+
+    // Favor any _pendingInsert value as it is about to
+    // become current, just waiting on an async cycle
+    // to finish. Otherwise use current card value.
+    if (this._pendingInsert) {
+      result = this._pendingInsert;
+    } else if (card) {
+      result = cards.elementToType(card);
+    }
+    return result;
   },
 
   _showCard: function(cardIndex, showMethod, navDirection) {
@@ -642,19 +449,15 @@ var cards = {
       activeElement.blur();
     }
 
-    if (cardIndex > this._cardStack.length - 1) {
-      // Some cards were removed, adjust.
-      cardIndex = this._cardStack.length - 1;
-    }
     if (this.activeCardIndex > this._cardStack.length - 1) {
-      this.activeCardIndex = -1;
+      throw new Error('Invalid activeCardIndex: ' + this.activeIndex);
     }
 
     if (this.activeCardIndex === -1) {
       this.activeCardIndex = cardIndex === 0 ? cardIndex : cardIndex - 1;
     }
 
-    var domNode = (cardIndex !== null) ? this._cardStack[cardIndex] : null;
+    var element = (cardIndex !== null) ? this._cardStack[cardIndex] : null;
     var beginNode = this.getActiveCard();
     var endNode = this._cardStack[cardIndex];
     var isForward = navDirection === 'forward';
@@ -692,9 +495,8 @@ var cards = {
           }
         }
       } else {
-        this.setStatusColor(endNode);
+        this.emit('endCardChosen', endNode);
         endNode = null;
-        this._zIndex -= 10;
       }
     }
 
@@ -704,28 +506,27 @@ var cards = {
       endNode.style.zIndex = this._zIndex;
     }
 
-    var cardsNode = this._cardsNode;
+    var cardsNode = this.cardsNode;
 
-    // Do the status bar color work before triggering transitions, otherwise
-    // we lose some animation frames on the card transitions.
     if (endNode) {
-      this.setStatusColor(endNode);
+      this.emit('endCardChosen', endNode);
     }
 
     if (showMethod === 'immediate') {
       addClass(beginNode, 'no-anim');
       addClass(endNode, 'no-anim');
 
-      // make sure the reflow sees the transition is turned off.
+      // Make sure layout sees the transition is turned off.
       cardsNode.clientWidth;
       // explicitly clear since there will be no animation
       this._eatingEventsUntilNextCard = false;
-    }
-    else if (showMethod === 'none') {
-      // do not set _eatingEventsUntilNextCard, but don't clear it either.
-    }
-    else {
-      this._transitionCount = (beginNode && endNode) ? 2 : 1;
+    } else {
+      this._transitionCount = (beginNode && endNode &&
+                              // If going back to a card that used to have an
+                              // anim-overlay after it, but that card was
+                              // rmoved, the endNode is already in center
+                              // position, so will only get one card animating.
+                              !endNode.classList.contains('center')) ? 2 : 1;
       this._eatingEventsUntilNextCard = true;
     }
 
@@ -758,11 +559,8 @@ var cards = {
       removeClass(beginNode, 'no-anim');
       removeClass(endNode, 'no-anim');
 
-      this._onCardVisible(domNode);
+      this._onCardVisible(element);
     }
-
-    // Hide toaster while active card index changed:
-    toaster.hide();
 
     this.activeCardIndex = cardIndex;
 
@@ -801,17 +599,6 @@ var cards = {
       if (this._eatingEventsUntilNextCard) {
         this._eatingEventsUntilNextCard = false;
       }
-      if (this._animatingDeadDomNodes.length) {
-        // Use a setTimeout to give the animation some space to settle.
-        setTimeout(() => {
-          this._animatingDeadDomNodes.forEach(function(domNode) {
-            if (domNode.parentNode) {
-              domNode.parentNode.removeChild(domNode);
-            }
-          });
-          this._animatingDeadDomNodes = [];
-        }, 100);
-      }
 
       // If an vertical overlay transition was was disabled, if
       // current node index is an overlay, enable it again.
@@ -833,59 +620,25 @@ var cards = {
       }
 
       this._onCardVisible(activeCard);
-
-      evt.emit('cards:transitionEnd');
-
-      // If the card has next cards that can be preloaded, load them now.
-      // Use of nextCards should be balanced with startup performance.
-      // nextCards can result in smoother transitions to new cards on first
-      // navigation to that new card type, but loading the extra module may
-      // also compete with current card and data model performance.
-      var nextCards = activeCard.nextCards;
-      if (nextCards) {
-        console.log('Preloading cards: ' + nextCards);
-        require(nextCards.map(function(id) {
-          return 'cards/' + id;
-        }));
-      }
     }
   },
 
   /**
    * Handles final notification of card visibility in the stack.
-   * @param  {Card} domNode the card instance.
+   * @param  {Card} element The card instance.
    */
-  _onCardVisible: function(domNode) {
-    if (domNode.onCardVisible) {
-      domNode.onCardVisible();
+  _onCardVisible: function(element) {
+    if (element.onCardVisible) {
+      element.onCardVisible();
     }
-    this._emitStartupEvents(domNode.skipEmitContentEvents);
-  },
+    this.emit('cardVisible', element);
 
-  /**
-   * Handles emitting startup events used for performance tracking.
-   * @param  {Boolean} skipEmitContentEvents if content events should be skipped
-   * because the card itself handles it.
-   */
-  _emitStartupEvents: function(skipEmitContentEvents) {
-    if (!this._startupEventsEmitted) {
-      if (window.startupCacheEventsSent) {
-        // Cache already loaded, so at this point the content shown is wired
-        // to event handlers.
-        window.performance.mark('contentInteractive');
-      } else {
-        // Cache was not used, so only now is the chrome dom loaded.
-        window.performance.mark('navigationLoaded');
-      }
-      window.performance.mark('navigationInteractive');
-
-      // If a card that has a simple static content DOM, content is complete.
-      // Otherwise, like message_list, need backend data to call complete.
-      if (!skipEmitContentEvents) {
-        evt.emit('metrics:contentDone');
-      }
-
-      this._startupEventsEmitted = true;
+    // Finish out the resolution of the add() promise and clean up. resolve
+    // might not exist, in the case of a remove, the previous card is shown.
+    var resolve = this._cardVisibleResolves.get(element);
+    if (resolve) {
+      this._cardVisibleResolves.delete(element);
+      resolve(element);
     }
   },
 
@@ -894,7 +647,7 @@ var cards = {
    * we get to the next card.  The idea is to avoid bugs caused by the user
    * still being able to click things while our cards are transitioning or
    * while we are performing a (reliable) async wait before we actually initiate
-   * a pushCard in response to user stimulus.
+   * an add() in response to user stimulus.
    *
    * This is automatically triggered when performing an animated transition;
    * other code should only call this in the async wait case mentioned above.
@@ -917,17 +670,19 @@ var cards = {
   },
 
   /**
-   * If there are any cards on the deck right now, log an error and clear them
-   * all out.  Our caller is strongly asserting that there should be no cards
-   * and the presence of any indicates a bug.
+   * If the tray is active and a click happens in the tray area, transition
+   * back to the visible thing (which must be to our right currently.)
    */
-  assertNoCards: function() {
-    if (this._cardStack.length) {
-      throw new Error('There are ' + this._cardStack.length + ' cards but' +
-                      ' there should be ZERO');
+  _onMaybeIntercept: function(event) {
+    if (this._eatingEventsUntilNextCard) {
+      event.stopPropagation();
+      event.preventDefault();
+      return;
     }
   }
 };
+
+evt.mix(cards);
 
 return cards;
 

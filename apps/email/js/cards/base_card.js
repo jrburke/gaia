@@ -2,7 +2,8 @@
 define(function(require) {
   var date = require('date'),
       mozL10n = require('l10n!'),
-      base = require('./base');
+      base = require('./base'),
+      cards = require('cards');
 
   // Set up the global time updates for all nodes.
   (function() {
@@ -48,8 +49,13 @@ define(function(require) {
             this.classList.add.apply(this.classList,
                                         this.extraClasses);
           }
+        },
 
-          this.classList.add('card');
+        onBack: function(event) {
+          if (event) {
+            event.preventDefault();
+          }
+          cards.back('animate');
         },
 
         batchAddClass: function(searchClass, classToAdd) {

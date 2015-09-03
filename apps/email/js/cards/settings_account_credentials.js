@@ -2,7 +2,6 @@
 define(function(require) {
 
 var mozL10n = require('l10n!'),
-    cards = require('cards'),
     oauthFetch = require('./oauth2/fetch');
 
 return [
@@ -30,10 +29,6 @@ return [
       this.usernameNodeInput.value = this.account.username;
     },
 
-    onBack: function() {
-      cards.removeCardAndSuccessors(this, 'animate', 1);
-    },
-
     onClickSave: function() {
       var password = this.passwordNodeInput.value;
 
@@ -51,6 +46,8 @@ return [
       var oauth2 = this.account._wireRep.credentials.oauth2;
       oauthFetch(oauth2, {
         login_hint: this.account.username
+      }, {
+        intermediateCard: this
       })
       .then((response) => {
         if (response.status === 'success') {
@@ -60,9 +57,6 @@ return [
           // card but came here to try to fix the problem, so ask to clear
           // problems if possible.
           this.account.clearProblems();
-
-          // Successfully reauthed, nothing else to do on this card.
-          this.onBack();
         }
       });
     },

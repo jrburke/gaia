@@ -47,14 +47,8 @@
 </head>
 
 <body role="application">
-  <!-- All the active cards live (horizontally) in this container.  We leave
-       it up to the layout engine to be smart about not painting cards that are
-       not visible, but we will revisit that after profiling.  (display: hidden
-       should be fairly safe, for example.) -->
-  <div id="cardContainer">
-    <div id="cards" style="left: 0px;"></div>
-  </div>
-  <script data-targetid="cards"
+  <div class="cards"></div>
+  <script data-targetid=".cards"
           data-loader="js/alameda.js"
           data-loadsrc="js/config.js"
           src="js/html_cache_restore.js"></script>

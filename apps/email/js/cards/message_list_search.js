@@ -210,7 +210,7 @@ return [
       catch (ex) {
         console.error('problem killing slice:', ex, '\n', ex.stack);
       }
-      cards.removeCardAndSuccessors(this, 'animate');
+      cards.back('animate');
     },
 
     onClearSearch: function() {

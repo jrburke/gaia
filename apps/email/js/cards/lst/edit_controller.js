@@ -1,7 +1,7 @@
 'use strict';
 
 define(function(require, exports) {
-  var cards = require('cards'),
+  var folderSelector = require('folder_selector'),
       ConfirmDialog = require('confirm_dialog'),
       deleteConfirmMsgNode = require('tmpl!../msg/delete_confirm.html'),
       mozL10n = require('l10n!'),
@@ -178,7 +178,7 @@ define(function(require, exports) {
     },
 
     onMoveMessages: function() {
-      cards.folderSelector(this.model, (folder) => {
+      folderSelector(this.model, (folder) => {
         var op = this.model.api.moveMessages(this.selectedMessages, folder);
         toaster.toastOperation(op);
         this.setEditMode(false);

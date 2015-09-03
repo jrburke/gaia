@@ -7,9 +7,9 @@ define(function(require, exports, module) {
 
 var evt = require('evt'),
     mozL10n = require('l10n!'),
-    cards = require('cards'),
     htmlCache = require('html_cache'),
-    FormNavigation = require('form_navigation');
+    FormNavigation = require('form_navigation'),
+    SetupController = require('./setup_controller');
 
 return [
   require('./base_card')(require('template!./setup_account_info.html')),
@@ -17,6 +17,8 @@ return [
   {
     createdCallback: function() {
       htmlCache.cloneAndSave(module.id, this);
+
+      this.setupController = new SetupController();
 
       this.formNavigation = new FormNavigation({
         formElem: this.formNode,
@@ -50,6 +52,7 @@ return [
     },
 
     onBack: function(event) {
+      this.setupController.cancel();
       evt.emit('setupAccountCanceled', this);
     },
 
@@ -61,16 +64,10 @@ return [
       // state.
       htmlCache.reset();
 
-      // The progress card is the dude that actually tries to create the
-      // account.
-      cards.pushCard(
-        'setup_progress', 'animate',
-        {
-          displayName: this.nameNode.value,
-          emailAddress: this.emailNode.value,
-          callingCard: this
-        },
-        'right');
+      this.setupController.start(this, {
+        displayName: this.nameNode.value,
+        emailAddress: this.emailNode.value
+      });
     },
 
     onInfoInput: function(event) {
@@ -80,13 +77,11 @@ return [
 
     onClickManualConfig: function(event) {
       event.preventDefault(); // Prevent FormNavigation from taking over.
-      cards.pushCard(
-        'setup_manual_config', 'animate',
-        {
-          displayName: this.nameNode.value,
-          emailAddress: this.emailNode.value
-        },
-        'right');
+
+      this.setupController.startManual(this, {
+        displayName: this.nameNode.value,
+        emailAddress: this.emailNode.value
+      });
     },
 
     release: function() {

@@ -105,10 +105,6 @@ return [
       this.nextIcon.classList[hasNext ? 'remove' : 'add']('icon-disabled');
     },
 
-    onBack: function() {
-      cards.removeCardAndSuccessors(this, 'animate');
-    },
-
     /**
      * Broadcast that we need to move previous if there's a previous sibling.
      *
@@ -139,14 +135,11 @@ return [
      * This overrides the pushCardForItem in msg_click.
      */
     pushCardForItem: function(message) {
-      cards.pushCard(
-        'message_reader', 'animate',
-        {
-          model: this.model,
-          listCursor: this.listCursor,
-          readerAdvance: this.advanceMessagesListCursor
-        }
-      );
+      cards.add('animate', 'message_reader', {
+        model: this.model,
+        listCursor: this.listCursor,
+        readerAdvance: this.advanceMessagesListCursor
+      });
     },
 
     /**

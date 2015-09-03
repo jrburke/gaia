@@ -27,10 +27,6 @@ return [
       return text;
     },
 
-    goBack: function() {
-      cards.removeCardAndSuccessors(this, 'animate', 1);
-    },
-
     onBack: function() {
       var signature = this.getTextFromEditor();
       if (signature === this.identity.signature) {

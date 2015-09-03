@@ -13,6 +13,7 @@
 @import url('../shared/style/tabs.css');
 @import url('../shared/style/value_selector.css');
 
+@import url('cards.css');
 @import url('common.css');
 @import url('compose_cards.css');
 @import url('marquee.css');

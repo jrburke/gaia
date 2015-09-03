@@ -6,8 +6,7 @@
 'use strict';
 define(function(require) {
 
-var cards = require('cards'),
-    ConfirmDialog = require('confirm_dialog'),
+var ConfirmDialog = require('confirm_dialog'),
     FormNavigation = require('form_navigation'),
     plainSocketWarningNode = require('tmpl!./tng/plain_socket_warning.html');
 
@@ -98,9 +97,6 @@ return [
     _fromClass: function(className) {
       return this.getElementsByClassName(className)[0];
     },
-    onBack: function(event) {
-      cards.removeCardAndSuccessors(this, 'animate', 1);
-    },
 
     onNext: function(event) {
       event.preventDefault(); // Prevent FormNavigation from taking over.
@@ -146,18 +142,14 @@ return [
       }
       // The progress card is the dude that actually tries to create the
       // account.
-      cards.pushCard(
-        'setup_progress', 'animate',
-        {
-          displayName: this.formItems.common.displayName.value,
-          emailAddress: this.formItems.common.emailAddress.value,
-          password: password,
-          outgoingPassword: config.outgoing && config.outgoing.password,
+      this.args.setupController.manualCreate({
+        displayName: this.formItems.common.displayName.value,
+        emailAddress: this.formItems.common.emailAddress.value,
+        password: password,
+        outgoingPassword: config.outgoing && config.outgoing.password,
 
-          configInfo: config,
-          callingCard: this
-        },
-        'right');
+        configInfo: config
+      });
     },
 
     onInfoInput: function(ignoredEvent) {

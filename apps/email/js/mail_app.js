@@ -14,6 +14,7 @@ var mozL10n = require('l10n!'),
     model = require('model_create').defaultModel,
     ListCursor = require('list_cursor'),
     htmlCache = require('html_cache'),
+    toaster = require('toaster'),
     waitingRawActivity, activityCallback;
 
 require('font_size_utils');
@@ -27,7 +28,7 @@ function pushStartCard(id, addedArgs) {
     model: model
   };
 
-  // Mix in addedArgs to the args object that is passed to pushCard. Use a new
+  // Mix in addedArgs to the args object that is passed to cards.add. Use a new
   // object in case addedArgs is reused again by the caller.
   if (addedArgs) {
     Object.keys(addedArgs).forEach(function(key) {
@@ -36,7 +37,7 @@ function pushStartCard(id, addedArgs) {
   }
 
   if (!started) {
-    var cachedNode = cards._cardsNode.children[0];
+    var cachedNode = cards.cardsNode.children[0];
 
     // Add in cached node to use, if it matches the ID type.
     if (cachedNode && id === htmlCache.nodeToKey(cachedNode)) {
@@ -50,9 +51,9 @@ function pushStartCard(id, addedArgs) {
     document.body.classList.add('content-visible');
   }
 
-  cards.pushCard(id, 'immediate', args);
-
   started = true;
+
+  return cards.add('immediate', id, args);
 }
 
 // Handles visibility changes: if the app becomes visible after starting up
@@ -69,14 +70,14 @@ document.addEventListener('visibilitychange', function onVisibilityChange() {
  * card, which is the default kind of card.
  */
 function isCurrentCardMessageList() {
-  var cardType = cards.getCurrentCardType();
+  var cardType = cards.getActiveCardType();
   return (cardType && cardType === 'message_list');
 }
 
 
 // The add account UI flow is requested.
 evt.on('addAccount', function() {
-  cards.removeAllCards();
+  cards.removeAll();
 
   // Show the first setup card again.
   pushStartCard('setup_account_info', {
@@ -87,7 +88,7 @@ evt.on('addAccount', function() {
 function resetApp() {
   // Clear any existing local state and reset UI/model state.
   activityCallback = waitingRawActivity = undefined;
-  cards.removeAllCards();
+  cards.removeAll();
 
   model.init(false, function() {
     var cardId = model.hasAccount() ?
@@ -117,30 +118,26 @@ evt.on('setupAccountCanceled', function(fromCard) {
     // accounts. Likely just need the app to reset to load model.
     evt.emit('resetApp');
   } else {
-    cards.removeCardAndSuccessors(fromCard, 'animate', 1);
+    cards.back('animate');
   }
 });
 
 // A request to show the latest account in the UI. Usually triggered after an
 // account has been added.
 evt.on('showLatestAccount', function() {
-  cards.removeAllCards();
+  cards.removeAll();
 
   model.latestOnce('acctsSlice', function(acctsSlice) {
     var account = acctsSlice.items[acctsSlice.items.length - 1];
 
     model.changeAccount(account, function() {
-      pushStartCard('message_list', {
+      pushStartCard('message_list').then(function() {
         // If waiting to complete an activity, do so after pushing the message
         // list card.
-        onPushed: function() {
-          if (activityCallback) {
-            var activityCb = activityCallback;
-            activityCallback = null;
-            activityCb();
-            return true;
-          }
-          return false;
+        if (activityCallback) {
+          var activityCb = activityCallback;
+          activityCallback = null;
+          activityCb();
         }
       });
     });
@@ -150,30 +147,31 @@ evt.on('showLatestAccount', function() {
 evt.on('apiBadLogin', function(account, problem, whichSide) {
   switch (problem) {
     case 'bad-user-or-pass':
-      cards.pushCard('setup_fix_password', 'animate',
-                { account: account,
-                  whichSide: whichSide,
-                  restoreCard: cards.activeCardIndex },
-                'right');
+      cards.add('animate', 'setup_fix_password', {
+        account: account,
+        whichSide: whichSide
+      });
       break;
     case 'imap-disabled':
     case 'pop3-disabled':
-      cards.pushCard('setup_fix_gmail', 'animate',
-                { account: account, restoreCard: cards.activeCardIndex },
-                'right');
+      cards.add('animate', 'setup_fix_gmail', {
+        account: account
+      });
       break;
     case 'needs-app-pass':
-      cards.pushCard('setup_fix_gmail_twofactor', 'animate',
-                { account: account, restoreCard: cards.activeCardIndex },
-                'right');
+      cards.add('animate', 'setup_fix_gmail_twofactor', {
+        account: account
+      });
       break;
     case 'needs-oauth-reauth':
-      cards.pushCard('setup_fix_oauth2', 'animate',
-                { account: account, restoreCard: cards.activeCardIndex },
-                'right');
+      cards.add('animate', 'setup_fix_oauth2', {
+        account: account
+      });
       break;
   }
 });
+
+toaster.init(document.body);
 
 // Start init of main view/model modules now that all the registrations for
 // top level events have happened, and before triggering of entry points start.
@@ -199,7 +197,7 @@ var startupData = globalOnAppMessage({
     // application flowchart". Message list is a good known jump point, so do
     // not needlessly wipe that one out if it is the current one.
     if (!isCurrentCardMessageList()) {
-      cards.removeAllCards();
+      cards.removeAll();
     }
 
     function activityCompose() {
@@ -239,7 +237,7 @@ var startupData = globalOnAppMessage({
         // a good known jump point, so do not needlessly wipe that one out if it
         // is the current one.
         if (!isCurrentCardMessageList()) {
-          cards.removeAllCards();
+          cards.removeAll();
         }
 
         if (type === 'message_list') {
