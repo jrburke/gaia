@@ -131,62 +131,14 @@ return [
       this.msgVScroll.vScroll.nowVisible();
     },
 
-    /**
-     * Advancing the messages only comes from the message_reader tied to this
-     * conv_list. If the user starts viewing a draft, then that is just compose
-     * with no option to go next/previous, for UI space concerns. If this
-     * advance is triggered and it goes to a message that is a draft, then need
-     * to wipe out the reader card and place a compose instead.
-     * @param  {[type]} direction [description]
-     * @return {[type]}           [description]
-     */
     advanceMessagesListCursor: function(direction) {
-      var peekedItem = this.listCursor.peek(direction);
-      if (!peekedItem) {
-        return;
-      }
-
-      if (peekedItem.isDraft) {
-        // Make sure the compose card is ready for immediate instatiation, to
-        // avoid a gap of seeing this conv_list before the compose pops in.
-        require(['cards/compose'], () => {
-          // First, remove the listening in the message_reader for the active
-          // card, as the current one will change to the draft, and do not want
-          // the message_reader doing work with it.
-          var activeCard = cards.getActiveCard();
-          activeCard.removeLisCursorListener();
-
-          // Move the cursor to the draft.
-          this.listCursor.advance(direction);
-          var item = this.listCursor.currentItem.item;
-
-          // Wait until the last possible moment to remove the active card,
-          // so pass a function to call once the editAsDraft async completes.
-          this.pushComposeCard(item, 'immediate', () => {
-            cards.removeActiveCard('immediate');
-          });
-        });
-      } else {
-        this.listCursor.advance(direction);
-      }
+      this.listCursor.advance(direction);
     },
 
-    pushComposeCard: function(message, showMethod, onEditable) {
-      message.editAsDraft().then((composer) => {
-        if (onEditable) {
-          onEditable();
-        }
-
-        cards.pushCard('compose', (showMethod || 'animate'), {
-          model: this.model,
-          composer
-        });
-      }).catch(function(err) {
-        console.log(err);
-      });
-    },
-
-    pushReaderCard: function(message) {
+    /**
+     * This overrides the pushCardForItem in msg_click.
+     */
+    pushCardForItem: function(message) {
       cards.pushCard(
         'message_reader', 'animate',
         {
@@ -195,17 +147,6 @@ return [
           readerAdvance: this.advanceMessagesListCursor
         }
       );
-    },
-
-    /**
-     * This overrides the pushCardForItem in msg_click.
-     */
-    pushCardForItem: function(message) {
-      if (message.isDraft) {
-        this.pushComposeCard(message);
-      } else {
-        this.pushReaderCard(message);
-      }
     },
 
     /**

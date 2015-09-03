@@ -22,18 +22,22 @@ return [
       this.body = body;
       this.disabled = false;
 
-      // - mark message read (if it is not already)
-      if (!message.isRead) {
-        message.setRead(true);
-      } else {
-        this.readBtn.classList.remove('unread');
-        mozL10n.setAttributes(this.readBtn, 'message-mark-read-button');
-      }
+      this.classList.toggle('draft', message.isDraft);
 
-      this.starBtn.classList.toggle('msg-star-btn-on',
-                                     this.message.isStarred);
-      this.starBtn.setAttribute('aria-pressed',
-        this.message.isStarred);
+      if (!message.isDraft) {
+        // - mark message read (if it is not already)
+        if (!message.isRead) {
+          message.setRead(true);
+        } else {
+          this.readBtn.classList.remove('unread');
+          mozL10n.setAttributes(this.readBtn, 'message-mark-read-button');
+        }
+
+        this.starBtn.classList.toggle('msg-star-btn-on',
+                                       this.message.isStarred);
+        this.starBtn.setAttribute('aria-pressed',
+          this.message.isStarred);
+      }
     },
 
     attributeChangedCallback: function(attrName, oldVal, newVal) {
@@ -182,14 +186,25 @@ return [
     onDelete: function() {
       var dialog = msgDeleteConfirmNode.cloneNode(true);
       var content = dialog.getElementsByTagName('p')[0];
-      mozL10n.setAttributes(content, 'message-edit-delete-confirm');
+      var l10nId = this.message.isDraft ?
+                   'draft-delete-confirm' : 'message-edit-delete-confirm';
+      mozL10n.setAttributes(content, l10nId);
       ConfirmDialog.show(dialog,
         { // Confirm
           id: 'msg-delete-ok',
           handler: () => {
-            var op = this.message.deleteMessage();
-            cards.removeCardAndSuccessors(this, 'animate');
-            toaster.toastOperation(op);
+            if (this.message.isDraft) {
+//todo: is there a shorter way to do this?
+              this.message.editAsDraft().then((composer) => {
+                composer.abortCompositionDeleteDraft();
+                composer.release();
+                this.emitDomEvent('deleted');
+              });
+            } else {
+              var op = this.message.deleteMessage();
+              this.emitDomEvent('deleted');
+              toaster.toastOperation(op);
+            }
           }
         },
         { // Cancel
@@ -211,11 +226,15 @@ return [
       //TODO: Please verify move functionality after api landed.
       cards.folderSelector(this.model, (folder) => {
         var op = this.message.moveMessage(folder);
-        cards.removeCardAndSuccessors(this, 'animate');
+        this.emitDomEvent('moved');
         toaster.toastOperation(op);
       }, function(folder) {
         return folder.isValidMoveTarget;
       });
+    },
+
+    onEditDraft: function() {
+      this.emitDomEvent('editDraft');
     }
   }
 ];

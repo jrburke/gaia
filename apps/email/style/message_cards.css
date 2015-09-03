@@ -287,6 +287,7 @@ html:-moz-dir(rtl) .msg-message-author-count {
 }
 
 .draft .msg-message-author {
+  font-weight: 500;
   color: #ff1919;
 }
 
@@ -451,6 +452,10 @@ msg-envelope-bar {
   font-weight: 500;
   color: #5f5f5f;
   word-wrap: break-word;
+}
+
+.draft .msg-envelope-subject {
+  color: #ff1919;
 }
 
 /* Copy/paste select all could reach across the whole DOM so only scope the
@@ -788,6 +793,11 @@ lst-msg-vscroll,
   background-image: url("images/icons/delete.png");
 }
 
+.bb-tablist .msg-edit-draft-btn {
+  background-image: url("images/icons/edit.svg");
+  opacity: 0.6;
+}
+
 .bb-tablist .msg-move-btn {
   background-image: url("images/icons/move.png");
 }
@@ -798,6 +808,23 @@ lst-msg-vscroll,
 
 .bb-tablist .msg-reply-btn {
   background-image: url("images/icons/reply.png");
+}
+
+msg-reader-toolbar .msg-edit-draft-btn-item {
+  display: none;
+}
+
+msg-reader-toolbar.draft .msg-edit-draft-btn-item {
+  display: block;
+}
+
+msg-reader-toolbar.draft .msg-move-btn-item,
+msg-reader-toolbar.draft .msg-forward-btn-item,
+msg-reader-toolbar.draft .msg-reply-btn-item,
+msg-reader-toolbar.draft .msg-star-btn-item,
+msg-reader-toolbar.draft .msg-mark-read-btn-item
+{
+  display: none;
 }
 
 /* Message list edit mode layout control */
