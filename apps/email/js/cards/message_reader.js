@@ -133,6 +133,22 @@ return [
       this.nextIcon.classList[hasNext ? 'remove' : 'add']('icon-disabled');
     },
 
+    editDraft: function() {
+//todo: convert cards.js to be able to remove this card after pushing the
+//compose card.
+      this.onBack();
+      evt.once('cards:transitionEnd', () => {
+        this.message.editAsDraft().then((composer) => {
+          cards.pushCard('compose', 'animate', {
+            model: this.model,
+            composer
+          });
+        }).catch(function(err) {
+          console.log(err);
+        });
+      });
+    },
+
     updateFromName: function(event) {
       this.querySelector('.msg-reader-header-label')
         .textContent = event.detail;

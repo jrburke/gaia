@@ -834,6 +834,8 @@ var cards = {
 
       this._onCardVisible(activeCard);
 
+      evt.emit('cards:transitionEnd');
+
       // If the card has next cards that can be preloaded, load them now.
       // Use of nextCards should be balanced with startup performance.
       // nextCards can result in smoother transitions to new cards on first
