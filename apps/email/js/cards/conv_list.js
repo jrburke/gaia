@@ -33,13 +33,13 @@ return [
       });
 
       this.msgVScroll.on('messagesChange', this, function(message, index) {
-        this.updateMessageDom(false, message);
+        this.updateMessageDom(message);
       });
 
       var vScrollBindData = (model, node) => {
         model.element = node;
         node.message = model;
-        this.updateMessageDom(true, model);
+        this.updateMessageDom(model);
       };
       this.msgVScroll.init(this.scrollContainer,
                            vScrollBindData,
@@ -171,11 +171,10 @@ return [
 
     /**
      * Update the state of the given DOM node.  Note that DOM nodes are reused
-     * so although you can depend on `firstTime` to be accurate, you must ensure
-     * that this method cleans up any dirty state resulting from any possible
-     * prior operation of this method.
+     * so you must ensure that this method cleans up any dirty state resulting
+     * from any possible prior operation of this method.
      */
-    updateMessageDom: function(firstTime, message) {
+    updateMessageDom: function(message) {
       var msgNode = message.element;
 
       if (!msgNode) {
@@ -201,27 +200,26 @@ return [
       // some things only need to be done once
       var dateNode = msgNode.querySelector('.msg-message-date');
       var snippetNode = msgNode.querySelector('.msg-message-snippet');
-      if (firstTime) {
-        var listPerson;
-        listPerson = message.author;
-        // author
-        listPerson.element =
-          msgNode.querySelector('.msg-message-author');
-        listPerson.onchange = updatePeepDom;
-        listPerson.onchange(listPerson);
-        // date
-        var dateTime = message.date.valueOf();
-        dateNode.dataset.time = dateTime;
-        dateNode.textContent = dateTime ? date.prettyDate(message.date) : '';
 
-        // attachments (can't change within a message but can change between
-        // messages, and since we reuse DOM nodes...)
-        var attachmentsNode = msgNode.querySelector('.msg-message-attachments');
-        attachmentsNode.classList.toggle('msg-message-attachments-yes',
-                                         message.hasAttachments);
-        // snippet needs to be shorter if icon is shown
-        snippetNode.classList.toggle('icon-short', message.hasAttachments);
-      }
+      var listPerson;
+      listPerson = message.author;
+      // author
+      listPerson.element =
+        msgNode.querySelector('.msg-message-author');
+      listPerson.onchange = updatePeepDom;
+      listPerson.onchange(listPerson);
+      // date
+      var dateTime = message.date.valueOf();
+      dateNode.dataset.time = dateTime;
+      dateNode.textContent = dateTime ? date.prettyDate(message.date) : '';
+
+      // attachments (can't change within a message but can change between
+      // messages, and since we reuse DOM nodes...)
+      var attachmentsNode = msgNode.querySelector('.msg-message-attachments');
+      attachmentsNode.classList.toggle('msg-message-attachments-yes',
+                                       message.hasAttachments);
+      // snippet needs to be shorter if icon is shown
+      snippetNode.classList.toggle('icon-short', message.hasAttachments);
 
       // snippet
       snippetNode.textContent = message.snippet;
