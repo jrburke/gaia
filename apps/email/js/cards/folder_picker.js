@@ -203,7 +203,7 @@ return [
         var accountNode = account.element =
           fldAccountItemNode.cloneNode(true);
         accountNode.account = account;
-        this.updateAccountDom(account, true);
+        this.updateAccountDom(account);
         accountListContainer.insertBefore(accountNode, insertBuddy);
       });
 
@@ -221,17 +221,15 @@ return [
       this.hideAccounts();
     },
 
-    updateAccountDom: function(account, firstTime) {
+    updateAccountDom: function(account) {
       var accountNode = account.element;
 
-      if (firstTime) {
-        accountNode.querySelector('.fld-account-name')
-          .textContent = account.name;
+      accountNode.querySelector('.fld-account-name')
+        .textContent = account.name;
 
-        // Highlight the account currently in use
-        if (this.curAccount && this.curAccount.id === account.id) {
-          accountNode.classList.add('fld-account-selected');
-        }
+      // Highlight the account currently in use
+      if (this.curAccount && this.curAccount.id === account.id) {
+        accountNode.classList.add('fld-account-selected');
       }
     },
 
