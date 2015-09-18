@@ -9,6 +9,7 @@ var accessibilityHelper = require('shared/js/accessibility_helper'),
     ListCursor = require('list_cursor'),
     messageDisplay = require('message_display'),
     MessageListTopBar = require('message_list_topbar'),
+    setStatusColor = require('set_status_color'),
     updatePeepDom = require('./lst/peep_dom').update;
 
 // We will display this loading data for any messages we are
@@ -225,10 +226,10 @@ return [
     editModeChanged: function(enabled) {
       if (enabled) {
         // Set status color to match the edit header.
-        cards.setStatusColor(this.editHeader);
+        setStatusColor(this.editHeader);
       } else {
         // Return the status color to match this card.
-        cards.setStatusColor(this);
+        setStatusColor(this);
       }
     },
 

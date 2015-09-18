@@ -27,7 +27,8 @@ define(function(require) {
 var cards = require('cards'),
     FOLDER_DEPTH_CLASSES = require('folder_depth_classes'),
     formNode = require('tmpl!cards/value_selector.html'),
-    itemTemplateNode = require('tmpl!cards/vsl/item.html');
+    itemTemplateNode = require('tmpl!cards/vsl/item.html'),
+    setStatusColor = require('set_status_color');
 
 // Used for empty click handlers.
 function noop() {}
@@ -73,12 +74,12 @@ function ValueSelector(title, list) {
 
   show = function() {
     render();
-    cards.setStatusColor(formNode);
+    setStatusColor(formNode);
     formNode.classList.remove('collapsed');
   };
 
   hide = function() {
-    cards.setStatusColor();
+    setStatusColor(cards.getActiveCard());
     formNode.classList.add('collapsed');
     emptyList();
   };

@@ -21,6 +21,7 @@ var cmpAttachmentItemNode = require('tmpl!./cmp/attachment_item.html'),
     Marquee = require('marquee'),
     mix = require('mix'),
     mozL10n = require('l10n!'),
+    setStatusColor = require('set_status_color'),
 
     cards = require('cards'),
     ConfirmDialog = require('confirm_dialog'),
@@ -645,12 +646,12 @@ return [
         // Setup the marquee structure
         Marquee.setup(email, headerNode);
         // Activate marquee once the contents DOM are added to document
-        cards.setStatusColor(contents);
+        setStatusColor(contents);
         document.body.appendChild(contents);
         Marquee.activate('alternate', 'ease');
 
         var formSubmit = (evt) => {
-          cards.setStatusColor();
+          setStatusColor(cards.getActiveCard());
           document.body.removeChild(contents);
           switch (evt.explicitOriginalTarget.className) {
             case 'cmp-contact-menu-edit':
@@ -904,11 +905,11 @@ return [
       console.log('compose: back: save needed, prompting');
       var menu = cmpDraftMenuNode.cloneNode(true);
       this._savePromptMenu = menu;
-      cards.setStatusColor(menu);
+      setStatusColor(menu);
       document.body.appendChild(menu);
 
       var formSubmit = (evt) => {
-        cards.setStatusColor();
+        setStatusColor(cards.getActiveCard());
         document.body.removeChild(menu);
         this._savePromptMenu = null;
 

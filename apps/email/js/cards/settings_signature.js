@@ -1,7 +1,7 @@
 'use strict';
 define(function(require) {
 var backFormNode = require('tmpl!./sig/save_signature.html'),
-    cards = require('cards'),
+    setStatusColor = require('set_status_color'),
     trailingRegExp = /\s+$/;
 
 return [
@@ -35,11 +35,11 @@ return [
       }
       var menu = backFormNode.cloneNode(true);
       this._savePromptMenu = menu;
-      cards.setStatusColor(menu);
+      setStatusColor(menu);
       document.body.appendChild(menu);
 
       var formSubmit = (evt) => {
-        cards.setStatusColor();
+        setStatusColor();
         document.body.removeChild(menu);
         this._savePromptMenu = null;
 

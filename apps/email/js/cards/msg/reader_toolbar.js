@@ -10,6 +10,7 @@ var cards = require('cards'),
                          require('tmpl!./attachment_disabled_confirm.html'),
     msgDeleteConfirmNode = require('tmpl!./delete_confirm.html'),
     msgReplyMenuNode = require('tmpl!./reply_menu.html'),
+    setStatusColor = require('set_status_color'),
     toaster = require('toaster');
 
 var slice = Array.prototype.slice;
@@ -140,12 +141,12 @@ return [
 
     onReplyMenu: function(event) {
       var contents = msgReplyMenuNode.cloneNode(true);
-      cards.setStatusColor(contents);
+      setStatusColor(contents);
       document.body.appendChild(contents);
 
       // reply menu selection handling
       var formSubmit = (evt) => {
-        cards.setStatusColor();
+        setStatusColor(cards.getActiveCard());
         document.body.removeChild(contents);
         switch (evt.explicitOriginalTarget.className) {
         case 'msg-reply-menu-reply':
