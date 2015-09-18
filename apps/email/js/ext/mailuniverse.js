@@ -40,7 +40,7 @@ function MailUniverse(callAfterBigBang, online, testOptions) {
   dump('=====================\n');
   // XXX proper logging configuration again once things start working
   // XXX XXX XXX XXX XXX XXX XXX
-  logic.realtimeLogEverything = true;
+//  logic.realtimeLogEverything = true;
   slog.setSensitiveDataLoggingEnabled(true);
 
   this.db = new MailDB(testOptions);
