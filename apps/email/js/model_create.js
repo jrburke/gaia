@@ -10,13 +10,12 @@ define(function(require) {
     throw new Error(msg);
   }
 
-  function saveHasAccount(acctsSlice) {
+  function saveHasAccount(accounts) {
     // Save localStorage value to improve startup choices
     localStorage.setItem('data_has_account',
-                         (acctsSlice.items.length ? 'yes' : 'no'));
-
+                         (accounts.items.length ? 'yes' : 'no'));
     console.log('WRITING LOCAL STORAGE ITEM: ' + 'data_has_account',
-                (acctsSlice.items.length ? 'yes' : 'no'));
+                (accounts.items.length ? 'yes' : 'no'));
   }
 
 /**
@@ -47,11 +46,11 @@ define(function(require) {
 
   Model.prototype = {
     /**
-    * acctsSlice event is fired when the property changes.
-    * event: acctsSlice
-    * @param {Object} the acctsSlice object.
+    * accounts event is fired when the property changes.
+    * event: accounts
+    * @param {Object} the accounts object.
     **/
-    acctsSlice: null,
+    accounts: null,
 
     /**
     * account event is fired when the property changes.
@@ -59,13 +58,6 @@ define(function(require) {
     * @param {Object} the account object.
     **/
     account: null,
-
-    /**
-    * foldersList event is fired when the property changes.
-    * event: foldersList
-    * @param {Object} the foldersList object.
-    **/
-    foldersList: null,
 
     /**
     * folder event is fired when the property changes.
@@ -88,11 +80,12 @@ define(function(require) {
       this.emit(id, this[id]);
     },
 
-    inited: false,
+    // Set to a promise that is resolved once all init has completed.
+    inited: undefined,
 
     /**
      * Returns true if there is an account. Should only be
-     * called after inited is true.
+     * called after inited is resolved.
      */
     hasAccount: function() {
       return (this.getAccountCount() > 0);
@@ -100,18 +93,18 @@ define(function(require) {
 
     /**
      * Given an account ID, get the account object. Only works once the
-     * acctsSlice property is available. Use model.latestOnce to get a
-     * handle on an acctsSlice property, then call this method.
+     * accounts property is available. Use model.latestOnce to get a
+     * handle on an accounts property, then call this method.
      * @param  {String} id account ID.
      * @return {Object}    account object.
      */
     getAccount: function(id) {
-      if (!this.acctsSlice || !this.acctsSlice.items) {
-        throw new Error('No acctsSlice available');
+      if (!this.accounts || !this.accounts.items) {
+        throw new Error('No accounts available');
       }
 
       var targetAccount;
-      this.acctsSlice.items.some(function(account) {
+      this.accounts.items.some(function(account) {
         if (account.id === id) {
           return !!(targetAccount = account);
         }
@@ -122,73 +115,38 @@ define(function(require) {
 
     /**
      * Get the numbers of configured account.
-     * Should only be called after this.inited is true.
+     * Should only be called after this.inited is resolved.
      * @return {Number} numbers of account.
      */
     getAccountCount: function() {
       var count = 0;
 
-      if (this.acctsSlice &&
-          this.acctsSlice.items &&
-          this.acctsSlice.items.length) {
-        count = this.acctsSlice.items.length;
+      if (this.accounts &&
+          this.accounts.items &&
+          this.accounts.items.length) {
+        count = this.accounts.items.length;
       }
 
       return count;
     },
 
     /**
-     * Call this to initialize the model. It can be called more than once
-     * per the lifetime of an app. The usual use case for multiple calls
-     * is when a new account has been added.
-     *
-     * It is *not* called by default in this module to allow for lazy startup,
-     * and for cases like unit tests that may not want to trigger a full model
-     * creation for a simple UI test.
-     *
-     * @param  {boolean} showLatest Choose the latest account in the
-     * acctsSlice. Otherwise it choose the account marked as the default
-     * account.
+     * Call this to initialize the model. It is *not* called by default in this
+     * module to allow for lazy startup, and for cases like unit tests that may
+     * not want to trigger a full model creation for a simple UI test.
      */
-    init: function(showLatest, callback) {
-      require(['api'], (api) => {
-        // Multiple model instances can be created, but only one init needs
-        // to be done with the backend API.
-        if (this === modelCreate.defaultModel) {
-          modelInit(this, api);
-        }
+    init: function() {
+      if (this.inited) {
+        return this.inited;
+      }
 
-        this.api = api;
-
-        // If already initialized before, clear out previous state.
-        this.release();
-
-        var acctsSlice = api.accounts;
-
-        acctsSlice.on('complete', () => {
-          // To prevent a race between Model.init() and
-          // acctsSlice.on('complete'), only assign model.acctsSlice when
-          // the slice has actually loaded (i.e. after
-          // acctsSlice.on('complete') fires).
-          this.acctsSlice = acctsSlice;
-
-          saveHasAccount(acctsSlice);
-
-          if (acctsSlice.items.length) {
-            // For now, just use the first one; we do attempt to put unified
-            // first so this should generally do the right thing.
-            // XXX: Because we don't have unified account now, we should
-            //      switch to the latest account which user just added.
-            var account = showLatest ? acctsSlice.items.slice(-1)[0] :
-                                       acctsSlice.defaultAccount;
-
-            this.changeAccount(account, callback);
-          } else if (callback) {
-            callback();
+      return (this.inited = new Promise((resolve, reject) => {
+        require(['api'], (api) => {
+          // Multiple model instances can be created, but only one init needs
+          // to be done with the backend API.
+          if (this === modelCreate.defaultModel) {
+            modelInit(this, api);
           }
-
-          this.inited = true;
-          this._callEmit('acctsSlice');
 
           // Once the API/worker has started up and we have received account
           // data, consider the app fully loaded: we have verified full flow
@@ -196,66 +154,88 @@ define(function(require) {
           if (this === modelCreate.defaultModel) {
             evt.emitWhenListener('metrics:apiDone');
           }
-        });
 
-        acctsSlice.on('change', () => {
-          saveHasAccount(this, acctsSlice);
-        });
-      });
+          var accounts = api.accounts;
+
+          var onComplete = () => {
+            // Wait for all folder lists to load. If no accounts, still works
+            // out to fall through to the then.
+            Promise.all(accounts.items.map(function(account) {
+              var folders = account.folders;
+              if (folders.complete) {
+                return Promise.resolve();
+              } else {
+                return new Promise(function(resolve) {
+                  folders.once('complete', resolve);
+                });
+              }
+            })).then(() => {
+              this.api = api;
+              this.accounts = accounts;
+              saveHasAccount(accounts);
+
+              var defaultAccount = accounts.defaultAccount;
+              if (defaultAccount) {
+                this.changeAccount(defaultAccount);
+              }
+
+              this._callEmit('api');
+              this._callEmit('accounts');
+
+              resolve(api);
+            });
+          };
+
+          if (accounts.complete) {
+            onComplete();
+          } else {
+            accounts.once('complete', onComplete);
+          }
+        }, reject);
+      }).then(function(api) {
+        // Listen for changes in 'complete' status and update the cache value.
+        api.accounts.on('complete', saveHasAccount);
+        return api;
+      }));
     },
 
     /**
      * Changes the current account tracked by the model. This results
-     * in changes to the 'account', 'foldersList' and 'folder' properties.
+     * in changes to the 'account' and 'folder' properties.
      * @param  {Object}   account  the account object.
-     * @param  {Function} callback function to call once the account and
-     * related folder data has changed.
+     * @return  {Promise} resolved to account after account has been changed.
      */
-    changeAccount: function(account, callback) {
+    changeAccount: function(account) {
       // Do not bother if account is the same.
-      if (this.account && this.account.id === account.id) {
-        if (callback) {
-          callback();
-        }
-        return;
+      if (!this.account || this.account.id !== account.id) {
+        this.reset();
+        this.account = account;
+        this.selectInbox();
+        this._callEmit('account');
       }
 
-      this._releaseFolders();
-
-      this.account = account;
-      this._callEmit('account');
-
-      var onFolderListComplete = () => {
-        this.foldersList = foldersList;
-        this.foldersList.on('change', this, 'notifyFoldersListOnChange');
-        this.selectInbox(callback);
-        this._callEmit('foldersList');
-      };
-
-      var foldersList = this.account.folders;
-      if (foldersList.complete) {
-        onFolderListComplete();
-      } else {
-        foldersList.on('complete', onFolderListComplete);
-      }
+      return this.account;
     },
 
     /**
      * Given an account ID, change the current account to that account.
      * @param  {String} accountId
-     * @return {Function} callback
+     * @return {MailAccount} the account.
      */
-    changeAccountFromId: function(accountId, callback) {
-      if (!this.acctsSlice || !this.acctsSlice.items.length) {
+    changeAccountFromId: function(accountId) {
+      if (!this.accounts || !this.accounts.items.length) {
         throw new Error('No accounts available');
       }
 
-      this.acctsSlice.items.some((account) => {
+      var newAccount;
+      this.accounts.items.some((account) => {
         if (account.id === accountId) {
-          this.changeAccount(account, callback);
+          newAccount = this.changeAccount(account);
           return true;
         }
       });
+
+      return newAccount;
     },
 
     /**
@@ -271,43 +251,37 @@ define(function(require) {
         this.folder = folder;
         this._callEmit('folder');
       }
+      return this.folder;
     },
 
     /**
-     * For the already loaded account and associated foldersList,
+     * For the already loaded account and associated folders,
      * set the inbox as the tracked 'folder'.
-     * @param  {Function} callback function called once the inbox
-     * has been selected.
      */
-    selectInbox: function(callback) {
-      this.selectFirstFolderWithType('inbox', callback);
+    selectInbox: function() {
+      return this.selectFirstFolderWithType('inbox');
     },
 
     /**
-     * For the already loaded account and associated foldersList, set
+     * For the already loaded account and associated folders, set
      * the given folder as the tracked folder. The account MUST have a
      * folder with the given type, or a fatal error will occur.
      */
-    selectFirstFolderWithType: function(folderType, callback) {
-      if (!this.foldersList) {
-        throw new Error('No foldersList available');
+    selectFirstFolderWithType: function(folderType) {
+      if (!this.account) {
+        throw new Error('No account selected');
       }
 
-      var folder = this.foldersList.getFirstFolderWithType(folderType);
+      var folder = this.account.folders.getFirstFolderWithType(folderType);
       if (!folder) {
         dieOnFatalError('We have an account without a folderType ' +
-                        folderType + '!', this.foldersList.items);
+                        folderType + '!', this.account.folders.items);
       }
 
       if (this.folder && this.folder.id === folder.id) {
-        if (callback) {
-          callback();
-        }
+        return this.folder;
       } else {
-        if (callback) {
-          this.once('folder', callback);
-        }
-        this.changeFolder(folder);
+        return this.changeFolder(folder);
       }
     },
 
@@ -324,37 +298,14 @@ define(function(require) {
       }
     },
 
-    /**
-     * Triggered by the foldersList onchange event
-     * @param  {Object} folder the folder that changed.
-     */
-    notifyFoldersListOnChange: function(folder) {
-      this.emit('foldersListOnChange', folder);
-    },
-
     notifyBackgroundSendStatus: function(data) {
       this.emit('backgroundSendStatus', data);
     },
 
     // Lifecycle
-
-    _releaseFolders: function() {
-      if (this.foldersList) {
-        this.foldersList.release();
-      }
-      this.foldersList = null;
-
-      this.folder = null;
-    },
-
-    release: function() {
-      if (this.acctsSlice) {
-        this.acctsSlice.release();
-      }
-      this.acctsSlice = null;
+    reset: function() {
       this.account = null;
-
-      this._releaseFolders();
+      this.folder = null;
     }
   };
 

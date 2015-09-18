@@ -53,6 +53,11 @@ return [
 
     onBack: function(event) {
       this.setupController.cancel();
+
+      if (this.args.activity) {
+        this.args.activity.postError('cancelled');
+      }
+
       evt.emit('setupAccountCanceled', this);
     },
 

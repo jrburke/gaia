@@ -39,28 +39,19 @@ EmailData.prototype = {
 
       var account,
           model = window.wrappedJSObject.require('model_create').defaultModel,
-          acctsSlice = model.api.viewAccounts(false);
+          accounts = model.api.viewAccounts(false);
 
       function checkDone() {
         if (account[key] === value) {
-          acctsSlice.release();
+          accounts.release();
           marionetteScriptFinished(true);
         }
       }
 
-      acctsSlice.oncomplete = function() {
-        account = acctsSlice.defaultAccount;
+      accounts.on('complete', function() {
+        account = accounts.defaultAccount;
         checkDone();
-      };
-
-      acctsSlice.onchange = function(item) {
-        if (account) {
-          if (account.id === item.id) {
-            checkDone();
-          }
-        }
-      };
-
+      });
     }, [key, value]);
   }
 };
