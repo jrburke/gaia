@@ -410,7 +410,8 @@ li.settings-input-list {
 }
 
 .tng-email-lib-version {
-  opacity: 0;
+  text-align: center;
+  color: #868692;
 }
 
 section.settings-account-common li {

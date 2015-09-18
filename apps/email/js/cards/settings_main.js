@@ -18,6 +18,8 @@ return [
 
       this._secretButtonClickCount = 0;
       this._secretButtonTimer = null;
+
+      this.secretButton.textContent = 'v' + window.emailVersion;
     },
 
     extraClasses: ['anim-fade', 'anim-overlay'],
