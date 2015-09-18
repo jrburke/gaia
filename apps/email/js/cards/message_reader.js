@@ -124,18 +124,17 @@ return [
     },
 
     editDraft: function() {
-//todo: convert cards.js to be able to remove this card after pushing the
-//compose card.
-      this.onBack();
-      cards.once('cardVisible', () => {
-        this.message.editAsDraft().then((composer) => {
-          cards.add('animate', 'compose', {
-            model: this.model,
-            composer
-          });
-        }).catch(function(err) {
-          console.log(err);
+      // Navigate to the compose, but in the process, remove this reader card
+      // so that "back" from the compose goes back to the list of messages.
+      this.message.editAsDraft().then((composer) => {
+        return cards.add('animate', 'compose', {
+          model: this.model,
+          composer
         });
+      }).then(() => {
+        cards.removeCard(this);
+      }).catch(function(err) {
+        console.log(err);
       });
     },
 
