@@ -15,8 +15,8 @@ define(function(require) {
         self.folderPrompt = new ValueSelector(selectorTitle);
       }
 
-      model.latestOnce('foldersList', function(foldersList) {
-        var folders = foldersList.items;
+      model.account.folders.latestOnce('account', function(account) {
+        var folders = account.folders.items;
         folders.forEach(function(folder) {
           var isMatch = !filter || filter(folder);
           if (folder.neededForHierarchy || isMatch) {

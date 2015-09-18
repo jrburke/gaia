@@ -109,7 +109,7 @@ return [
       var listCursor = this.listCursor = args.listCursor || new ListCursor();
       this.msgVScroll.setListCursor(listCursor);
 
-      model.latest('folder', this._folderChanged);
+      model.latest('folder', this, '_folderChanged');
 
     },
 
@@ -314,21 +314,12 @@ return [
     },
 
     _folderChanged: function(folder) {
-      // It is possible that the notification of latest folder is fired
-      // but in the meantime the foldersList could be cleared due to
-      // a change in the current account, before this listener is called.
-      // So skip this work if no foldersList, this method will be called
-      // again soon.
-      if (!this.model.foldersList) {
-        return;
-      }
-
       this.curFolder = folder;
-
       this.showSearch('', 'all');
     },
 
     release: function() {
+      this.model.removeObjectListener(this);
       this.msgVScroll.release();
     }
   }

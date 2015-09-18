@@ -3,6 +3,7 @@
 'use strict';
 
 define(function() {
+  var evt = require('evt');
   var api;
 
   api = {
@@ -15,23 +16,19 @@ define(function() {
         name: 'fake account'
       };
 
-      var acctsSlice = {
+      var accounts = evt.mix({
         items: [
           account
         ],
         defaultAccount: account,
         release: function() {}
-      };
-
-      setTimeout(function() {
-        if (!acctsSlice.oncomplete) {
-          return;
-        }
-
-        acctsSlice.oncomplete();
       });
 
-      return acctsSlice;
+      setTimeout(function() {
+        accounts.emit('complete');
+      });
+
+      return accounts;
     },
 
     viewFolderMessages: function() {
@@ -44,13 +41,13 @@ define(function() {
     },
 
     viewFolders: function(mode, argument) {
-      var inboxFolder = {
+      var inboxFolder = evt.mix({
           id: 'fake_inbox',
           type: 'inbox',
           name: 'inbox'
-        };
+        });
 
-      var foldersList = {
+      var folders = {
         items: [
           inboxFolder
         ],
@@ -67,14 +64,10 @@ define(function() {
       };
 
       setTimeout(function() {
-        if (!foldersList.oncomplete) {
-          return;
-        }
-
-        foldersList.oncomplete();
+        folders.emit('complete', folders);
       });
 
-      return foldersList;
+      return folders;
     }
   };
 

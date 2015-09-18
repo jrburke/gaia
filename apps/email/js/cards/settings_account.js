@@ -120,8 +120,18 @@ return [
         { // Confirm
           id: 'account-delete-ok',
           handler: function() {
-            account.deleteAccount();
-            evt.emit('accountDeleted', account);
+//todo: maybe deleteAccount returns a promise when it is done. For now,
+//step outside to api to know when accounts updated. Note that this bypasses
+//model instances. This is fine since just want to know when accounts updated,
+//a read operation that is for essentially a global state (model instances do
+//not have their own accounts lists).
+            require(['api'], function(api) {
+              api.accounts.once('complete', function() {
+                evt.emit('accountDeleted', account);
+              });
+
+              account.deleteAccount();
+            });
           }
         },
         { // Cancel

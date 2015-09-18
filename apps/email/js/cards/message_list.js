@@ -187,7 +187,10 @@ return [
       model.on('newInboxMessages', this, 'onNewMail');
       model.on('backgroundSendStatus', this, 'onBackgroundSendStatus');
 
-      model.on('foldersListOnChange', this, 'onFoldersListChange');
+
+//todo: figure if this still makes sense.
+//The foldersListOnChange event is no longer emitted
+/*      model.on('foldersListOnChange', this, 'onFoldersListChange');
       // If this card is created after list_cursor is set up
       // with a list, then need to bootstrap this card
       // to catch up, since the normal events will not fire.
@@ -201,7 +204,7 @@ return [
       // needs a special slice, created only when the search
       // actually starts. So do not bootstrap in that case.
       if (this.curFolder) {
-//todo: figure if this still makes sense.
+
         // var items = listCursor.list &&
         //             listCursor.list.items;
         // if (items && items.length) {
@@ -209,6 +212,7 @@ return [
         //   this.msgVScroll.messages_complete(0);
         // }
       }
+*/
     },
 
     /**
@@ -328,12 +332,13 @@ return [
       this.callHeaderFontSize();
     },
 
-    onFoldersListChange: function(folder) {
-      if (folder === this.curFolder) {
-        this.updateUnread(folder.unread);
-        this.updateLastSynced(folder.lastSyncedAt);
-      }
-    },
+//todo: is this called any more?
+    // onFoldersListChange: function(folder) {
+    //   if (folder === this.curFolder) {
+    //     this.updateUnread(folder.unread);
+    //     this.updateLastSynced(folder.lastSyncedAt);
+    //   }
+    // },
 
     /**
      * A workaround for font_size_utils not recognizing child node content
@@ -457,7 +462,8 @@ return [
     },
 
     onNewMail: function(newEmailCount) {
-      var inboxFolder = this.model.foldersList.getFirstFolderWithType('inbox');
+      var inboxFolder = this.model.account
+                        .folders.getFirstFolderWithType('inbox');
 
       if (inboxFolder.id === this.curFolder.id &&
           newEmailCount && newEmailCount > 0) {
@@ -757,14 +763,14 @@ return [
     onFolderShown: function() {
       var model = this.model,
           account = model.account,
-          foldersList = model.foldersList;
+          folders = account.folders;
 
       // The extra checks here are to allow for lazy startup when we might have
       // a card instance but not a full model available. Once the model is
       // available though, this method will get called again, so the event
       // emitting is still correctly done in the lazy startup case.
-      if (!document.hidden && account && foldersList && this.curFolder) {
-        var inboxFolder = foldersList.getFirstFolderWithType('inbox');
+      if (!document.hidden && account && folders && this.curFolder) {
+        var inboxFolder = folders.getFirstFolderWithType('inbox');
         if (inboxFolder === this.curFolder) {
           evt.emit('inboxShown', account.id);
         }
@@ -782,8 +788,10 @@ return [
      * An API method for the cards infrastructure, that Cards will call when the
      * page visibility changes and this card is the currently displayed card.
      */
-    onCurrentCardDocumentVisibilityChange: function() {
-      this.onFolderShown();
+    onCurrentCardDocumentVisibilityChange: function(hidden) {
+      if (!hidden) {
+        this.onFolderShown();
+      }
     },
 
     /**
@@ -942,22 +950,13 @@ return [
     },
 
     _folderChanged: function(folder) {
-      // It is possible that the notification of latest folder is fired
-      // but in the meantime the foldersList could be cleared due to
-      // a change in the current account, before this listener is called.
-      // So skip this work if no foldersList, this method will be called
-      // again soon.
-      if (!this.model.foldersList) {
-        return;
-      }
-
       // Folder could have changed because account changed. Make sure
       // the cacheableFolderId is still set correctly.
       var model = this.model;
-      var inboxFolder = model.foldersList.getFirstFolderWithType('inbox');
+      var inboxFolder = model.account.folders.getFirstFolderWithType('inbox');
       this.cacheableFolderId =
-                             model.account === model.acctsSlice.defaultAccount ?
-                            inboxFolder.id : null;
+                          model.account === model.accounts.defaultAccount ?
+                          inboxFolder.id : null;
 
       if (this.showFolder(folder)) {
         this.freshMessagesList();
