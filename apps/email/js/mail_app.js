@@ -109,11 +109,10 @@ evt.on('accountDeleted', resetApp);
 // Need to complete the activity postError flow if an activity is waiting, then
 // update the UI to the latest state.
 evt.on('setupAccountCanceled', function(fromCard) {
-//todo: this needs to change.
-  if (!model.api.accounts.length) {
-    // No account has been formally initialized, but one likely exists given
-    // that this back button should only be available for cases that have
-    // accounts. Likely just need the app to reset to load model.
+  // If more than one card on the stack, the account creation was just a cancel
+  // from another email flow. Otherwise, need to reset, likely an activity
+  // trigger.
+  if (cards._cardStack.length === 1) {
     resetApp();
   } else {
     cards.back('animate');
