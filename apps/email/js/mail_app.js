@@ -15,7 +15,7 @@ var mozL10n = require('l10n!'),
     ListCursor = require('list_cursor'),
     htmlCache = require('html_cache'),
     toaster = require('toaster'),
-    waitingRawActivity, activityCallback;
+    activityCallback;
 
 require('font_size_utils');
 require('metrics');
@@ -86,37 +86,31 @@ evt.on('addAccount', function() {
 });
 
 function resetApp() {
-  // Clear any existing local state and reset UI/model state.
-  activityCallback = waitingRawActivity = undefined;
-  cards.removeAll();
+  activityCallback = undefined;
 
-  model.init(false, function() {
-    var cardId = model.hasAccount() ?
-                 'message_list' : 'setup_account_info';
-    pushStartCard(cardId);
-  });
+  var cardId = model.hasAccount() ?
+               'message_list' : 'setup_account_info';
+
+  cards.removeAll();
+  pushStartCard(cardId);
 }
 
 // An account was deleted. Burn it all to the ground and rise like a phoenix.
-// Prefer a UI event vs. a slice listen to give flexibility about UI
-// construction: an acctsSlice splice change may not warrant removing all the
+// Prefer a UI event vs. an accounts.on() to give flexibility about UI
+// construction: an accounts change may not warrant removing all the
 // cards.
 evt.on('accountDeleted', resetApp);
-evt.on('resetApp', resetApp);
 
 // Called when account creation canceled, most likely from setup_account_info.
 // Need to complete the activity postError flow if an activity is waiting, then
 // update the UI to the latest state.
 evt.on('setupAccountCanceled', function(fromCard) {
-  if (waitingRawActivity) {
-    waitingRawActivity.postError('cancelled');
-  }
-
-  if (!model.foldersList) {
+//todo: this needs to change.
+  if (!model.api.accounts.length) {
     // No account has been formally initialized, but one likely exists given
     // that this back button should only be available for cases that have
     // accounts. Likely just need the app to reset to load model.
-    evt.emit('resetApp');
+    resetApp();
   } else {
     cards.back('animate');
   }
@@ -127,20 +121,22 @@ evt.on('setupAccountCanceled', function(fromCard) {
 evt.on('showLatestAccount', function() {
   cards.removeAll();
 
-  model.latestOnce('acctsSlice', function(acctsSlice) {
-    var account = acctsSlice.items[acctsSlice.items.length - 1];
+  model.latestOnce('accounts', function(accounts) {
 
-    model.changeAccount(account, function() {
-      pushStartCard('message_list').then(function() {
-        // If waiting to complete an activity, do so after pushing the message
-        // list card.
-        if (activityCallback) {
-          var activityCb = activityCallback;
-          activityCallback = null;
-          activityCb();
-        }
-      });
+    var account = accounts.items[accounts.items.length - 1];
+
+    model.changeAccount(account);
+
+    pushStartCard('message_list').then(function() {
+      // If waiting to complete an activity, do so after pushing the message
+      // list card.
+      if (activityCallback) {
+        var activityCb = activityCallback;
+        activityCallback = null;
+        activityCb();
+      }
     });
+
   });
 });
 
@@ -213,10 +209,10 @@ var startupData = globalOnAppMessage({
       activityCompose();
     } else {
       activityCallback = activityCompose;
-      waitingRawActivity = rawActivity;
       pushStartCard('setup_account_info', {
         allowBack: true,
-        launchedFromActivity: true
+        launchedFromActivity: true,
+        activity: rawActivity
       });
     }
   },
@@ -226,7 +222,7 @@ var startupData = globalOnAppMessage({
     var type = data.type || '';
     var folderType = data.folderType || 'inbox';
 
-    model.latestOnce('foldersList', function() {
+    model.latestOnce('account', function() {
       function onCorrectFolder() {
         // Remove previous cards because the card stack could get weird if
         // inserting a new card that would not normally be at that stack level.
@@ -255,7 +251,7 @@ var startupData = globalOnAppMessage({
         }
       }
 
-      var acctsSlice = model.acctsSlice,
+      var accounts = model.accounts,
           accountId = data.accountId;
 
       if (model.account.id === accountId) {
@@ -265,7 +261,7 @@ var startupData = globalOnAppMessage({
         return model.selectFirstFolderWithType(folderType, onCorrectFolder);
       } else {
         var newAccount;
-        acctsSlice.items.some(function(account) {
+        accounts.items.some(function(account) {
           if (account.id === accountId) {
             newAccount = account;
             return true;
@@ -273,9 +269,8 @@ var startupData = globalOnAppMessage({
         });
 
         if (newAccount) {
-          model.changeAccount(newAccount, function() {
-            model.selectFirstFolderWithType(folderType, onCorrectFolder);
-          });
+          model.changeAccount(newAccount);
+          model.selectFirstFolderWithType(folderType, onCorrectFolder);
         }
       }
     });

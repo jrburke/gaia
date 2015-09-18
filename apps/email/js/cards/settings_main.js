@@ -11,11 +11,10 @@ return [
   {
     createdCallback: function() {
       this.accounts = api.accounts;
-      this.accounts.on('complete', this, 'onAccountChange');
-      this.accounts.on('change', this, 'onAccountChange');
+      this.accounts.on('complete', this, 'onAccountsComplete');
 
       // Accounts already likely loaded, so do first render.
-      this.onAccountChange();
+      this.onAccountsComplete();
 
       this._secretButtonClickCount = 0;
       this._secretButtonTimer = null;
@@ -27,7 +26,7 @@ return [
       cards.back('animate');
     },
 
-    onAccountChange: function() {
+    onAccountsComplete: function() {
       // Just rerender the whole account list.
       var accountsContainer = this.accountsContainer;
       accountsContainer.innerHTML = '';

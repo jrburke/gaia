@@ -6,8 +6,8 @@
 requireApp('email/js/alameda.js');
 requireApp('email/test/config.js');
 
-suite('model acctsSlice, startup', function() {
-  var api, model;
+suite('model accounts, startup', function() {
+  var api, evt, model;
 
   suiteSetup(function(done) {
     testConfig(
@@ -15,32 +15,32 @@ suite('model acctsSlice, startup', function() {
         suiteTeardown: suiteTeardown,
         done: done
       },
-      ['api', 'model_create'],
-      function(a, mc) {
+      ['api', 'evt', 'model_create'],
+      function(a, e, mc) {
         api = a;
+        evt = e;
         model = mc.defaultModel;
       }
     );
   });
 
-  test('consistent view of acctsSlice initialization', function(done) {
-    var fakeSlice = {
-      oncomplete: function() { },
+  test('consistent view of accounts initialization', function(done) {
+    var fakeSlice = evt.mix({
       items: [],
       release: function() { }
-    };
+    });
     sinon.stub(api, 'viewAccounts').returns(fakeSlice);
     // Wait for model.init to finish this tick...
     setTimeout(function() {
-      assert.ok(!model.acctsSlice,
-                'model.acctsSlice should not be set ' +
-                'before acctsSlice.oncomplete fires');
+      assert.ok(!model.accounts,
+                'model.accounts should not be set ' +
+                'before accounts.oncomplete fires');
 
-      fakeSlice.oncomplete();
+      fakeSlice.on('complete');
 
-      assert.ok(model.acctsSlice,
-                'model.acctsSlice _should_ be set ' +
-                'after acctsSlice.oncomplete fires');
+      assert.ok(model.accounts,
+                'model.accounts _should_ be set ' +
+                'after accounts.oncomplete fires');
       done();
     });
     model.init();

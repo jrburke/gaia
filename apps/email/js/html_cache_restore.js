@@ -71,7 +71,7 @@ window.appDispatchedMessage = false;
    * config.js once the model module has been loaded.
    */
   function localOnModelLoaded(model, callback) {
-    model.latestOnce('acctsSlice', function(acctsSlice) {
+    model.latestOnce('accounts', function(accounts) {
       // At this point, model will have set up 'data_has_account', so the the
       // final view can be set and the rest of the world can start turning.
       // Note that alarm can get kicked off before this is all done,

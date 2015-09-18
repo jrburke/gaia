@@ -466,7 +466,7 @@ define(function(require) {
       if (data.state === 'success') {
         // Grab an up-to-date reading of the "play sound on send"
         // preference to decide if we're going to play a sound or not.
-        model.latestOnce('acctsSlice', () => {
+        model.latestOnce('accounts', () => {
           var account = model.getAccount(data.accountId);
           if (!account) {
             console.error('Invalid account ID', data.accountId,

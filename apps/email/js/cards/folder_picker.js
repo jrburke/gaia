@@ -23,13 +23,11 @@ return [
                       this.onClickAccount.bind(this));
 
       transitionEnd(this, this.onTransitionEnd.bind(this));
-
-      this.updateAccount = this.updateAccount.bind(this);
     },
 
     onArgs: function(args) {
       var model = this.model = args.model;
-      model.latest('account', this.updateAccount);
+      model.latest('account', this, 'updateAccount');
       var accountCount = this.model.getAccountCount();
 
       if (accountCount > 1) {
@@ -55,11 +53,10 @@ return [
       }
 
       this.accounts = this.model.api.accounts;
-      this.accounts.on('complete', this, 'onAccountChange');
-      this.accounts.on('change', this, 'onAccountChange');
+      this.accounts.on('complete', this, 'onAccountsUpdate');
 
       // Accounts already likely loaded, so do first render.
-      this.onAccountChange();
+      this.onAccountsUpdate();
     },
 
     extraClasses: ['anim-vertical', 'anim-overlay', 'one-account'],
@@ -80,31 +77,20 @@ return [
 
       if (oldAccount !== account) {
         this.foldersContainer.innerHTML = '';
+        this.curAccount = account;
 
-        this.model.latestOnce('folder', (folder) => {
-          this.curAccount = account;
+        // - DOM!
+        // update header
+        this.querySelector('.fld-acct-header-account-label')
+            .textContent = account.name;
 
-          // - DOM!
-          // update header
-          this.querySelector('.fld-acct-header-account-label')
-              .textContent = account.name;
+        // Clean up any old bindings.
+        if (oldAccount && oldAccount.folders) {
+          oldAccount.folders.removeObjectListener(this);
+        }
 
-          // If no current folder, means this is the first startup, do some
-          // work to populate the
-          if (!this.curFolder) {
-            this.curFolder = folder;
-          }
-
-          // Clean up any old bindings.
-          if (this.foldersList) {
-            this.foldersList.removeObjectListener(this);
-          }
-
-          this.foldersList = this.model.foldersList;
-          this.foldersList.on('complete', this, 'onFoldersComplete');
-          this.foldersList.on('change', this, 'onFoldersComplete');
-          this.onFoldersComplete();
-        });
+        this.curAccount.folders.on('complete', this, 'onFoldersComplete');
+        this.onFoldersComplete();
       }
     },
 
@@ -182,7 +168,7 @@ return [
     /**
      * Used to populate the account list.
      */
-    onAccountChange: function() {
+    onAccountsUpdate: function() {
       var accountListContainer = this.accountListContainer;
 
       accountListContainer.innerHTML = '';
@@ -238,37 +224,35 @@ return [
 
       foldersContainer.innerHTML = '';
 
-      this.foldersList.items.forEach((folder, index) => {
+      this.curAccount.folders.items.forEach((folder, index) => {
         var insertBuddy = (index >= foldersContainer.childElementCount) ?
                           null : foldersContainer.children[index];
 
         var folderNode = folder.element = fldFolderItemNode.cloneNode(true);
         folderNode.folder = folder;
-        this.updateFolderDom(folder, true);
+        this.updateFolderDom(folder);
         foldersContainer.insertBefore(folderNode, insertBuddy);
       });
     },
 
-    updateFolderDom: function(folder, firstTime) {
+    updateFolderDom: function(folder) {
       var folderNode = folder.element;
 
-      if (firstTime) {
-        if (!folder.selectable) {
-          folderNode.classList.add('fld-folder-unselectable');
-        }
-
-        var depthIdx = Math.min(FOLDER_DEPTH_CLASSES.length - 1, folder.depth);
-        folderNode.classList.add(FOLDER_DEPTH_CLASSES[depthIdx]);
-        if (depthIdx > 0) {
-          folderNode.classList.add('fld-folder-depthnonzero');
-        }
-
-        folderNode.querySelector('.fld-folder-name')
-          .textContent = folder.name;
-        folderNode.dataset.type = folder.type;
+      if (!folder.selectable) {
+        folderNode.classList.add('fld-folder-unselectable');
       }
 
-      if (folder === this.curFolder) {
+      var depthIdx = Math.min(FOLDER_DEPTH_CLASSES.length - 1, folder.depth);
+      folderNode.classList.add(FOLDER_DEPTH_CLASSES[depthIdx]);
+      if (depthIdx > 0) {
+        folderNode.classList.add('fld-folder-depthnonzero');
+      }
+
+      folderNode.querySelector('.fld-folder-name')
+        .textContent = folder.name;
+      folderNode.dataset.type = folder.type;
+
+      if (folder === this.model.folder) {
         folderNode.classList.add('fld-folder-selected');
       } else {
         folderNode.classList.remove('fld-folder-selected');
@@ -277,15 +261,21 @@ return [
       // XXX do the unread count stuff once we have that info
     },
 
+    resetFolderSelectedState: function() {
+      var selectedNodes = this.foldersContainer
+                         .querySelectorAll('.fld-folder-selected');
+      Array.from(selectedNodes).forEach(function(node) {
+        node.classList.remove('fld-folder-selected');
+      });
+    },
+
     onClickFolder: function(folderNode, event) {
       var folder = folderNode.folder;
       if (!folder.selectable) {
         return;
       }
 
-      var oldFolder = this.curFolder;
-      this.curFolder = folder;
-      this.updateFolderDom(oldFolder);
+      this.resetFolderSelectedState();
       this.updateFolderDom(folder);
 
       this._showFolder(folder);
@@ -349,7 +339,7 @@ return [
       if (this.accounts) {
         this.accounts.removeObjectListener(this);
       }
-      this.model.removeListener('account', this.updateAccount);
+      this.model.removeObjectListener(this);
     }
   }
 ];

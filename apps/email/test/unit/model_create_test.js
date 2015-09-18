@@ -31,14 +31,13 @@ suite('model_create', function() {
 
 
   suite('load default account', function() {
-    var account, acctsSlice, foldersList;
+    var account, accounts;
 
     setup(function(done) {
       model.init();
-      model.latestOnce('foldersList', function() {
+      model.latestOnce('account', function() {
         account = model.account;
-        acctsSlice = model.acctsSlice;
-        foldersList = model.foldersList;
+        accounts = model.accounts;
         done();
       });
     });
@@ -46,7 +45,7 @@ suite('model_create', function() {
     test('hasAccount true', function() {
       assert.equal(model.hasAccount(), true);
       assert.equal(model.inited, true);
-      assert.equal(acctsSlice.defaultAccount === account, true);
+      assert.equal(accounts.defaultAccount === account, true);
     });
   });
 
