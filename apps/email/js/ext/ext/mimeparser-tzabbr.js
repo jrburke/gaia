@@ -1,4 +1,4 @@
-(function(root, factory) {
+(function (root, factory) {
     'use strict';
     if (typeof define === 'function' && define.amd) {
         define(factory);
@@ -7,7 +7,7 @@
     } else {
         root.tzabbr = factory();
     }
-}(this, function() {
+})(this, function () {
     'use strict';
 
     return {
@@ -190,4 +190,4 @@
         "YEKT": "+0600",
         "Z": "+0000"
     };
-}));
+});

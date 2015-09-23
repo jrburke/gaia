@@ -11,14 +11,14 @@ const MAX_TIDBITS = 1;
  * headers in the conversation ordered from oldest to newest.
  */
 return function churnConversation(convInfo, messages/*, oldConvInfo */) {
-  let tidbits = convInfo.app.tidbits = [];
+  var tidbits = convInfo.app.tidbits = [];
 
-  for (let message of messages) {
-    let isRead = message.flags.indexOf('\\Seen') !== -1;
+  for (var message of messages) {
+    var isRead = message.flags.indexOf('\\Seen') !== -1;
 
     // Add up to MAX_TIDBITS tidbits for unread messages
     if (!isRead) {
-      let isStarred = message.flags.indexOf('\\Flagged') !== -1;
+      var isStarred = message.flags.indexOf('\\Flagged') !== -1;
       tidbits.push({
         id: message.id,
         date: message.date,

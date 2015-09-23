@@ -16,9 +16,8 @@
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
 
-(function(root, factory) {
+(function (root, factory) {
     'use strict';
 
     if (typeof define === 'function' && define.amd) {
@@ -28,7 +27,7 @@
     } else {
         root.imapParser = factory(root.imapFormalSyntax);
     }
-}(this, function(imapFormalSyntax) {
+})(this, function (imapFormalSyntax) {
 
     'use strict';
 
@@ -39,14 +38,14 @@
         this.pos = 0;
     }
 
-    ParserInstance.prototype.getTag = function() {
+    ParserInstance.prototype.getTag = function () {
         if (!this.tag) {
             this.tag = this.getElement(imapFormalSyntax.tag() + '*+', true);
         }
         return this.tag;
     };
 
-    ParserInstance.prototype.getCommand = function() {
+    ParserInstance.prototype.getCommand = function () {
         var responseCode;
 
         if (!this.command) {
@@ -73,13 +72,13 @@
         return this.command;
     };
 
-    ParserInstance.prototype.getElement = function(syntax) {
+    ParserInstance.prototype.getElement = function (syntax) {
         var match, element, errPos;
         if (this.remainder.match(/^\s/)) {
             throw new Error('Unexpected whitespace at position ' + this.pos);
         }
 
-        if ((match = this.remainder.match(/^[^\s]+(?=\s|$)/))) {
+        if (match = this.remainder.match(/^[^\s]+(?=\s|$)/)) {
             element = match[0];
 
             if ((errPos = imapFormalSyntax.verify(element, syntax)) >= 0) {
@@ -95,7 +94,7 @@
         return element;
     };
 
-    ParserInstance.prototype.getSpace = function() {
+    ParserInstance.prototype.getSpace = function () {
         if (!this.remainder.length) {
             throw new Error('Unexpected end of input at position ' + this.pos);
         }
@@ -108,7 +107,7 @@
         this.remainder = this.remainder.substr(1);
     };
 
-    ParserInstance.prototype.getAttributes = function() {
+    ParserInstance.prototype.getAttributes = function () {
         if (!this.remainder.length) {
             throw new Error('Unexpected end of input at position ' + this.pos);
         }
@@ -135,12 +134,13 @@
         this.processString();
     }
 
-    TokenParser.prototype.getAttributes = function() {
+    TokenParser.prototype.getAttributes = function () {
         var attributes = [],
             branch = attributes;
 
-        var walk = function(node) {
-            var elm, curBranch = branch,
+        var walk = (function (node) {
+            var elm,
+                curBranch = branch,
                 partial;
 
             if (!node.closed && node.type === 'SEQUENCE' && node.value === '*') {
@@ -191,18 +191,18 @@
                     break;
             }
 
-            node.childNodes.forEach(function(childNode) {
+            node.childNodes.forEach(function (childNode) {
                 walk(childNode);
             });
             branch = curBranch;
-        }.bind(this);
+        }).bind(this);
 
         walk(this.tree);
 
         return attributes;
     };
 
-    TokenParser.prototype.createNode = function(parentNode, startPos) {
+    TokenParser.prototype.createNode = function (parentNode, startPos) {
         var node = {
             childNodes: [],
             type: false,
@@ -225,14 +225,16 @@
         return node;
     };
 
-    TokenParser.prototype.processString = function() {
-        var chr, i, len,
-            checkSP = function() {
-                // jump to the next non whitespace pos
-                while (this.str.charAt(i + 1) === ' ') {
-                    i++;
-                }
-            }.bind(this);
+    TokenParser.prototype.processString = function () {
+        var chr,
+            i,
+            len,
+            checkSP = (function () {
+            // jump to the next non whitespace pos
+            while (this.str.charAt(i + 1) === ' ') {
+                i++;
+            }
+        }).bind(this);
 
         for (i = 0, len = this.str.length; i < len; i++) {
 
@@ -252,14 +254,14 @@
                             this.currentNode.closed = false;
                             break;
 
-                            // ( starts a new list
+                        // ( starts a new list
                         case '(':
                             this.currentNode = this.createNode(this.currentNode, this.pos + i);
                             this.currentNode.type = 'LIST';
                             this.currentNode.closed = false;
                             break;
 
-                            // ) closes a list
+                        // ) closes a list
                         case ')':
                             if (this.currentNode.type !== 'LIST') {
                                 throw new Error('Unexpected list terminator ) at position ' + (this.pos + i));
@@ -272,7 +274,7 @@
                             checkSP();
                             break;
 
-                            // ] closes section group
+                        // ] closes section group
                         case ']':
                             if (this.currentNode.type !== 'SECTION') {
                                 throw new Error('Unexpected section terminator ] at position ' + (this.pos + i));
@@ -283,7 +285,7 @@
                             checkSP();
                             break;
 
-                            // < starts a new partial
+                        // < starts a new partial
                         case '<':
                             if (this.str.charAt(i - 1) !== ']') {
                                 this.currentNode = this.createNode(this.currentNode, this.pos + i);
@@ -298,7 +300,7 @@
                             }
                             break;
 
-                            // { starts a new literal
+                        // { starts a new literal
                         case '{':
                             this.currentNode = this.createNode(this.currentNode, this.pos + i);
                             this.currentNode.type = 'LITERAL';
@@ -306,7 +308,7 @@
                             this.currentNode.closed = false;
                             break;
 
-                            // ( starts a new sequence
+                        // ( starts a new sequence
                         case '*':
                             this.currentNode = this.createNode(this.currentNode, this.pos + i);
                             this.currentNode.type = 'SEQUENCE';
@@ -315,12 +317,12 @@
                             this.state = 'SEQUENCE';
                             break;
 
-                            // normally a space should never occur
+                        // normally a space should never occur
                         case ' ':
                             // just ignore
                             break;
 
-                            // [ starts section
+                        // [ starts section
                         case '[':
                             // If it is the *first* element after response command, then process as a response argument list
                             if (['OK', 'NO', 'BAD', 'BYE', 'PREAUTH'].indexOf(this.parent.command.toUpperCase()) >= 0 && this.currentNode === this.tree) {
@@ -353,8 +355,7 @@
                                     // jump i to the ']'
                                     i = this.str.indexOf(']', i + 10);
                                     this.currentNode.endPos = this.pos + i - 1;
-                                    this.currentNode.value = this.str.substring(this.currentNode.startPos - this.pos,
-                                        this.currentNode.endPos - this.pos + 1);
+                                    this.currentNode.value = this.str.substring(this.currentNode.startPos - this.pos, this.currentNode.endPos - this.pos + 1);
                                     this.currentNode = this.currentNode.parentNode;
 
                                     // close out the SECTION
@@ -365,7 +366,7 @@
 
                                 break;
                             }
-                            /* falls through */
+                        /* falls through */
                         default:
                             // Any ATOM supported char starts a new Atom sequence, otherwise throw an error
                             // Allow \ as the first char for atom to support system flags
@@ -393,13 +394,7 @@
                     }
 
                     //
-                    if (
-                        this.currentNode.parentNode &&
-                        (
-                            (chr === ')' && this.currentNode.parentNode.type === 'LIST') ||
-                            (chr === ']' && this.currentNode.parentNode.type === 'SECTION')
-                        )
-                    ) {
+                    if (this.currentNode.parentNode && (chr === ')' && this.currentNode.parentNode.type === 'LIST' || chr === ']' && this.currentNode.parentNode.type === 'SECTION')) {
                         this.currentNode.endPos = this.pos + i - 1;
                         this.currentNode = this.currentNode.parentNode;
 
@@ -578,9 +573,7 @@
                         this.currentNode = this.currentNode.parentNode;
                         this.state = 'NORMAL';
                         break;
-                    } else if (this.currentNode.parentNode &&
-                        chr === ']' &&
-                        this.currentNode.parentNode.type === 'SECTION') {
+                    } else if (this.currentNode.parentNode && chr === ']' && this.currentNode.parentNode.type === 'SECTION') {
                         this.currentNode.endPos = this.pos + i - 1;
                         this.currentNode = this.currentNode.parentNode;
 
@@ -622,8 +615,9 @@
         }
     };
 
-    return function(command, options) {
-        var parser, response = {};
+    return function (command, options) {
+        var parser,
+            response = {};
 
         options = options || {};
 
@@ -652,5 +646,5 @@
 
         return response;
     };
-
-}));
+});
+// THE SOFTWARE.

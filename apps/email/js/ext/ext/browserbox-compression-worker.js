@@ -1,9 +1,9 @@
-(function() {
+(function () {
     'use strict';
 
-    // 
+    //
     // constants used for communication with the worker
-    // 
+    //
     var MESSAGE_START = 'start';
     var MESSAGE_INFLATE = 'inflate';
     var MESSAGE_INFLATED_DATA_READY = 'inflated_ready';
@@ -12,12 +12,12 @@
 
     // require the compressor
     var Compressor = require('./browserbox-compression');
-    
+
     var compressor = new Compressor();
     compressor.inflatedReady = inflatedReady;
     compressor.deflatedReady = deflatedReady;
 
-    self.onmessage = function(e) {
+    self.onmessage = function (e) {
         var message = e.data.message,
             buffer = e.data.buffer;
 

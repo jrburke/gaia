@@ -49,24 +49,23 @@
  *     return details.user === 'foo';
  *   });
  */
-define('slog', function(require, exports, module) {
+define('slog', function (require, exports, module) {
   var $log = require('rdcommon/log');
   var evt = require('evt');
 
   var logSensitiveData = false;
-  exports.setSensitiveDataLoggingEnabled = function(enabled) {
+  exports.setSensitiveDataLoggingEnabled = function (enabled) {
     logSensitiveData = enabled;
     exports.log('meta:sensitive-logging', { enabled: enabled });
   };
 
   var logEmitter = new evt.Emitter();
 
-  exports.resetEmitter = function() {
+  exports.resetEmitter = function () {
     logEmitter = new evt.Emitter();
   };
 
-
-  var LogChecker = exports.LogChecker = function(T, RT, name) {
+  var LogChecker = exports.LogChecker = function (T, RT, name) {
     this.T = T;
     this.RT = RT;
     this.eLazy = this.T.lazyLogger(name);
@@ -75,13 +74,12 @@ define('slog', function(require, exports, module) {
     this._interceptions = {};
   };
 
-
   ////////////////////////////////////////////////////////////////
   // Interceptions: Hook into predefined 'intercept' log events,
   // allowing you to dynamically "mock" internal details without
   // a lot of boilerplate.
 
-  var interceptions = { }; // Map of { logName: handler }
+  var interceptions = {}; // Map of { logName: handler }
 
   /**
    * Intercept one instance of an interceptible log event, causing the
@@ -89,9 +87,9 @@ define('slog', function(require, exports, module) {
    * replaceFn instead (one time). The interception _must_ occur, i.e.
    * this function also calls `mustLog(name)` itself.
    */
-  LogChecker.prototype.interceptOnce = function(name, replaceFn) {
+  LogChecker.prototype.interceptOnce = function (name, replaceFn) {
     this.mustLog(name);
-    var handlers = interceptions[name] = (interceptions[name] || []);
+    var handlers = interceptions[name] = interceptions[name] || [];
     handlers.push(replaceFn);
   };
 
@@ -112,7 +110,7 @@ define('slog', function(require, exports, module) {
    *
    *   // (now addFn ==> SomeMockXHR instance)
    */
-  exports.interceptable = function(name, fn) {
+  exports.interceptable = function (name, fn) {
     var handler;
     if (interceptions[name]) {
       handler = interceptions[name].shift();
@@ -137,13 +135,13 @@ define('slog', function(require, exports, module) {
    *   if this is an object, we will use the loggest nested equivalence
    *   checking logic.
    */
-  LogChecker.prototype.mustLog = function(name, /* optional */ predicate) {
+  LogChecker.prototype.mustLog = function (name, /* optional */predicate) {
     var eLazy = this.eLazy;
 
     var queued = this._subscribedTo[name];
     if (queued === undefined) {
       queued = this._subscribedTo[name] = [];
-      logEmitter.on(name, function(details) {
+      logEmitter.on(name, function (details) {
         var predicate = queued.shift();
         try {
           if (predicate === null) {
@@ -155,7 +153,7 @@ define('slog', function(require, exports, module) {
             }
             eLazy.namedValueD(name, result, details);
           }
-        } catch(e) {
+        } catch (e) {
           console.error('Exception running LogChecker predicate:', e);
         }
         // When we run out of things that must be logged, stop listening.
@@ -166,7 +164,7 @@ define('slog', function(require, exports, module) {
     }
 
     this.RT.reportActiveActorThisStep(eLazy);
-    if (typeof(predicate) === 'object') {
+    if (typeof predicate === 'object') {
       // If it's an object, just expect that as the payload
       eLazy.expect_namedValue(name, predicate);
       queued.push(null);
@@ -188,7 +186,7 @@ define('slog', function(require, exports, module) {
    *   Optional predicate; called with the 'details' (second argument)
    *   of the slog.log() call. Return true if the log matched.
    */
-  LogChecker.prototype.mustNotLog = function(name, /* optional */ predicate) {
+  LogChecker.prototype.mustNotLog = function (name, /* optional */predicate) {
     var notLogLazy = this.eNotLogLazy;
     if (!notLogLazy) {
       notLogLazy = this.eNotLogLazy = this.T.lazyLogger('slog');
@@ -196,17 +194,17 @@ define('slog', function(require, exports, module) {
     this.RT.reportActiveActorThisStep(notLogLazy);
     notLogLazy.expectNothing();
 
-    logEmitter.once(name, function(details) {
+    logEmitter.once(name, (function (details) {
       try {
         var result = true;
         if (predicate) {
           result = predicate(details);
         }
         notLogLazy.namedValue(name, JSON.stringify(details));
-      } catch(e) {
+      } catch (e) {
         console.error('Exception running LogChecker predicate:', e);
       }
-    }.bind(this));
+    }).bind(this));
   };
 
   /**
@@ -218,13 +216,13 @@ define('slog', function(require, exports, module) {
    * these fields will be stripped from the log output unless
    * sensitive debug logging is enabled.
    */
-  ['log', 'info', 'warn', 'error'].forEach(function(name) {
-    exports[name] = function(logName, details) {
+  ['log', 'info', 'warn', 'error'].forEach(function (name) {
+    exports[name] = function (logName, details) {
       var orig = console[name].bind(console, '[slog]');
 
       logEmitter.emit(logName, details);
 
-      orig.apply(console, Array.slice(arguments).map(function(arg) {
+      orig.apply(console, Array.slice(arguments).map(function (arg) {
 
         if (typeof arg === 'object') {
           // Remove private properties
@@ -236,7 +234,7 @@ define('slog', function(require, exports, module) {
           }
           try {
             return JSON.stringify(publicKeys);
-          } catch(e) {
+          } catch (e) {
             return '[un-JSONifiable ' + arg + ']';
           }
         } else {
@@ -256,7 +254,7 @@ define('slog', function(require, exports, module) {
    * TODO: Address the logging detail level as a separate issue, ideally while
    * working with whiteout.io to fancify the email.js logging slightly.
    */
-  exports.debug = function(logName, details) {
+  exports.debug = function (logName, details) {
     if (logSensitiveData) {
       exports.log(logName, details);
     }

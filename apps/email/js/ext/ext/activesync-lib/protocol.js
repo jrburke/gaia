@@ -14,13 +14,8 @@
  */
 
 (function (root, factory) {
-  if (typeof exports === 'object')
-    module.exports = factory(require('wbxml'), require('activesync/codepages'));
-  else if (typeof define === 'function' && define.amd)
-    define(['wbxml', 'activesync/codepages'], factory);
-  else
-    root.ActiveSyncProtocol = factory(WBXML, ActiveSyncCodepages);
-}(this, function(WBXML, ASCP) {
+  if (typeof exports === 'object') module.exports = factory(require('wbxml'), require('activesync/codepages'));else if (typeof define === 'function' && define.amd) define(['wbxml', 'activesync/codepages'], factory);else root.ActiveSyncProtocol = factory(WBXML, ActiveSyncCodepages);
+})(this, function (WBXML, ASCP) {
   'use strict';
 
   var exports = {};
@@ -43,8 +38,7 @@
       // Try to let users call this as CustomError(...) without the "new". This
       // is imperfect, and if you call this function directly and give it a
       // |this| that's a CustomError, things will break. Don't do it!
-      var self = this instanceof CustomError ?
-                 this : Object.create(CustomError.prototype);
+      var self = this instanceof CustomError ? this : Object.create(CustomError.prototype);
       var tmp = Error();
       var offset = 1;
 
@@ -52,13 +46,12 @@
       self.message = arguments[0] || tmp.message;
       if (extraArgs) {
         offset += extraArgs.length;
-        for (var i = 0; i < extraArgs.length; i++)
-          self[extraArgs[i]] = arguments[i+1];
+        for (var i = 0; i < extraArgs.length; i++) self[extraArgs[i]] = arguments[i + 1];
       }
 
       var m = /@(.+):(.+)/.exec(self.stack);
-      self.fileName = arguments[offset] || (m && m[1]) || "";
-      self.lineNumber = arguments[offset + 1] || (m && m[2]) || 0;
+      self.fileName = arguments[offset] || m && m[1] || "";
+      self.lineNumber = arguments[offset + 1] || m && m[2] || 0;
 
       return self;
     }
@@ -72,8 +65,7 @@
   var AutodiscoverError = makeError('ActiveSync.AutodiscoverError');
   exports.AutodiscoverError = AutodiscoverError;
 
-  var AutodiscoverDomainError = makeError('ActiveSync.AutodiscoverDomainError',
-                                          AutodiscoverError);
+  var AutodiscoverDomainError = makeError('ActiveSync.AutodiscoverDomainError', AutodiscoverError);
   exports.AutodiscoverDomainError = AutodiscoverDomainError;
 
   var HttpError = makeError('ActiveSync.HttpError', null, ['status']);
@@ -84,48 +76,43 @@
     var ns = {
       rq: baseUrl + 'mobilesync/requestschema/2006',
       ad: baseUrl + 'responseschema/2006',
-      ms: baseUrl + 'mobilesync/responseschema/2006',
+      ms: baseUrl + 'mobilesync/responseschema/2006'
     };
     return ns[prefix] || null;
   }
 
   function Version(str) {
-    var details = str.split('.').map(function(x) {
+    var details = str.split('.').map(function (x) {
       return parseInt(x);
     });
     this.major = details[0], this.minor = details[1];
   }
   exports.Version = Version;
   Version.prototype = {
-    eq: function(other) {
-      if (!(other instanceof Version))
-        other = new Version(other);
+    eq: function (other) {
+      if (!(other instanceof Version)) other = new Version(other);
       return this.major === other.major && this.minor === other.minor;
     },
-    ne: function(other) {
+    ne: function (other) {
       return !this.eq(other);
     },
-    gt: function(other) {
-      if (!(other instanceof Version))
-        other = new Version(other);
-      return this.major > other.major ||
-             (this.major === other.major && this.minor > other.minor);
+    gt: function (other) {
+      if (!(other instanceof Version)) other = new Version(other);
+      return this.major > other.major || this.major === other.major && this.minor > other.minor;
     },
-    gte: function(other) {
-      if (!(other instanceof Version))
-        other = new Version(other);
-      return this.major >= other.major ||
-             (this.major === other.major && this.minor >= other.minor);
+    gte: function (other) {
+      if (!(other instanceof Version)) other = new Version(other);
+      return this.major >= other.major || this.major === other.major && this.minor >= other.minor;
     },
-    lt: function(other) {
+    lt: function (other) {
       return !this.gte(other);
     },
-    lte: function(other) {
+    lte: function (other) {
       return !this.gt(other);
     },
-    toString: function() {
+    toString: function () {
       return this.major + '.' + this.minor;
-    },
+    }
   };
 
   /**
@@ -152,22 +139,15 @@
    *        specified redirects (typically used when autodiscover has already
    *        told us about a redirect)
    */
-  function autodiscover(aEmailAddress, aPassword, aTimeout, aCallback,
-                        aNoRedirect) {
+  function autodiscover(aEmailAddress, aPassword, aTimeout, aCallback, aNoRedirect) {
     if (!aCallback) aCallback = nullCallback;
     var domain = aEmailAddress.substring(aEmailAddress.indexOf('@') + 1);
 
     // The first time we try autodiscovery, we should try to recover from
     // AutodiscoverDomainErrors and HttpErrors. The second time, *all* errors
     // should be reported to the callback.
-    do_autodiscover(domain, aEmailAddress, aPassword, aTimeout, aNoRedirect,
-                    function(aError, aConfig) {
-      if (aError instanceof AutodiscoverDomainError ||
-          aError instanceof HttpError)
-        do_autodiscover('autodiscover.' + domain, aEmailAddress, aPassword,
-                        aTimeout, aNoRedirect, aCallback);
-      else
-        aCallback(aError, aConfig);
+    do_autodiscover(domain, aEmailAddress, aPassword, aTimeout, aNoRedirect, function (aError, aConfig) {
+      if (aError instanceof AutodiscoverDomainError || aError instanceof HttpError) do_autodiscover('autodiscover.' + domain, aEmailAddress, aPassword, aTimeout, aNoRedirect, aCallback);else aCallback(aError, aConfig);
     });
   }
   exports.autodiscover = autodiscover;
@@ -185,29 +165,25 @@
    * @param aCallback a callback taking an error status (if any) and the
    *        server's configuration
    */
-  function do_autodiscover(aHost, aEmailAddress, aPassword, aTimeout,
-                           aNoRedirect, aCallback) {
+  function do_autodiscover(aHost, aEmailAddress, aPassword, aTimeout, aNoRedirect, aCallback) {
     var url = 'https://' + aHost + '/autodiscover/autodiscover.xml';
-    return raw_autodiscover(url, aEmailAddress, aPassword, aTimeout,
-                            aNoRedirect, aCallback);
+    return raw_autodiscover(url, aEmailAddress, aPassword, aTimeout, aNoRedirect, aCallback);
   }
 
-  function raw_autodiscover(aUrl, aEmailAddress, aPassword, aTimeout,
-                            aNoRedirect, aCallback) {
-    var xhr = new XMLHttpRequest({mozSystem: true, mozAnon: true});
+  function raw_autodiscover(aUrl, aEmailAddress, aPassword, aTimeout, aNoRedirect, aCallback) {
+    var xhr = new XMLHttpRequest({ mozSystem: true, mozAnon: true });
     xhr.open('POST', aUrl, true);
     setAuthHeader(xhr, aEmailAddress, aPassword);
     xhr.setRequestHeader('Content-Type', 'text/xml');
     xhr.setRequestHeader('User-Agent', USER_AGENT);
     xhr.timeout = aTimeout;
 
-    xhr.upload.onprogress = xhr.upload.onload = function() {
+    xhr.upload.onprogress = xhr.upload.onload = function () {
       xhr.timeout = 0;
     };
 
-    xhr.onload = function() {
-      if (xhr.status < 200 || xhr.status >= 300)
-        return aCallback(new HttpError(xhr.statusText, xhr.status));
+    xhr.onload = function () {
+      if (xhr.status < 200 || xhr.status >= 300) return aCallback(new HttpError(xhr.statusText, xhr.status));
 
       var uid = Math.random();
       self.postMessage({
@@ -219,14 +195,15 @@
 
       self.addEventListener('message', function onworkerresponse(evt) {
         var data = evt.data;
-        if (data.type != 'configparser' || data.cmd != 'accountactivesync' ||
-            data.uid != uid) {
+        if (data.type != 'configparser' || data.cmd != 'accountactivesync' || data.uid != uid) {
           return;
         }
         self.removeEventListener(evt.type, onworkerresponse);
 
         var args = data.args;
-        var config = args[0], error = args[1], redirectedEmail = args[2];
+        var config = args[0],
+            error = args[1],
+            redirectedEmail = args[2];
         if (error) {
           aCallback(new AutodiscoverDomainError(error), config);
         } else if (redirectedEmail) {
@@ -237,7 +214,7 @@
       });
     };
 
-    xhr.ontimeout = xhr.onerror = function() {
+    xhr.ontimeout = xhr.onerror = function () {
       // Something bad happened in the network layer, so treat this like an HTTP
       // error.
       aCallback(new HttpError('Error getting Autodiscover URL', null));
@@ -245,15 +222,7 @@
 
     // TODO: use something like
     // http://ejohn.org/blog/javascript-micro-templating/ here?
-    var postdata =
-    '<?xml version="1.0" encoding="utf-8"?>\n' +
-    '<Autodiscover xmlns="' + nsResolver('rq') + '">\n' +
-    '  <Request>\n' +
-    '    <EMailAddress>' + aEmailAddress + '</EMailAddress>\n' +
-    '    <AcceptableResponseSchema>' + nsResolver('ms') +
-         '</AcceptableResponseSchema>\n' +
-    '  </Request>\n' +
-    '</Autodiscover>';
+    var postdata = '<?xml version="1.0" encoding="utf-8"?>\n' + '<Autodiscover xmlns="' + nsResolver('rq') + '">\n' + '  <Request>\n' + '    <EMailAddress>' + aEmailAddress + '</EMailAddress>\n' + '    <AcceptableResponseSchema>' + nsResolver('ms') + '</AcceptableResponseSchema>\n' + '  </Request>\n' + '</Autodiscover>';
 
     xhr.send(postdata);
   }
@@ -329,9 +298,8 @@
      *
      * @param aError the error status (if any)
      */
-    _notifyConnected: function(aError) {
-      if (aError)
-        this.disconnect();
+    _notifyConnected: function (aError) {
+      if (aError) this.disconnect();
 
       for (var iter in Iterator(this._connectionCallbacks)) {
         var callback = iter[1];
@@ -356,15 +324,14 @@
      * @param aUsername the account's username
      * @param aPassword the account's password
      */
-    open: function(aURL, aUsername, aPassword) {
+    open: function (aURL, aUsername, aPassword) {
       // XXX: We add the default service path to the URL if it's not already
       // there. This is a hack to work around the failings of Hotmail (and
       // possibly other servers), which doesn't provide the service path in its
       // URL. If it turns out this causes issues with other domains, remove it.
       var servicePath = '/Microsoft-Server-ActiveSync';
       this.baseUrl = aURL;
-      if (!this.baseUrl.endsWith(servicePath))
-        this.baseUrl += servicePath;
+      if (!this.baseUrl.endsWith(servicePath)) this.baseUrl += servicePath;
 
       this._username = aUsername;
       this._password = aPassword;
@@ -377,26 +344,23 @@
      * @param aCallback a callback taking an error status (if any) and the
      *        server's options.
      */
-    connect: function(aCallback) {
+    connect: function (aCallback) {
       // If we're already connected, just run the callback and return.
       if (this.connected) {
-        if (aCallback)
-          aCallback(null);
+        if (aCallback) aCallback(null);
         return;
       }
 
       // Otherwise, queue this callback up to fire when we do connect.
-      if (aCallback)
-        this._connectionCallbacks.push(aCallback);
+      if (aCallback) this._connectionCallbacks.push(aCallback);
 
       // Don't do anything else if we're already trying to connect.
-      if (this._waitingForConnection)
-        return;
+      if (this._waitingForConnection) return;
 
       this._waitingForConnection = true;
       this._connectionError = null;
 
-      this.getOptions((function(aError, aOptions) {
+      this.getOptions((function (aError, aOptions) {
         this._waitingForConnection = false;
         this._connectionError = aError;
 
@@ -419,9 +383,8 @@
      * The server and credentials remain set however, so you can safely call
      * connect() again immediately after.
      */
-    disconnect: function() {
-      if (this._waitingForConnection)
-        throw new Error("Can't disconnect while waiting for server response");
+    disconnect: function () {
+      if (this._waitingForConnection) throw new Error("Can't disconnect while waiting for server response");
 
       this._connected = false;
       this.versions = [];
@@ -437,11 +400,10 @@
      * @param aCallback a callback taking an error status (if any) and the
      *        WBXML response
      */
-    provision: function() {
+    provision: function () {
       var pv = ASCP.Provision.Tags;
       var w = new WBXML.Writer('1.3', 1, 'UTF-8');
-      w.stag(pv.Provision)
-        .etag();
+      w.stag(pv.Provision).etag();
       return this.postCommand(w);
     },
 
@@ -451,26 +413,24 @@
      * @param aCallback a callback taking an error status (if any), and the
      *        resulting options.
      */
-    getOptions: function(aCallback) {
+    getOptions: function (aCallback) {
       if (!aCallback) aCallback = nullCallback;
 
       var conn = this;
-      var xhr = new XMLHttpRequest({mozSystem: true, mozAnon: true});
+      var xhr = new XMLHttpRequest({ mozSystem: true, mozAnon: true });
       xhr.open('OPTIONS', this.baseUrl, true);
       setAuthHeader(xhr, this._username, this._password);
       xhr.setRequestHeader('User-Agent', USER_AGENT);
       xhr.timeout = this.timeout;
 
-      xhr.upload.onprogress = xhr.upload.onload = function() {
+      xhr.upload.onprogress = xhr.upload.onload = function () {
         xhr.timeout = 0;
       };
 
-      xhr.onload = function() {
+      xhr.onload = function () {
         if (xhr.status < 200 || xhr.status >= 300) {
-          console.error('ActiveSync options request failed with response ' +
-                        xhr.status);
-          if (conn.onmessage)
-            conn.onmessage('options', 'error', xhr, null, null, null, null);
+          console.error('ActiveSync options request failed with response ' + xhr.status);
+          if (conn.onmessage) conn.onmessage('options', 'error', xhr, null, null, null, null);
           aCallback(new HttpError(xhr.statusText, xhr.status));
           return;
         }
@@ -478,22 +438,18 @@
         // These headers are comma-separated lists. Sometimes, people like to
         // put spaces after the commas, so make sure we trim whitespace too.
         var result = {
-          versions: xhr.getResponseHeader('MS-ASProtocolVersions')
-                       .split(/\s*,\s*/),
-          commands: xhr.getResponseHeader('MS-ASProtocolCommands')
-                       .split(/\s*,\s*/)
+          versions: xhr.getResponseHeader('MS-ASProtocolVersions').split(/\s*,\s*/),
+          commands: xhr.getResponseHeader('MS-ASProtocolCommands').split(/\s*,\s*/)
         };
 
-        if (conn.onmessage)
-          conn.onmessage('options', 'ok', xhr, null, null, null, result);
+        if (conn.onmessage) conn.onmessage('options', 'ok', xhr, null, null, null, result);
         aCallback(null, result);
       };
 
-      xhr.ontimeout = xhr.onerror = function() {
+      xhr.ontimeout = xhr.onerror = function () {
         var error = new Error('Error getting OPTIONS URL');
         console.error(error);
-        if (conn.onmessage)
-          conn.onmessage('options', 'timeout', xhr, null, null, null, null);
+        if (conn.onmessage) conn.onmessage('options', 'timeout', xhr, null, null, null, null);
         aCallback(error);
       };
 
@@ -510,12 +466,10 @@
      * @param aCommand a string/tag representing the command type
      * @return true iff the command is supported
      */
-    supportsCommand: function(aCommand) {
-      if (!this.connected)
-        throw new Error('Connection required to get command');
+    supportsCommand: function (aCommand) {
+      if (!this.connected) throw new Error('Connection required to get command');
 
-      if (typeof aCommand === 'number')
-        aCommand = ASCP.__tagnames__[aCommand];
+      if (typeof aCommand === 'number') aCommand = ASCP.__tagnames__[aCommand];
       return this.supportedCommands.indexOf(aCommand) !== -1;
     },
 
@@ -526,31 +480,31 @@
      * @param aCommand {WBXML.Writer|String|Number}
      *   The WBXML representing the command or a string/tag representing the
      *   command type for empty commands
-     * @param aExtraParams (optional) an object containing any extra URL
-     *        parameters that should be added to the end of the request URL
-     * @param aExtraHeaders (optional) an object containing any extra HTTP
-     *        headers to send in the request
-     * @param aProgressCallback (optional) a callback to invoke with progress
-     *        information, when available. Two arguments are provided: the
-     *        number of bytes received so far, and the total number of bytes
-     *        expected (when known, 0 if unknown).
+     * @param {Object} [aOpts]
+     * @param {Object} [aOpts.extraParams]
+     *   An object containing any extra URL parameters that should be added to
+     *   the end of the request URL.
+     * @param {Object} [aOpts.extraHeaders]
+     *   An object containing any extra HTTP headers to send in the request.
+     * @param {Function(loaded, total)} [aOpts.downloadProgress]
+     *   A progress function to be invoked as "progress" events are fired on the
+     *   XHR instance.  Note that total may be 0 if the total number of bytes
+     *   expected is not known.
+     * @param {Function(loaded, total)} [aOpts.uploadProgress]
+     *   A progress function to be invoked as "progress" events are fired on the
+     *   XHR upload instance.
      */
-    postCommand: function(aCommand, aExtraParams, aExtraHeaders,
-                          aProgressCallback) {
+    postCommand: function (aCommand, aOpts) {
       var contentType = 'application/vnd.ms-sync.wbxml';
 
       if (typeof aCommand === 'string' || typeof aCommand === 'number') {
-        return this.postData(aCommand, contentType, null, aExtraParams,
-                             aExtraHeaders);
+        return this.postData(aCommand, contentType, null, aOpts);
       }
       // WBXML.Writer
       else {
-        var commandName = ASCP.__tagnames__[aCommand.rootTag];
-        return this.postData(
-          commandName, contentType,
-          aCommand.dataType === 'blob' ? aCommand.blob : aCommand.buffer,
-          aExtraParams, aExtraHeaders, aProgressCallback);
-      }
+          var commandName = ASCP.__tagnames__[aCommand.rootTag];
+          return this.postData(commandName, contentType, aCommand.dataType === 'blob' ? aCommand.blob : aCommand.buffer, aOpts);
+        }
     },
 
     /**
@@ -559,57 +513,57 @@
      * @param aCommand a string (or WBXML tag) representing the command type
      * @param aContentType the content type of the post data
      * @param aData {ArrayBuffer|Blob} the data to be posted
-     * @param aCallback a callback to call when the server has responded; takes
-     *        two arguments: an error status (if any) and the response as a
-     *        WBXML reader. If the server returned an empty response, the
-     *        response argument is null.
      * @param aExtraParams (optional) an object containing any extra URL
      *        parameters that should be added to the end of the request URL
      * @param aExtraHeaders (optional) an object containing any extra HTTP
      *        headers to send in the request
-     * @param aProgressCallback (optional) a callback to invoke with progress
-     *        information, when available. Two arguments are provided: the
-     *        number of bytes received so far, and the total number of bytes
-     *        expected (when known, 0 if unknown).
+     * @param {Object} [aOpts]
+     * @param {Object} [aOpts.extraParams]
+     *   An object containing any extra URL parameters that should be added to
+     *   the end of the request URL.
+     * @param {Object} [aOpts.extraHeaders]
+     *   An object containing any extra HTTP headers to send in the request.
+     * @param {Function(loaded, total)} [aOpts.downloadProgress]
+     *   A progress function to be invoked as "progress" events are fired on the
+     *   XHR instance.  Note that total may be 0 if the total number of bytes
+     *   expected is not known.
+     * @param {Function(loaded, total)} [aOpts.uploadProgress]
+     *   A progress function to be invoked as "progress" events are fired on the
+     *   XHR upload instance.
      */
-    postData: function(aCommand, aContentType, aData, aExtraParams,
-                       aExtraHeaders, aProgressCallback) {
+    postData: function (aCommand, aContentType, aData, aOpts) {
       var parentArgs = arguments;
       return new Promise((resolve, reject) => {
         // Make sure our command name is a string.
-        if (typeof aCommand === 'number')
+        if (typeof aCommand === 'number') {
           aCommand = ASCP.__tagnames__[aCommand];
+        }
 
         if (!this.supportsCommand(aCommand)) {
-          var error = new Error("This server doesn't support the command " +
-                                aCommand);
+          var error = new Error("This server doesn't support the command " + aCommand);
           console.error(error);
           reject(error);
           return;
         }
 
         // Build the URL parameters.
-        var params = [
-          ['Cmd', aCommand],
-          ['User', this._username],
-          ['DeviceId', this._deviceId],
-          ['DeviceType', this._deviceType]
-        ];
-        if (aExtraParams) {
-          for (var iter in Iterator(params)) {
-            var param = iter[1];
-            if (param[0] in aExtraParams)
+        var params = [['Cmd', aCommand], ['User', this._username], ['DeviceId', this._deviceId], ['DeviceType', this._deviceType]];
+        if (aOpts && aOpts.extraParams) {
+          for (var [paramName] of params) {
+            if (paramName in aOpts.extraParams) {
               throw new TypeError('reserved URL parameter found');
+            }
           }
-          for (var kv in Iterator(aExtraParams))
-            params.push(kv);
+          for (var paramName in aOpts.extraParams) {
+            params.push([paramName, aOpts.extraParams[paramName]]);
+          }
         }
-        var paramsStr = params.map(function(i) {
+        var paramsStr = params.map(function (i) {
           return encodeURIComponent(i[0]) + '=' + encodeURIComponent(i[1]);
         }).join('&');
 
         // Now it's time to make our request!
-        var xhr = new XMLHttpRequest({mozSystem: true, mozAnon: true});
+        var xhr = new XMLHttpRequest({ mozSystem: true, mozAnon: true });
         xhr.open('POST', this.baseUrl + '?' + paramsStr, true);
         setAuthHeader(xhr, this._username, this._password);
         xhr.setRequestHeader('MS-ASProtocolVersion', this.currentVersion);
@@ -617,73 +571,82 @@
         xhr.setRequestHeader('User-Agent', USER_AGENT);
 
         // Add extra headers if we have any.
-        if (aExtraHeaders) {
-          for (var iter in Iterator(aExtraHeaders)) {
-            var key = iter[0], value = iter[1];
+        if (aOpts && aOpts.extraHeaders) {
+          for (var key in aOpts.extraHeaders) {
+            var value = aOpts.extraHeaders[key];
             xhr.setRequestHeader(key, value);
           }
         }
 
         xhr.timeout = this.timeout;
 
-        xhr.upload.onprogress = xhr.upload.onload = function() {
+        var downloadProgress = aOpts && aOpts.downloadProgress;
+        var uploadProgress = aOpts && aOpts.uploadProgerss;
+
+        xhr.upload.onprogress = function (event) {
+          xhr.timeout = 0;
+          if (uploadProgress) {
+            uploadProgress(event.loaded, event.total);
+          }
+        };
+        xhr.upload.onload = function () {
           xhr.timeout = 0;
         };
-        xhr.onprogress = function(event) {
-          if (aProgressCallback)
-            aProgressCallback(event.loaded, event.total);
+        xhr.onprogress = function (event) {
+          if (downloadProgress) {
+            downloadProgress(event.loaded, event.total);
+          }
         };
 
         var conn = this;
 
-        xhr.onload = function() {
+        xhr.onload = function () {
           // This status code is a proprietary Microsoft extension used to
           // indicate a redirect, not to be confused with the draft-standard
           // "Unavailable For Legal Reasons" status. More info available here:
           // <http://msdn.microsoft.com/en-us/library/gg651019.aspx>
           if (xhr.status === 451) {
             conn.baseUrl = xhr.getResponseHeader('X-MS-Location');
-            if (conn.onmessage)
-              conn.onmessage(aCommand, 'redirect', xhr, params, aExtraHeaders,
-                             aData, null);
+            if (conn.onmessage) {
+              conn.onmessage(aCommand, 'redirect', xhr, params, aOpts && aOpts.extraHeaders, aData, null);
+            }
             resolve(conn.postData.apply(conn, parentArgs));
             return;
           }
 
           if (xhr.status < 200 || xhr.status >= 300) {
-            console.error('ActiveSync command ' + aCommand + ' failed with ' +
-                          'response ' + xhr.status);
-            if (conn.onmessage)
-              conn.onmessage(aCommand, 'error', xhr, params, aExtraHeaders,
-                             aData, null);
+            console.error('ActiveSync command ' + aCommand + ' failed with ' + 'response ' + xhr.status);
+            if (conn.onmessage) {
+              conn.onmessage(aCommand, 'error', xhr, params, aOpts && aOpts.extraHeaders, aData, null);
+            }
             reject(new HttpError(xhr.statusText, xhr.status));
             return;
           }
 
           var response = null;
-          if (xhr.response.byteLength > 0)
+          if (xhr.response.byteLength > 0) {
             response = new WBXML.Reader(new Uint8Array(xhr.response), ASCP);
-          if (conn.onmessage)
-            conn.onmessage(aCommand, 'ok', xhr, params, aExtraHeaders,
-                           aData, response);
+          }
+          if (conn.onmessage) {
+            conn.onmessage(aCommand, 'ok', xhr, params, aOpts && aOpts.extraHeaders, aData, response);
+          }
           resolve(response);
         };
 
-        xhr.ontimeout = xhr.onerror = function(evt) {
-          var error = new Error('Command URL ' + evt.type + ' for command ' +
-                                aCommand + ' at baseUrl ' + this.baseUrl);
-          console.error(error);
-          if (conn.onmessage)
-            conn.onmessage(aCommand, evt.type, xhr, params, aExtraHeaders,
-                           aData, null);
-          reject(error);
-        }.bind(this);
+        xhr.ontimeout = xhr.onerror = (function (evt) {
+          var errObj = new Error('Command URL ' + evt.type + ' for command ' + aCommand + ' at baseUrl ' + this.baseUrl);
+          console.error(errObj);
+          if (conn.onmessage) {
+            conn.onmessage(aCommand, evt.type, xhr, params, aOpts && aOpts.extraHeaders, aData, null);
+          }
+          reject(errObj);
+        }).bind(this);
 
         xhr.responseType = 'arraybuffer';
         xhr.send(aData);
       });
-    },
+    }
   };
 
   return exports;
-}));
+});

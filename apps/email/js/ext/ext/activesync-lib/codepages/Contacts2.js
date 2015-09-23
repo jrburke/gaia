@@ -14,27 +14,22 @@
  */
 
 (function (root, factory) {
-  if (typeof exports === 'object')
-    module.exports = factory();
-  else if (typeof define === 'function' && define.amd)
-    define([], factory);
-  else
-    root.ASCPContacts2 = factory();
-}(this, function() {
+  if (typeof exports === 'object') module.exports = factory();else if (typeof define === 'function' && define.amd) define([], factory);else root.ASCPContacts2 = factory();
+})(this, function () {
   'use strict';
 
   return {
     Tags: {
-      CustomerId:       0x0C05,
-      GovernmentId:     0x0C06,
-      IMAddress:        0x0C07,
-      IMAddress2:       0x0C08,
-      IMAddress3:       0x0C09,
-      ManagerName:      0x0C0A,
+      CustomerId: 0x0C05,
+      GovernmentId: 0x0C06,
+      IMAddress: 0x0C07,
+      IMAddress2: 0x0C08,
+      IMAddress3: 0x0C09,
+      ManagerName: 0x0C0A,
       CompanyMainPhone: 0x0C0B,
-      AccountName:      0x0C0C,
-      NickName:         0x0C0D,
-      MMS:              0x0C0E,
+      AccountName: 0x0C0C,
+      NickName: 0x0C0D,
+      MMS: 0x0C0E
     }
   };
-}));
+});

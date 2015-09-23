@@ -14,38 +14,33 @@
  */
 
 (function (root, factory) {
-  if (typeof exports === 'object')
-    module.exports = factory();
-  else if (typeof define === 'function' && define.amd)
-    define([], factory);
-  else
-    root.ASCPPing = factory();
-}(this, function() {
+  if (typeof exports === 'object') module.exports = factory();else if (typeof define === 'function' && define.amd) define([], factory);else root.ASCPPing = factory();
+})(this, function () {
   'use strict';
 
   return {
     Tags: {
-      Ping:              0x0D05,
-      AutdState:         0x0D06,
-      Status:            0x0D07,
+      Ping: 0x0D05,
+      AutdState: 0x0D06,
+      Status: 0x0D07,
       HeartbeatInterval: 0x0D08,
-      Folders:           0x0D09,
-      Folder:            0x0D0A,
-      Id:                0x0D0B,
-      Class:             0x0D0C,
-      MaxFolders:        0x0D0D,
+      Folders: 0x0D09,
+      Folder: 0x0D0A,
+      Id: 0x0D0B,
+      Class: 0x0D0C,
+      MaxFolders: 0x0D0D
     },
     Enums: {
       Status: {
-        Expired:           '1',
-        Changed:           '2',
+        Expired: '1',
+        Changed: '2',
         MissingParameters: '3',
-        SyntaxError:       '4',
-        InvalidInterval:   '5',
-        TooManyFolders:    '6',
-        SyncFolders:       '7',
-        ServerError:       '8',
-      },
-    },
+        SyntaxError: '4',
+        InvalidInterval: '5',
+        TooManyFolders: '6',
+        SyncFolders: '7',
+        ServerError: '8'
+      }
+    }
   };
-}));
+});

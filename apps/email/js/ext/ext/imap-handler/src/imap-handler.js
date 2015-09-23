@@ -18,8 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// UMD shim, see: https://github.com/umdjs/umd/blob/master/returnExports.js
-(function(root, factory) {
+(function (root, factory) {
     'use strict';
 
     if (typeof define === 'function' && define.amd) {
@@ -29,7 +28,7 @@
     } else {
         root.imapHandler = factory(root.imapParser, root.imapCompiler);
     }
-}(this, function(imapParser, imapCompiler) {
+})(this, function (imapParser, imapCompiler) {
 
     'use strict';
 
@@ -37,4 +36,5 @@
         parser: imapParser,
         compiler: imapCompiler
     };
-}));
+});
+// UMD shim, see: https://github.com/umdjs/umd/blob/master/returnExports.js

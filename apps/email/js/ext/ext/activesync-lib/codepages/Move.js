@@ -14,35 +14,30 @@
  */
 
 (function (root, factory) {
-  if (typeof exports === 'object')
-    module.exports = factory();
-  else if (typeof define === 'function' && define.amd)
-    define([], factory);
-  else
-    root.ASCPMove = factory();
-}(this, function() {
+  if (typeof exports === 'object') module.exports = factory();else if (typeof define === 'function' && define.amd) define([], factory);else root.ASCPMove = factory();
+})(this, function () {
   'use strict';
 
   return {
     Tags: {
       MoveItems: 0x0505,
-      Move:      0x0506,
-      SrcMsgId:  0x0507,
-      SrcFldId:  0x0508,
-      DstFldId:  0x0509,
-      Response:  0x050A,
-      Status:    0x050B,
-      DstMsgId:  0x050C,
+      Move: 0x0506,
+      SrcMsgId: 0x0507,
+      SrcFldId: 0x0508,
+      DstFldId: 0x0509,
+      Response: 0x050A,
+      Status: 0x050B,
+      DstMsgId: 0x050C
     },
     Enums: {
       Status: {
         InvalidSourceID: '1',
-        InvalidDestID:   '2',
-        Success:         '3',
-        SourceIsDest:    '4',
-        MoveFailure:     '5',
-        ItemLocked:      '7',
-      },
-    },
+        InvalidDestID: '2',
+        Success: '3',
+        SourceIsDest: '4',
+        MoveFailure: '5',
+        ItemLocked: '7'
+      }
+    }
   };
-}));
+});

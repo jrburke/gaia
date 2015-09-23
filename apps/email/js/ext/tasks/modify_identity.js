@@ -1,10 +1,10 @@
-define(function(require) {
-'use strict';
+define(function (require) {
+  'use strict';
 
-/**
- * XXX XXX THIS IS JUST CODE PULLED OUT OF MAILBRIDGE XXX XXX
- * This all needs to be task-ified, etc.
- */
+  /**
+   * XXX XXX THIS IS JUST CODE PULLED OUT OF MAILBRIDGE XXX XXX
+   * This all needs to be task-ified, etc.
+   */
   var account = this.universe.getAccountForSenderIdentityId(msg.identityId),
       accountDef = account.accountDef,
       identity = this.universe.getIdentityForSenderIdentityId(msg.identityId);
@@ -38,12 +38,10 @@ define(function(require) {
     }
   }
   // accountDef has the identity, so this persists it as well
-  this.universe.saveAccountDef(accountDef, null, function() {
+  this.universe.saveAccountDef(accountDef, null, (function () {
     this.__sendMessage({
       type: 'modifyIdentity',
-      handle: msg.handle,
+      handle: msg.handle
     });
-  }.bind(this));
-
-
+  }).bind(this));
 });
