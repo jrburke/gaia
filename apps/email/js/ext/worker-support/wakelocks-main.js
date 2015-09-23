@@ -4,7 +4,7 @@
  * This file runs on the main thread, receiving messages sent from a
  * SmartWakeLock instance -> through the router -> to this file.
  */
-define(function() {
+define(function () {
   'use strict';
 
   function debug(str) {
@@ -27,21 +27,21 @@ define(function() {
   var self = {
     name: 'wakelocks',
     sendMessage: null,
-    process: function(uid, cmd, args) {
+    process: function (uid, cmd, args) {
       debug('process ' + cmd + ' ' + JSON.stringify(args));
       switch (cmd) {
-      case 'requestWakeLock':
-        var type = args[0];
-        self.sendMessage(uid, cmd, [requestWakeLock(type)]);
-        break;
-      case 'unlock':
-        var id = args[0];
-        var lock = locks[id];
-        if (lock) {
-          lock.unlock();
-          delete locks[id];
-        }
-        self.sendMessage(uid, cmd, []);
+        case 'requestWakeLock':
+          var type = args[0];
+          self.sendMessage(uid, cmd, [requestWakeLock(type)]);
+          break;
+        case 'unlock':
+          var id = args[0];
+          var lock = locks[id];
+          if (lock) {
+            lock.unlock();
+            delete locks[id];
+          }
+          self.sendMessage(uid, cmd, []);
       }
     }
   };

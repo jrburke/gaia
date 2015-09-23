@@ -29,14 +29,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   'use strict';
   if (typeof define === 'function' && define.amd) {
     define([], function () {
-      return (root.FibonacciHeap = factory());
+      return root.FibonacciHeap = factory();
     });
   } else if (typeof exports === 'object') {
     module.exports = factory();
   } else {
     root.FibonacciHeap = factory();
   }
-}(this, function () {
+})(this, function () {
   'use strict';
 
   var FibonacciHeap = function (customCompare) {
@@ -108,8 +108,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
       this.nodeCount--;
 
       // Merge the children of the minimum node with the root list
-      this.minNode = mergeLists(nextInRootList, extractedMin.child,
-          this.compare);
+      this.minNode = mergeLists(nextInRootList, extractedMin.child, this.compare);
       if (nextInRootList) {
         this.minNode = nextInRootList;
         this.minNode = consolidate(this.minNode, this.compare);
@@ -306,4 +305,4 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   };
 
   return FibonacciHeap;
-}));
+});

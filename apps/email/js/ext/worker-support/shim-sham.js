@@ -8,4 +8,4 @@
 
   // Add the one thing we want added to the window object.
   window.setZeroTimeout = setZeroTimeout;
-}());
+})();

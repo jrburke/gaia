@@ -3,7 +3,7 @@
  * between connection-related setup in smtp/account.js and
  * smtp/probe.js.
  */
-define(function(require, exports) {
+define(function (require, exports) {
 
   var slog = require('slog');
   var SmtpClient = require('smtpclient');
@@ -12,7 +12,7 @@ define(function(require, exports) {
 
   var setTimeout = window.setTimeout;
   var clearTimeout = window.clearTimeout;
-  exports.setTimeoutFunctions = function(setFn, clearFn) {
+  exports.setTimeoutFunctions = function (setFn, clearFn) {
     setTimeout = setFn;
     clearTimeout = clearFn;
   };
@@ -33,46 +33,36 @@ define(function(require, exports) {
    *   resolve => {SmtpClient} connection
    *   reject => {String} normalized error
    */
-  exports.createSmtpConnection = function(credentials, connInfo,
-                                          credsUpdatedCallback) {
+  exports.createSmtpConnection = function (credentials, connInfo, credsUpdatedCallback) {
     var conn;
 
-    return oauth.ensureUpdatedCredentials(credentials, credsUpdatedCallback)
-    .then(function() {
-      return new Promise(function(resolve, reject) {
+    return oauth.ensureUpdatedCredentials(credentials, credsUpdatedCallback).then(function () {
+      return new Promise(function (resolve, reject) {
 
         var auth = {
           // Someday, `null` might be a valid value, so be careful here
-          user: (credentials.outgoingUsername !== undefined ?
-                 credentials.outgoingUsername :
-                 credentials.username),
-          pass: (credentials.outgoingPassword !== undefined ?
-                 credentials.outgoingPassword :
-                 credentials.password),
-          xoauth2: credentials.oauth2 ?
-                     credentials.oauth2.accessToken : null
+          user: credentials.outgoingUsername !== undefined ? credentials.outgoingUsername : credentials.username,
+          pass: credentials.outgoingPassword !== undefined ? credentials.outgoingPassword : credentials.password,
+          xoauth2: credentials.oauth2 ? credentials.oauth2.accessToken : null
         };
         slog.log('smtp:connect', {
           _auth: auth,
           usingOauth2: !!credentials.oauth2,
           connInfo: connInfo
         });
-        conn = new SmtpClient(
-          connInfo.hostname, connInfo.port,
-          {
-            auth: auth,
-            useSecureTransport: (connInfo.crypto === 'ssl' ||
-                                 connInfo.crypto === true),
-            requireTLS: connInfo.crypto === 'starttls',
-            // In the case no encryption is explicitly requested (either for
-            // testing or because a user regrettably chose to disable it via
-            // manual config), we want to avoid opportunistic encryption
-            // since in the latter case the user may have done this because
-            // the server's certificates are invalid.
-            ignoreTLS: connInfo.crypto === 'plain'
-          });
+        conn = new SmtpClient(connInfo.hostname, connInfo.port, {
+          auth: auth,
+          useSecureTransport: connInfo.crypto === 'ssl' || connInfo.crypto === true,
+          requireTLS: connInfo.crypto === 'starttls',
+          // In the case no encryption is explicitly requested (either for
+          // testing or because a user regrettably chose to disable it via
+          // manual config), we want to avoid opportunistic encryption
+          // since in the latter case the user may have done this because
+          // the server's certificates are invalid.
+          ignoreTLS: connInfo.crypto === 'plain'
+        });
 
-        var connectTimeout = setTimeout(function() {
+        var connectTimeout = setTimeout(function () {
           conn.onerror('unresponsive-server');
           conn.close();
         }, syncbase.CONNECT_TIMEOUT_MS);
@@ -84,40 +74,36 @@ define(function(require, exports) {
           }
         }
 
-        conn.onidle = function() {
+        conn.onidle = function () {
           clearConnectTimeout();
           slog.info('smtp:connected', connInfo);
-          conn.onidle = conn.onclose = conn.onerror = function() { /* noop */ };
+          conn.onidle = conn.onclose = conn.onerror = function () {/* noop */};
           resolve(conn);
         };
-        conn.onerror = function(err) {
+        conn.onerror = function (err) {
           clearConnectTimeout();
           reject(err);
         };
         // if the connection closes without any of the other callbacks,
         // the server isn't responding properly.
-        conn.onclose = function() {
+        conn.onclose = function () {
           clearConnectTimeout();
           reject('server-maybe-offline');
         };
 
         conn.connect();
       });
-    }).catch(function(err) {
-      var errorString = analyzeSmtpError(conn, err, /* wasSending: */ false);
+    }).catch(function (err) {
+      var errorString = analyzeSmtpError(conn, err, /* wasSending: */false);
       if (conn) {
         conn.close();
       }
 
       // Could hit an oauth reauth case due to date skews, so give a token
       // review a shot before really bailing.
-      if (errorString === 'needs-oauth-reauth' &&
-          oauth.isRenewPossible(credentials)) {
-        return oauth.ensureUpdatedCredentials(credentials,
-                                              credsUpdatedCallback, true)
-        .then(function() {
-          return exports.createImapConnection(credentials, connInfo,
-                                              credsUpdatedCallback);
+      if (errorString === 'needs-oauth-reauth' && oauth.isRenewPossible(credentials)) {
+        return oauth.ensureUpdatedCredentials(credentials, credsUpdatedCallback, true).then(function () {
+          return exports.createImapConnection(credentials, connInfo, credsUpdatedCallback);
         });
       } else {
         slog.error('smtp:connect-error', {
@@ -137,7 +123,7 @@ define(function(require, exports) {
   // handlers. Instead, intercept error responses and cache them so
   // that we can retrieve the most recent server error when needed.
   var onCommand = SmtpClient.prototype._onCommand;
-  SmtpClient.prototype._onCommand = function(command) {
+  SmtpClient.prototype._onCommand = function (command) {
     if (command.statusCode && !command.success) {
       this._lastSmtpError = command;
     }
@@ -149,14 +135,13 @@ define(function(require, exports) {
   // rather than the actual error object with details. This is just a
   // copy of that function, with the `new Error` constructor stripped
   // out so that the error details pass through to onerror.
-  SmtpClient.prototype._onError = function(evt) {
+  SmtpClient.prototype._onError = function (evt) {
     if (evt instanceof Error && evt.message) {
       this.onerror(evt);
     } else if (evt && evt.data instanceof Error) {
       this.onerror(evt.data);
     } else {
-      this.onerror(evt && evt.data && evt.data.message ||
-                   evt.data || evt || 'Error');
+      this.onerror(evt && evt.data && evt.data.message || evt.data || evt || 'Error');
     }
 
     this.close();
@@ -179,12 +164,11 @@ define(function(require, exports) {
    *   SmtpClient doesn't maintain any easy-to-grab state about
    *   what mode the connection was in.
    */
-  var analyzeSmtpError = exports.analyzeSmtpError =
-        function(conn, rawError, wasSending) {
+  var analyzeSmtpError = exports.analyzeSmtpError = function (conn, rawError, wasSending) {
     var err = rawError;
     // If the error object is just an exception with no useful data,
     // try looking at recent SMTP errors.
-    if ((err && !err.statusCode && err.name === 'Error') || !err) {
+    if (err && !err.statusCode && err.name === 'Error' || !err) {
       err = conn && conn._lastSmtpError || null;
     }
 
@@ -209,8 +193,7 @@ define(function(require, exports) {
       // I have the error messages mention STARTTLS; we could key off that, but
       // I'm expecting that might end up working differently at some point, so
       // this is potentially slightly less brittle.
-      if (conn._currentAction === conn._actionSTARTTLS ||
-          conn._currentAction === conn._actionEHLO) {
+      if (conn._currentAction === conn._actionSTARTTLS || conn._currentAction === conn._actionEHLO) {
         normalizedError = 'bad-security';
       } else {
         // Example SMTP error:
@@ -220,60 +203,61 @@ define(function(require, exports) {
         //     "line": "535 5.7.8 Wrong username or password, crook!",
         //     "success": false }
         switch (err.statusCode) {
-        case 535:
-          if (wasOauth) {
-            normalizedError = 'needs-oauth-reauth';
-          } else {
+          case 535:
+            if (wasOauth) {
+              normalizedError = 'needs-oauth-reauth';
+            } else {
+              normalizedError = 'bad-user-or-pass';
+            }
+            break;
+          // This technically means that the auth mechanism is weaker than
+          // required.  We've only seen this for the gmail case where two
+          // factor is needed, we're not doing oauth, and the user is using
+          // their normal password instead of an application-specific password
+          // (and we've now removed support for providing a special error for
+          // that).  We're calling this bad-user-or-pass because it's less
+          // misleading than 'unknown' is.
+          case 534:
             normalizedError = 'bad-user-or-pass';
-          }
-          break;
-        // This technically means that the auth mechanism is weaker than
-        // required.  We've only seen this for the gmail case where two
-        // factor is needed, we're not doing oauth, and the user is using
-        // their normal password instead of an application-specific password
-        // (and we've now removed support for providing a special error for
-        // that).  We're calling this bad-user-or-pass because it's less
-        // misleading than 'unknown' is.
-        case 534:
-          normalizedError = 'bad-user-or-pass';
-          break;
-        case 501: // Invalid Syntax
-          if (wasSending) {
-            normalizedError = 'bad-message';
-          } else {
-            normalizedError = 'server-maybe-offline';
-          }
-          break;
-        case 550: // Mailbox Unavailable
-        case 551: // User not local, will not send
-        case 553: // Mailbox name not allowed
-        case 554: // Transaction failed (in response to bad addresses)
-          normalizedError = 'bad-address';
-          break;
-        case 500:
-          normalizedError = 'server-problem';
-          break;
-        default:
-          if (wasSending) {
-            normalizedError = 'bad-message';
-          } else {
-            normalizedError = 'unknown';
-          }
-          break;
+            break;
+          case 501:
+            // Invalid Syntax
+            if (wasSending) {
+              normalizedError = 'bad-message';
+            } else {
+              normalizedError = 'server-maybe-offline';
+            }
+            break;
+          case 550: // Mailbox Unavailable
+          case 551: // User not local, will not send
+          case 553: // Mailbox name not allowed
+          case 554:
+            // Transaction failed (in response to bad addresses)
+            normalizedError = 'bad-address';
+            break;
+          case 500:
+            normalizedError = 'server-problem';
+            break;
+          default:
+            if (wasSending) {
+              normalizedError = 'bad-message';
+            } else {
+              normalizedError = 'unknown';
+            }
+            break;
         }
       }
     }
     // Socket errors only have a name:
     else if (err.name === 'ConnectionRefusedError') {
-      normalizedError = 'unresponsive-server';
-    }
-    else if (/^Security/.test(err.name)) {
-      normalizedError = 'bad-security';
-    }
-    // If we provided a string only, it's probably already normalized
-    else if (typeof err === 'string') {
-      normalizedError = err;
-    }
+        normalizedError = 'unresponsive-server';
+      } else if (/^Security/.test(err.name)) {
+        normalizedError = 'bad-security';
+      }
+      // If we provided a string only, it's probably already normalized
+      else if (typeof err === 'string') {
+          normalizedError = err;
+        }
 
     slog.log('smtp:analyzed-error', {
       statusCode: err.statusCode,

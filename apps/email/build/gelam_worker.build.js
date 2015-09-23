@@ -59,7 +59,6 @@
         'searchfilter',
 
         // Job/operations are currently not gated, although they could be...
-        'jobmixins',
         'jobs/outbox',
 
         // Common account logic is required for everything.

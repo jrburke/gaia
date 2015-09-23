@@ -16,13 +16,12 @@
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
 
-(function(root, factory) {
+(function (root, factory) {
     'use strict';
 
     if (typeof define === 'function' && define.amd) {
-        define(['tcp-socket', 'imap-handler', 'mimefuncs', 'browserbox-compression', 'axe'], function(TCPSocket, imapHandler, mimefuncs, compression, axe) {
+        define(['tcp-socket', 'imap-handler', 'mimefuncs', 'browserbox-compression', 'axe'], function (TCPSocket, imapHandler, mimefuncs, compression, axe) {
             return factory(TCPSocket, imapHandler, mimefuncs, compression, axe);
         });
     } else if (typeof exports === 'object') {
@@ -30,7 +29,7 @@
     } else {
         root.BrowserboxImapClient = factory(navigator.TCPSocket, root.imapHandler, root.mimefuncs, root.BrowserboxCompressor, root.axe);
     }
-}(this, function(TCPSocket, imapHandler, mimefuncs, Compression, axe) {
+})(this, function (TCPSocket, imapHandler, mimefuncs, Compression, axe) {
     'use strict';
 
     var DEBUG_TAG = 'browserbox IMAP';
@@ -200,7 +199,7 @@
      * @event
      * @param {Error} err Error object
      */
-    ImapClient.prototype.onerror = function() {};
+    ImapClient.prototype.onerror = function () {};
 
     /**
      * More data can be buffered in the socket. See `waitDrain` property or
@@ -209,35 +208,35 @@
      *
      * @event
      */
-    ImapClient.prototype.ondrain = function() {};
+    ImapClient.prototype.ondrain = function () {};
 
     /**
      * The connection to the server has been closed
      *
      * @event
      */
-    ImapClient.prototype.onclose = function() {};
+    ImapClient.prototype.onclose = function () {};
 
     /**
      * The connection to the server has been established and greeting is received
      *
      * @event
      */
-    ImapClient.prototype.onready = function() {};
+    ImapClient.prototype.onready = function () {};
 
     /**
      * There are no more commands to process
      *
      * @event
      */
-    ImapClient.prototype.onidle = function() {};
+    ImapClient.prototype.onidle = function () {};
 
     // PUBLIC METHODS
 
     /**
      * Initiate a connection to the server. Wait for onready event
      */
-    ImapClient.prototype.connect = function() {
+    ImapClient.prototype.connect = function () {
         this.socket = this._TCPSocket.open(this.host, this.port, {
             binaryType: 'arraybuffer',
             useSecureTransport: this.secureMode,
@@ -258,7 +257,7 @@
     /**
      * Closes the connection to the server
      */
-    ImapClient.prototype.close = function() {
+    ImapClient.prototype.close = function () {
         this._disableCompression();
 
         if (this.socket && this.socket.readyState === 'open') {
@@ -271,7 +270,7 @@
     /**
      * Closes the connection to the server
      */
-    ImapClient.prototype.upgrade = function(callback) {
+    ImapClient.prototype.upgrade = function (callback) {
         if (this.secureMode) {
             return callback(null, false);
         }
@@ -301,7 +300,7 @@
      * @param {Object} [options] Optional data for the command payload, eg. {onplustagged: function(response, next){next();}}
      * @param {Function} callback Callback function to run once the command has been processed
      */
-    ImapClient.prototype.exec = function(request, acceptUntagged, options, callback) {
+    ImapClient.prototype.exec = function (request, acceptUntagged, options, callback) {
 
         if (typeof request === 'string') {
             request = {
@@ -318,7 +317,7 @@
      *
      * @param {String} str Payload
      */
-    ImapClient.prototype.send = function(str) {
+    ImapClient.prototype.send = function (str) {
         var buffer = mimefuncs.toTypedArray(str).buffer,
             timeout = this.TIMEOUT_SOCKET_LOWER_BOUND + Math.floor(buffer.byteLength * this.TIMEOUT_SOCKET_MULTIPLIER);
 
@@ -340,7 +339,7 @@
      * @param {String} command Untagged command name
      * @param {Function} callback Callback function with response object and continue callback function
      */
-    ImapClient.prototype.setHandler = function(command, callback) {
+    ImapClient.prototype.setHandler = function (command, callback) {
         this._globalAcceptUntagged[(command || '').toString().toUpperCase().trim()] = callback;
     };
 
@@ -352,7 +351,7 @@
      * @event
      * @param {Event} evt Event object. See evt.data for the error
      */
-    ImapClient.prototype._onError = function(evt) {
+    ImapClient.prototype._onError = function (evt) {
         if (this.destroyed) {
             // ignore errors that happen after we close the connection
             return;
@@ -372,7 +371,7 @@
     /**
      * Ensures that the connection is closed
      */
-    ImapClient.prototype._destroy = function() {
+    ImapClient.prototype._destroy = function () {
         this._serverQueue = [];
         this._clientQueue = [];
         this._currentCommand = false;
@@ -392,7 +391,7 @@
      * @event
      * @param {Event} evt Event object. Not used
      */
-    ImapClient.prototype._onClose = function() {
+    ImapClient.prototype._onClose = function () {
         this._disableCompression();
         this._destroy();
     };
@@ -400,7 +399,7 @@
     /**
      * Indicates that a socket timeout has occurred
      */
-    ImapClient.prototype._onTimeout = function() {
+    ImapClient.prototype._onTimeout = function () {
         // inform about the timeout, _onError takes case of the rest
         var error = new Error(this.options.sessionId + ' Socket timed out!');
         axe.error(DEBUG_TAG, error);
@@ -413,7 +412,7 @@
      * @event
      * @param {Event} evt Event object. Not used
      */
-    ImapClient.prototype._onDrain = function() {
+    ImapClient.prototype._onDrain = function () {
         this.waitDrain = false;
         this.ondrain();
     };
@@ -426,7 +425,7 @@
      *
      * @param {Event} evt
      */
-    ImapClient.prototype._onData = function(evt) {
+    ImapClient.prototype._onData = function (evt) {
         if (!evt || !evt.data) {
             return;
         }
@@ -447,7 +446,7 @@
             this._literalRemaining = 0;
         }
         this._remainder = str = this._remainder + str;
-        while ((match = str.match(/(\{(\d+)(\+)?\})?\r?\n/))) {
+        while (match = str.match(/(\{(\d+)(\+)?\})?\r?\n/)) {
 
             if (!match[2]) {
                 // Now we have a full command line, so lets do something with it
@@ -484,7 +483,7 @@
      *
      * @event
      */
-    ImapClient.prototype._onOpen = function() {
+    ImapClient.prototype._onOpen = function () {
         axe.debug(DEBUG_TAG, this.options.sessionId + ' tcp socket opened');
         this.socket.ondata = this._onData.bind(this);
         this.socket.onclose = this._onClose.bind(this);
@@ -499,7 +498,7 @@
      *
      * @param {String} cmd Command line
      */
-    ImapClient.prototype._addToServerQueue = function(cmd) {
+    ImapClient.prototype._addToServerQueue = function (cmd) {
         this._serverQueue.push(cmd);
 
         if (this._processingServerData) {
@@ -513,7 +512,7 @@
     /**
      * Process a command from the queue. The command is parsed and feeded to a handler
      */
-    ImapClient.prototype._processServerQueue = function() {
+    ImapClient.prototype._processServerQueue = function () {
         if (!this._serverQueue.length) {
             this._processingServerData = false;
             return;
@@ -540,9 +539,7 @@
             return this._onError(e);
         }
 
-        if (response.tag === '*' &&
-            /^\d+$/.test(response.command) &&
-            response.attributes && response.attributes.length && response.attributes[0].type === 'ATOM') {
+        if (response.tag === '*' && /^\d+$/.test(response.command) && response.attributes && response.attributes.length && response.attributes[0].type === 'ATOM') {
             response.nr = Number(response.command);
             response.command = (response.attributes.shift().value || '').toString().toUpperCase().trim();
         }
@@ -560,7 +557,7 @@
             return;
         }
 
-        this._processServerResponse(response, function(err) {
+        this._processServerResponse(response, (function (err) {
             if (err) {
                 return this._onError(err);
             }
@@ -578,7 +575,7 @@
             }
 
             setTimeout(this._processServerQueue.bind(this), 0);
-        }.bind(this));
+        }).bind(this));
     };
 
     /**
@@ -587,7 +584,7 @@
      * @param {Object} response Parsed command object
      * @param {Function} callback Continue callback function
      */
-    ImapClient.prototype._processServerResponse = function(response, callback) {
+    ImapClient.prototype._processServerResponse = function (response, callback) {
         var command = (response && response.command || '').toUpperCase().trim();
 
         this._processResponse(response);
@@ -604,11 +601,9 @@
 
             this._currentCommand.payload[command].push(response);
             return callback();
-
         } else if (response.tag === '*' && command in this._globalAcceptUntagged) {
 
             this._globalAcceptUntagged[command](response, callback);
-
         } else if (response.tag === this._currentCommand.tag) {
 
             if (typeof this._currentCommand.callback === 'function') {
@@ -621,7 +616,6 @@
             } else {
                 return callback();
             }
-
         } else {
             // Unexpected response
             return callback();
@@ -637,8 +631,8 @@
      * @param {Object} [options] Optional data for the command payload, eg. {onplustagged: function(response, next){next();}}
      * @param {Function} callback Callback function to run once the command has been processed
      */
-    ImapClient.prototype._addToClientQueue = function(request, acceptUntagged, options, callback) {
-        var tag = 'W' + (++this._tagCounter),
+    ImapClient.prototype._addToClientQueue = function (request, acceptUntagged, options, callback) {
+        var tag = 'W' + ++this._tagCounter,
             data;
 
         if (!callback && typeof options === 'function') {
@@ -651,7 +645,7 @@
             acceptUntagged = undefined;
         }
 
-        acceptUntagged = [].concat(acceptUntagged || []).map(function(untagged) {
+        acceptUntagged = [].concat(acceptUntagged || []).map(function (untagged) {
             return (untagged || '').toString().toUpperCase().trim();
         });
 
@@ -665,11 +659,11 @@
         };
 
         // apply any additional options to the command
-        Object.keys(options || {}).forEach(function(key) {
+        Object.keys(options || {}).forEach(function (key) {
             data[key] = options[key];
         });
 
-        acceptUntagged.forEach(function(command) {
+        acceptUntagged.forEach(function (command) {
             data.payload[command] = [];
         });
 
@@ -693,7 +687,7 @@
     /**
      * Sends a command from client queue to the server.
      */
-    ImapClient.prototype._sendRequest = function() {
+    ImapClient.prototype._sendRequest = function () {
         if (!this._clientQueue.length) {
             return this._enterIdle();
         }
@@ -714,7 +708,7 @@
 
             // invoke the precheck command with a callback to signal that you're
             // done with precheck and ready to resume normal operation
-            precheck(context, function(err) {
+            precheck(context, (function (err) {
                 // we're done with the precheck
                 if (!err) {
                     if (this._restartQueue) {
@@ -726,18 +720,19 @@
 
                 // precheck callback failed, so we remove the initial command
                 // from the queue, invoke its callback and resume normal operation
-                var cmd, index = this._clientQueue.indexOf(context);
+                var cmd,
+                    index = this._clientQueue.indexOf(context);
                 if (index >= 0) {
                     cmd = this._clientQueue.splice(index, 1)[0];
                 }
                 if (cmd && cmd.callback) {
-                    cmd.callback(err, function() {
+                    cmd.callback(err, (function () {
                         this._canSend = true;
                         this._sendRequest();
                         setTimeout(this._processServerQueue.bind(this), 0);
-                    }.bind(this));
+                    }).bind(this));
                 }
-            }.bind(this));
+            }).bind(this));
             return;
         }
 
@@ -763,17 +758,17 @@
     /**
      * Emits onidle, noting to do currently
      */
-    ImapClient.prototype._enterIdle = function() {
+    ImapClient.prototype._enterIdle = function () {
         clearTimeout(this._idleTimer);
-        this._idleTimer = setTimeout(function() {
+        this._idleTimer = setTimeout((function () {
             this.onidle();
-        }.bind(this), this.TIMEOUT_ENTER_IDLE);
+        }).bind(this), this.TIMEOUT_ENTER_IDLE);
     };
 
     /**
      * Cancel idle timer
      */
-    ImapClient.prototype._clearIdle = function() {
+    ImapClient.prototype._clearIdle = function () {
         clearTimeout(this._idleTimer);
     };
 
@@ -794,28 +789,25 @@
      *
      * @param {Object} response Parsed response object
      */
-    ImapClient.prototype._processResponse = function(response) {
+    ImapClient.prototype._processResponse = function (response) {
         var command = (response && response.command || '').toString().toUpperCase().trim(),
             option,
             key;
 
         if (['OK', 'NO', 'BAD', 'BYE', 'PREAUTH'].indexOf(command) >= 0) {
             // Check if the response includes an optional response code
-            if (
-                (option = response && response.attributes &&
-                    response.attributes.length && response.attributes[0].type === 'ATOM' &&
-                    response.attributes[0].section && response.attributes[0].section.map(function(key) {
-                        if (!key) {
-                            return;
-                        }
-                        if (Array.isArray(key)) {
-                            return key.map(function(key) {
-                                return (key.value || '').toString().trim();
-                            });
-                        } else {
-                            return (key.value || '').toString().toUpperCase().trim();
-                        }
-                    }))) {
+            if (option = response && response.attributes && response.attributes.length && response.attributes[0].type === 'ATOM' && response.attributes[0].section && response.attributes[0].section.map(function (key) {
+                if (!key) {
+                    return;
+                }
+                if (Array.isArray(key)) {
+                    return key.map(function (key) {
+                        return (key.value || '').toString().trim();
+                    });
+                } else {
+                    return (key.value || '').toString().toUpperCase().trim();
+                }
+            })) {
 
                 key = option && option.shift();
 
@@ -828,8 +820,7 @@
             }
 
             // If last element of the response is TEXT then this is for humans
-            if (response && response.attributes && response.attributes.length &&
-                response.attributes[response.attributes.length - 1].type === 'TEXT') {
+            if (response && response.attributes && response.attributes.length && response.attributes[response.attributes.length - 1].type === 'TEXT') {
 
                 response.humanReadable = response.attributes[response.attributes.length - 1].value;
             }
@@ -842,7 +833,7 @@
      * @param {Mixed} value Value to be checked
      * @return {Boolean} returns true if the value is an Error
      */
-    ImapClient.prototype.isError = function(value) {
+    ImapClient.prototype.isError = function (value) {
         return !!Object.prototype.toString.call(value).match(/Error\]$/);
     };
 
@@ -851,7 +842,7 @@
     /**
      * Sets up deflate/inflate for the IO
      */
-    ImapClient.prototype.enableCompression = function() {
+    ImapClient.prototype.enableCompression = function () {
         this._socketOnData = this.socket.ondata;
         this.compressed = true;
 
@@ -862,7 +853,7 @@
             //
 
             this._compressionWorker = new Worker(this._workerPath);
-            this._compressionWorker.onmessage = function(e) {
+            this._compressionWorker.onmessage = (function (e) {
                 var message = e.data.message,
                     buffer = e.data.buffer;
 
@@ -878,42 +869,41 @@
                         break;
 
                 }
-            }.bind(this);
+            }).bind(this);
 
-            this._compressionWorker.onerror = function(e) {
+            this._compressionWorker.onerror = (function (e) {
                 var error = new Error('Error handling compression web worker: Line ' + e.lineno + ' in ' + e.filename + ': ' + e.message);
                 axe.error(DEBUG_TAG, error);
                 this._onError(error);
-            }.bind(this);
+            }).bind(this);
 
             // first message starts the worker
             this._compressionWorker.postMessage(this._createMessage(MESSAGE_START));
-
         } else {
 
             //
             // without web worker support
             //
 
-            this._compression.inflatedReady = function(buffer) {
+            this._compression.inflatedReady = (function (buffer) {
                 // emit inflated data
                 this._socketOnData({
                     data: buffer
                 });
-            }.bind(this);
+            }).bind(this);
 
-            this._compression.deflatedReady = function(buffer) {
+            this._compression.deflatedReady = (function (buffer) {
                 // write deflated data to socket
                 if (!this.compressed) {
                     return;
                 }
 
                 this.waitDrain = this.socket.send(buffer);
-            }.bind(this);
+            }).bind(this);
         }
 
         // override data handler, decompress incoming data
-        this.socket.ondata = function(evt) {
+        this.socket.ondata = (function (evt) {
             if (!this.compressed) {
                 return;
             }
@@ -924,15 +914,13 @@
             } else {
                 this._compression.inflate(evt.data);
             }
-        }.bind(this);
+        }).bind(this);
     };
-
-
 
     /**
      * Undoes any changes related to compression. This only be called when closing the connection
      */
-    ImapClient.prototype._disableCompression = function() {
+    ImapClient.prototype._disableCompression = function () {
         if (!this.compressed) {
             return;
         }
@@ -952,7 +940,7 @@
      *
      * @param {ArrayBuffer} buffer Outgoing uncompressed arraybuffer
      */
-    ImapClient.prototype._sendCompressed = function(buffer) {
+    ImapClient.prototype._sendCompressed = function (buffer) {
         // deflate
         if (this._compressionWorker) {
             this._compressionWorker.postMessage(this._createMessage(MESSAGE_DEFLATE, buffer), [buffer]);
@@ -961,13 +949,13 @@
         }
     };
 
-    ImapClient.prototype._createMessage = function(message, buffer) {
+    ImapClient.prototype._createMessage = function (message, buffer) {
         return {
             message: message,
             buffer: buffer
         };
     };
 
-
     return ImapClient;
-}));
+});
+// SOFTWARE.

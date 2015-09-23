@@ -1,19 +1,16 @@
-define(function(require) {
-'use strict';
+define(function (require) {
+  'use strict';
 
-let { linkifyHTML } = require('./linkify');
+  var { linkifyHTML } = require('./linkify');
 
-const DEFAULT_STYLE_TAG =
-  '<style type="text/css">\n' +
+  const DEFAULT_STYLE_TAG = '<style type="text/css">\n' +
   // ## blockquote
   // blockquote per html5: before: 1em, after: 1em, start: 4rem, end: 4rem
-  'blockquote {' +
-  'margin: 0; ' +
+  'blockquote {' + 'margin: 0; ' +
   // so, this is quoting styling, which makes less sense to have in here.
   '-moz-border-start: 0.2rem solid gray; ' +
   // padding-start isn't a thing yet, somehow.
-  'padding: 0; -moz-padding-start: 0.5rem; ' +
-  '}\n' +
+  'padding: 0; -moz-padding-start: 0.5rem; ' + '}\n' +
   // Give the layout engine an upper-bound on the width that's arguably
   // much wider than anyone should find reasonable, but might save us from
   // super pathological cases.
@@ -24,10 +21,7 @@ const DEFAULT_STYLE_TAG =
   // present and I'm worried about removing it now.
   ' overflow: hidden; padding: 0; margin: 0; font-size: 80%; }\n' +
   // pre messes up wrapping very badly if left to its own devices
-  'pre { white-space: pre-wrap; word-wrap: break-word; }\n' +
-  '.moz-external-link { color: #00aac5; cursor: pointer; }\n' +
-  '</style>';
-
+  'pre { white-space: pre-wrap; word-wrap: break-word; }\n' + '.moz-external-link { color: #00aac5; cursor: pointer; }\n' + '</style>';
 
   /**
    * Fetch the contents of the given sanitized text/html body and render it
@@ -61,61 +55,52 @@ const DEFAULT_STYLE_TAG =
    *   added a listener to the iframe.
    */
   return function embodyHTML(blob, containerNode, clickHandler) {
-    let ownerDoc = containerNode.ownerDocument;
+    var ownerDoc = containerNode.ownerDocument;
 
-    let iframe = document.createElement('iframe');
+    var iframe = document.createElement('iframe');
     iframe.setAttribute('sandbox', 'allow-same-origin');
     // Styling!
-    iframe.setAttribute(
-      'style',
-      // no border! no padding/margins.
-      'padding: 0; border-width: 0; margin: 0; ' +
-      // The iframe does not want to process its own clicks!  that's what
-      // bindSanitizedClickHandler is for!
-      'pointer-events: none;');
+    iframe.setAttribute('style',
+    // no border! no padding/margins.
+    'padding: 0; border-width: 0; margin: 0; ' +
+    // The iframe does not want to process its own clicks!  that's what
+    // bindSanitizedClickHandler is for!
+    'pointer-events: none;');
     // try and size the iframe to a standard email width thing
     // XXX it'd be better to use the actual effective viewport here, if we could
     // have that accessible without forcing a reflow.
     iframe.style.width = '640px';
 
-    let superBlob = new Blob(
-      [
-        '<!doctype html><html><head><meta charset="utf-8">',
-        DEFAULT_STYLE_TAG,
-        '</head><body>',
-        blob,
-        '</body>'
-      ],
-      { type: 'text/html'});
-    let superBlobUrl = ownerDoc.defaultView.URL.createObjectURL(superBlob);
+    var superBlob = new Blob(['<!doctype html><html><head><meta charset="utf-8">', DEFAULT_STYLE_TAG, '</head><body>', blob, '</body>'], { type: 'text/html' });
+    var superBlobUrl = ownerDoc.defaultView.URL.createObjectURL(superBlob);
     iframe.setAttribute('src', superBlobUrl);
     containerNode.appendChild(iframe);
 
-    let RESIZE_POLL_RATE = 200;
+    var RESIZE_POLL_RATE = 200;
 
-    let loadedPromise = new Promise((resolve, reject) => {
-      let pollCount = 0;
-      let pendingResize = null;
+    var loadedPromise = new Promise((resolve, reject) => {
+      var pollCount = 0;
+      var pendingResize = null;
 
       // Check if we need to resize the iframe.  This is a self-rescheduling
       // thing.  Note that this widget currently has no UI for embedded or
       // external images, so that aspect isn't quite dealt with, but will need
       // this.
       // XXX implement external/embedded image disply
-      let resizeIframe = () => {
+      var resizeIframe = () => {
         // if the iframe has been destroyed, stop trying to resize it
         if (!iframe.parentNode || !iframe.contentDocument) {
           return;
         }
-        let iframeBody = iframe.contentDocument.body;
+        var iframeBody = iframe.contentDocument.body;
 
-        let containerWidth = iframe.clientWidth;
-        let containerHeight = iframe.clientHeight;
+        var containerWidth = iframe.clientWidth;
+        var containerHeight = iframe.clientHeight;
 
-        let iframeWidth = iframeBody.scrollWidth;
-        let iframeHeight = iframeBody.scrollHeight;
+        var iframeWidth = iframeBody.scrollWidth;
+        var iframeHeight = iframeBody.scrollHeight;
 
-        let needPoll = (pollCount-- > 0);
+        var needPoll = pollCount-- > 0;
         // enlarge width as needed.
         if (containerWidth < iframeWidth) {
           iframe.style.width = iframeWidth + 'px';
@@ -123,8 +108,7 @@ const DEFAULT_STYLE_TAG =
           // know.
           iframe.style.height = iframeBody.scrollHeight + 'px';
           needPoll = true;
-        }
-        else if (containerHeight !== iframeHeight) {
+        } else if (containerHeight !== iframeHeight) {
           iframe.style.height = iframeHeight + 'px';
           needPoll = true;
         }
@@ -135,14 +119,14 @@ const DEFAULT_STYLE_TAG =
         }
       };
       iframe.resizeIframe = resizeIframe;
-      let pollForResize = (pollAtLeast) => {
+      var pollForResize = pollAtLeast => {
         pollCount = Math.max(pollCount, pollAtLeast);
         if (!pendingResize) {
           resizeIframe();
         }
       };
 
-      let loadHandler = (evt) => {
+      var loadHandler = evt => {
         console.log('loadend!');
         iframe.removeEventListener('load', loadHandler);
         ownerDoc.defaultView.URL.revokeObjectURL(superBlobUrl);

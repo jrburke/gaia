@@ -16,16 +16,15 @@
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
 
-(function(root, factory) {
+(function (root, factory) {
     'use strict';
 
     var encoding;
 
     if (typeof define === 'function' && define.amd) {
         // amd for browser
-        define(['stringencoding'], function(encoding) {
+        define(['stringencoding'], function (encoding) {
             return factory(encoding.TextEncoder, encoding.TextDecoder, root.btoa);
         });
     } else if (typeof exports === 'object' && typeof navigator !== 'undefined') {
@@ -35,7 +34,7 @@
     } else if (typeof exports === 'object') {
         // common.js for node.js
         encoding = require('wo-stringencoding');
-        module.exports = factory(encoding.TextEncoder, encoding.TextDecoder, function(str) {
+        module.exports = factory(encoding.TextEncoder, encoding.TextDecoder, function (str) {
             var NodeBuffer = require('buffer').Buffer;
             return new NodeBuffer(str, 'binary').toString("base64");
         });
@@ -43,7 +42,7 @@
         // global for browser
         root.mimefuncs = factory(root.TextEncoder, root.TextDecoder, root.btoa);
     }
-}(this, function(TextEncoder, TextDecoder, btoa) {
+})(this, function (TextEncoder, TextDecoder, btoa) {
     'use strict';
 
     btoa = btoa || base64Encode;
@@ -58,21 +57,11 @@
          * @param {String} [fromCharset='UTF-8'] Source encoding
          * @return {String} Mime encoded string
          */
-        mimeEncode: function(data, fromCharset) {
+        mimeEncode: function (data, fromCharset) {
             fromCharset = fromCharset || 'UTF-8';
 
             var buffer = mimefuncs.charset.convert(data || '', fromCharset),
-                ranges = [
-                    [0x09],
-                    [0x0A],
-                    [0x0D],
-                    [0x20],
-                    [0x21],
-                    [0x23, 0x3C],
-                    [0x3E],
-                    [0x40, 0x5E],
-                    [0x60, 0x7E]
-                ],
+                ranges = [[0x09], [0x0A], [0x0D], [0x20], [0x21], [0x23, 0x3C], [0x3E], [0x40, 0x5E], [0x60, 0x7E]],
                 result = '',
                 ord;
 
@@ -96,14 +85,15 @@
          * @param {String} [fromCharset='UTF-8'] Source encoding
          * @return {String} Decoded unicode string
          */
-        mimeDecode: function(str, fromCharset) {
+        mimeDecode: function (str, fromCharset) {
             str = (str || '').toString();
 
             fromCharset = fromCharset || 'UTF-8';
 
             var encodedBytesCount = (str.match(/\=[\da-fA-F]{2}/g) || []).length,
                 bufferLength = str.length - encodedBytesCount * 2,
-                chr, hex,
+                chr,
+                hex,
                 buffer = new Uint8Array(bufferLength),
                 bufferPos = 0;
 
@@ -128,7 +118,7 @@
          * @param {String} [fromCharset='UTF-8']
          * @return {String} Base64 encoded string
          */
-        base64Encode: function(data, fromCharset) {
+        base64Encode: function (data, fromCharset) {
             var buf, b64;
 
             if (fromCharset !== 'binary' && typeof data !== 'string') {
@@ -148,7 +138,7 @@
          * @param {String} [fromCharset='UTF-8'] Original charset of the base64 encoded string
          * @return {String} Decoded unicode string
          */
-        base64Decode: function(str, fromCharset) {
+        base64Decode: function (str, fromCharset) {
             var buf = mimefuncs.base64.decode(str || '', 'buffer');
             return mimefuncs.charset.decode(buf, fromCharset);
         },
@@ -162,14 +152,14 @@
          * @param {String} [fromCharset='UTF-8'] Original charset of the string
          * @return {String} Mime encoded string
          */
-        quotedPrintableEncode: function(data, fromCharset) {
+        quotedPrintableEncode: function (data, fromCharset) {
             var mimeEncodedStr = mimefuncs.mimeEncode(data, fromCharset);
 
             mimeEncodedStr = mimeEncodedStr.
-                // fix line breaks, ensure <CR><LF>
+            // fix line breaks, ensure <CR><LF>
             replace(/\r?\n|\r/g, '\r\n').
-                // replace spaces in the end of lines
-            replace(/[\t ]+$/gm, function(spaces) {
+            // replace spaces in the end of lines
+            replace(/[\t ]+$/gm, function (spaces) {
                 return spaces.replace(/ /g, '=20').replace(/\t/g, '=09');
             });
 
@@ -185,13 +175,13 @@
          * @param {String} [fromCharset='UTF-8'] Original charset of the string
          * @return {String} Mime decoded string
          */
-        quotedPrintableDecode: function(str, fromCharset) {
+        quotedPrintableDecode: function (str, fromCharset) {
             str = (str || '').toString();
 
             str = str.
-                // remove invalid whitespace from the end of lines
+            // remove invalid whitespace from the end of lines
             replace(/[\t ]+$/gm, '').
-                // remove soft line breaks
+            // remove soft line breaks
             replace(/\=(?:\r?\n|$)/g, '');
 
             return mimefuncs.mimeDecode(str, fromCharset);
@@ -206,7 +196,7 @@
          * @param {String} [fromCharset='UTF-8'] Source sharacter set
          * @return {String} Single or several mime words joined together
          */
-        mimeWordEncode: function(data, mimeWordEncoding, maxLength, fromCharset) {
+        mimeWordEncode: function (data, mimeWordEncoding, maxLength, fromCharset) {
             mimeWordEncoding = (mimeWordEncoding || 'Q').toString().toUpperCase().trim().charAt(0);
 
             if (!fromCharset && typeof maxLength === 'string' && !maxLength.match(/^[0-9]+$/)) {
@@ -218,15 +208,17 @@
 
             var encodedStr,
                 toCharset = 'UTF-8',
-                i, len, parts;
+                i,
+                len,
+                parts;
 
             if (maxLength && maxLength > 7 + toCharset.length) {
-                maxLength -= (7 + toCharset.length);
+                maxLength -= 7 + toCharset.length;
             }
 
             if (mimeWordEncoding === 'Q') {
                 encodedStr = mimefuncs.mimeEncode(data, fromCharset);
-                encodedStr = encodedStr.replace(/[\r\n\t_]/g, function(chr) {
+                encodedStr = encodedStr.replace(/[\r\n\t_]/g, function (chr) {
                     var code = chr.charCodeAt(0);
                     return '=' + (code < 0x10 ? '0' : '') + code.toString(16).toUpperCase();
                 }).replace(/\s/g, '_');
@@ -268,7 +260,7 @@
          * @param {String} [fromCharset='UTF-8'] Source sharacter set
          * @return {String} String with possible mime words
          */
-        mimeWordsEncode: function(data, mimeWordEncoding, maxLength, fromCharset) {
+        mimeWordsEncode: function (data, mimeWordEncoding, maxLength, fromCharset) {
             if (!fromCharset && typeof maxLength === 'string' && !maxLength.match(/^[0-9]+$/)) {
                 fromCharset = maxLength;
                 maxLength = undefined;
@@ -276,10 +268,10 @@
 
             maxLength = maxLength || 0;
 
-            var decodedValue = mimefuncs.charset.decode(mimefuncs.charset.convert((data || ''), fromCharset)),
+            var decodedValue = mimefuncs.charset.decode(mimefuncs.charset.convert(data || '', fromCharset)),
                 encodedValue;
 
-            encodedValue = decodedValue.replace(/([^\s\u0080-\uFFFF]*[\u0080-\uFFFF]+[^\s\u0080-\uFFFF]*(?:\s+[^\s\u0080-\uFFFF]*[\u0080-\uFFFF]+[^\s\u0080-\uFFFF]*\s*)?)+/g, function(match) {
+            encodedValue = decodedValue.replace(/([^\s\u0080-\uFFFF]*[\u0080-\uFFFF]+[^\s\u0080-\uFFFF]*(?:\s+[^\s\u0080-\uFFFF]*[\u0080-\uFFFF]+[^\s\u0080-\uFFFF]*\s*)?)+/g, function (match) {
                 return match.length ? mimefuncs.mimeWordEncode(match, mimeWordEncoding || 'Q', maxLength) : '';
             });
 
@@ -292,7 +284,7 @@
          * @param {String} str Mime word encoded string
          * @return {String} Decoded unicode string
          */
-        mimeWordDecode: function(str) {
+        mimeWordDecode: function (str) {
             str = (str || '').toString().trim();
 
             var fromCharset, encoding, match;
@@ -317,7 +309,6 @@
             } else {
                 return str;
             }
-
         },
 
         /**
@@ -326,11 +317,9 @@
          * @param {String} str String including some mime words that will be encoded
          * @return {String} Decoded unicode string
          */
-        mimeWordsDecode: function(str) {
+        mimeWordsDecode: function (str) {
             str = (str || '').toString();
-            str = str.
-            replace(/(=\?[^?]+\?[QqBb]\?[^?]+\?=)\s+(?==\?[^?]+\?[QqBb]\?[^?]+\?=)/g, '$1').
-            replace(/\=\?([\w_\-\*]+)\?([QqBb])\?[^\?]+\?\=/g, function(mimeWord) {
+            str = str.replace(/(=\?[^?]+\?[QqBb]\?[^?]+\?=)\s+(?==\?[^?]+\?[QqBb]\?[^?]+\?=)/g, '$1').replace(/\=\?([\w_\-\*]+)\?([QqBb])\?[^\?]+\?\=/g, function (mimeWord) {
                 return mimefuncs.mimeWordDecode(mimeWord);
             });
 
@@ -346,14 +335,15 @@
          * @param {Boolean} afterSpace If true, leave a space in th end of a line
          * @return {String} String with folded lines
          */
-        foldLines: function(str, lineLengthMax, afterSpace) {
+        foldLines: function (str, lineLengthMax, afterSpace) {
             str = (str || '').toString();
             lineLengthMax = lineLengthMax || 76;
 
             var pos = 0,
                 len = str.length,
                 result = '',
-                line, match;
+                line,
+                match;
 
             while (pos < len) {
                 line = str.substr(pos, lineLengthMax);
@@ -361,14 +351,14 @@
                     result += line;
                     break;
                 }
-                if ((match = line.match(/^[^\n\r]*(\r?\n|\r)/))) {
+                if (match = line.match(/^[^\n\r]*(\r?\n|\r)/)) {
                     line = match[0];
                     result += line;
                     pos += line.length;
                     continue;
                 } else if ((match = line.match(/(\s+)[^\s]*$/)) && match[0].length - (afterSpace ? (match[1] || '').length : 0) < line.length) {
                     line = line.substr(0, line.length - (match[0].length - (afterSpace ? (match[1] || '').length : 0)));
-                } else if ((match = str.substr(pos + line.length).match(/^[^\s]+(\s*)/))) {
+                } else if (match = str.substr(pos + line.length).match(/^[^\s]+(\s*)/)) {
                     line = line + match[0].substr(0, match[0].length - (!afterSpace ? (match[1] || '').length : 0));
                 }
 
@@ -391,7 +381,7 @@
          * @param {String} [fromCharset='UTF-8'] Character set of the value
          * @return {String} encoded and folded header line
          */
-        headerLineEncode: function(key, value, fromCharset) {
+        headerLineEncode: function (key, value, fromCharset) {
             var encodedValue = mimefuncs.mimeWordsEncode(value, 'Q', 52, fromCharset);
             return mimefuncs.foldLines(key + ': ' + encodedValue, 76);
         },
@@ -404,7 +394,7 @@
          * @param {String} headerLine Single header line, might include linebreaks as well if folded
          * @return {Object} And object of {key, value}
          */
-        headerLineDecode: function(headerLine) {
+        headerLineDecode: function (headerLine) {
             var line = (headerLine || '').toString().replace(/(?:\r?\n|\r)[ \t]*/g, ' ').trim(),
                 match = line.match(/^\s*([^:]+):(.*)$/),
                 key = (match && match[1] || '').trim(),
@@ -423,12 +413,14 @@
          * @param {String} headers Headers string
          * @return {Object} An object of headers, where header keys are object keys. NB! Several values with the same key make up an Array
          */
-        headerLinesDecode: function(headers) {
+        headerLinesDecode: function (headers) {
             var lines = headers.split(/\r?\n|\r/),
                 headersObj = {},
-                key, value,
+                key,
+                value,
                 header,
-                i, len;
+                i,
+                len;
 
             for (i = lines.length - 1; i >= 0; i--) {
                 if (i && lines[i].match(/^\s/)) {
@@ -458,7 +450,7 @@
          * @param {String} 'binary' string
          * @return {Uint8Array} Octet stream buffer
          */
-        toTypedArray: function(binaryString) {
+        toTypedArray: function (binaryString) {
             var buf = new Uint8Array(binaryString.length);
             for (var i = 0, len = binaryString.length; i < len; i++) {
                 buf[i] = binaryString.charCodeAt(i);
@@ -472,7 +464,7 @@
          * @param {Uint8Array} buf Octet stream buffer
          * @return {String} 'binary' string
          */
-        fromTypedArray: function(buf) {
+        fromTypedArray: function (buf) {
             var i, l;
 
             // ensure the value is a Uint8Array, not ArrayBuffer if used
@@ -503,11 +495,11 @@
          * @param {String} str Header value
          * @return {Object} Header value as a parsed structure
          */
-        parseHeaderValue: function(str) {
+        parseHeaderValue: function (str) {
             var response = {
-                    value: false,
-                    params: {}
-                },
+                value: false,
+                params: {}
+            },
                 key = false,
                 value = '',
                 type = 'value',
@@ -547,7 +539,6 @@
                         value += chr;
                     }
                     escaped = false;
-
                 }
             }
 
@@ -565,9 +556,9 @@
             // https://tools.ietf.org/html/rfc2231#section-3
 
             // preprocess values
-            Object.keys(response.params).forEach(function(key) {
+            Object.keys(response.params).forEach(function (key) {
                 var actualKey, nr, match, value;
-                if ((match = key.match(/(\*(\d+)|\*(\d+)\*|\*)$/))) {
+                if (match = key.match(/(\*(\d+)|\*(\d+)\*|\*)$/)) {
                     actualKey = key.substr(0, match.index);
                     nr = Number(match[2] || match[3]) || 0;
 
@@ -593,36 +584,32 @@
             });
 
             // concatenate split rfc2231 strings and convert encoded strings to mime encoded words
-            Object.keys(response.params).forEach(function(key) {
+            Object.keys(response.params).forEach((function (key) {
                 var value;
                 if (response.params[key] && Array.isArray(response.params[key].values)) {
-                    value = response.params[key].values.map(function(val) {
+                    value = response.params[key].values.map(function (val) {
                         return val || '';
                     }).join('');
 
                     if (response.params[key].charset) {
                         // convert "%AB" to "=?charset?Q?=AB?="
-                        response.params[key] = '=?' +
-                            response.params[key].charset +
-                            '?Q?' +
-                            value.
-                            // fix invalidly encoded chars
-                        replace(/[=\?_\s]/g, function(s) {
-                                var c = s.charCodeAt(0).toString(16);
-                                if (s === ' ') {
-                                    return '_';
-                                } else {
-                                    return '%' + (c.length < 2 ? '0' : '') + c;
-                                }
-                            }).
-                            // change from urlencoding to percent encoding
-                        replace(/%/g, '=') +
-                            '?=';
+                        response.params[key] = '=?' + response.params[key].charset + '?Q?' + value.
+                        // fix invalidly encoded chars
+                        replace(/[=\?_\s]/g, function (s) {
+                            var c = s.charCodeAt(0).toString(16);
+                            if (s === ' ') {
+                                return '_';
+                            } else {
+                                return '%' + (c.length < 2 ? '0' : '') + c;
+                            }
+                        }).
+                        // change from urlencoding to percent encoding
+                        replace(/%/g, '=') + '?=';
                     } else {
                         response.params[key] = value;
                     }
                 }
-            }.bind(this));
+            }).bind(this));
 
             return response;
         },
@@ -642,7 +629,7 @@
          * @param {String} [fromCharset='UTF-8'] Source sharacter set
          * @return {Array} A list of encoded keys and headers
          */
-        continuationEncode: function(key, data, maxLength, fromCharset) {
+        continuationEncode: function (key, data, maxLength, fromCharset) {
             var list = [];
             var encodedStr = typeof data === 'string' ? data : mimefuncs.decode(data, fromCharset);
             var chr;
@@ -663,7 +650,7 @@
                     }];
                 }
 
-                encodedStr = encodedStr.replace(new RegExp('.{' + maxLength + '}', 'g'), function(str) {
+                encodedStr = encodedStr.replace(new RegExp('.{' + maxLength + '}', 'g'), function (str) {
                     list.push({
                         line: str
                     });
@@ -675,7 +662,6 @@
                         line: encodedStr
                     });
                 }
-
             } else {
 
                 // first line includes the charset and language info and needs to be encoded
@@ -742,7 +728,7 @@
                 }
             }
 
-            return list.map(function(item, i) {
+            return list.map(function (item, i) {
                 return {
                     // encoded lines: {name}*{part}*
                     // unencoded lines: {name}*{part}
@@ -760,8 +746,11 @@
          * @param {Number} maxlen Maximum length of characters for one part (minimum 12)
          * @return {Array} Split string
          */
-        _splitMimeEncodedString: function(str, maxlen) {
-            var curLine, match, chr, done,
+        _splitMimeEncodedString: function (str, maxlen) {
+            var curLine,
+                match,
+                chr,
+                done,
                 lines = [];
 
             // require at least 12 symbols to fit possible 4 octet UTF-8 sequences
@@ -771,7 +760,7 @@
                 curLine = str.substr(0, maxlen);
 
                 // move incomplete escaped char back to main
-                if ((match = curLine.match(/\=[0-9A-F]?$/i))) {
+                if (match = curLine.match(/\=[0-9A-F]?$/i)) {
                     curLine = curLine.substr(0, match.index);
                 }
 
@@ -779,7 +768,7 @@
                 while (!done) {
                     done = true;
                     // check if not middle of a unicode char sequence
-                    if ((match = str.substr(curLine.length).match(/^\=([0-9A-F]{2})/i))) {
+                    if (match = str.substr(curLine.length).match(/^\=([0-9A-F]{2})/i)) {
                         chr = parseInt(match[1], 16);
                         // invalid sequence, move one char back anc recheck
                         if (chr < 0xC2 && chr > 0x7F) {
@@ -809,7 +798,7 @@
          * @param {String} encoding Either "qp" or "base64" (the default)
          * @return {String} String with forced line breaks
          */
-        _addSoftLinebreaks: function(str, encoding) {
+        _addSoftLinebreaks: function (str, encoding) {
             var lineLengthMax = 76;
 
             encoding = (encoding || 'base64').toString().toLowerCase().trim();
@@ -829,7 +818,7 @@
          * @param {Number} lineLengthMax Maximum length of a line
          * @return {String} String with forced line breaks
          */
-        _addBase64SoftLinebreaks: function(base64EncodedStr, lineLengthMax) {
+        _addBase64SoftLinebreaks: function (base64EncodedStr, lineLengthMax) {
             base64EncodedStr = (base64EncodedStr || '').toString().trim();
             return base64EncodedStr.replace(new RegExp('.{' + lineLengthMax + '}', 'g'), '$&\r\n').trim();
         },
@@ -841,21 +830,23 @@
          * @param {Number} lineLengthMax Maximum length of a line
          * @return {String} String with forced line breaks
          */
-        _addQPSoftLinebreaks: function(qpEncodedStr, lineLengthMax) {
+        _addQPSoftLinebreaks: function (qpEncodedStr, lineLengthMax) {
             qpEncodedStr = (qpEncodedStr || '').toString();
 
             lineLengthMax = lineLengthMax || 76;
 
             var pos = 0,
                 len = qpEncodedStr.length,
-                match, code, line,
+                match,
+                code,
+                line,
                 lineMargin = Math.floor(lineLengthMax / 3),
                 result = '';
 
             // insert soft linebreaks where needed
             while (pos < len) {
                 line = qpEncodedStr.substr(pos, lineLengthMax);
-                if ((match = line.match(/\r\n/))) {
+                if (match = line.match(/\r\n/)) {
                     line = line.substr(0, match.index + match[0].length);
                     result += line;
                     pos += line.length;
@@ -867,7 +858,7 @@
                     result += line;
                     pos += line.length;
                     continue;
-                } else if ((match = line.substr(-lineMargin).match(/\n.*?$/))) {
+                } else if (match = line.substr(-lineMargin).match(/\n.*?$/)) {
                     // truncate to nearest line break
                     line = line.substr(0, line.length - (match[0].length - 1));
                     result += line;
@@ -882,7 +873,7 @@
                     if (line.match(/\=[\da-f]{0,2}$/i)) {
 
                         // push incomplete encoding sequences to the next line
-                        if ((match = line.match(/\=[\da-f]{0,1}$/i))) {
+                        if (match = line.match(/\=[\da-f]{0,1}$/i)) {
                             line = line.substr(0, line.length - match[0].length);
                         }
 
@@ -899,7 +890,6 @@
                                 break;
                             }
                         }
-
                     }
                 }
 
@@ -928,7 +918,7 @@
          * @ranges {Array} ranges Array of range duples
          * @return {Boolean} Returns true, if nr was found to be at least one of the specified ranges
          */
-        _checkRanges: function(nr, ranges) {
+        _checkRanges: function (nr, ranges) {
             for (var i = ranges.length - 1; i >= 0; i--) {
                 if (!ranges[i].length) {
                     continue;
@@ -958,7 +948,7 @@
          * @param {String} str String to be encoded
          * @return {Uint8Array} UTF-8 encoded typed array
          */
-        encode: function(str) {
+        encode: function (str) {
             return new TextEncoder('UTF-8').encode(str);
         },
 
@@ -969,7 +959,7 @@
          * @param {String} [fromCharset='UTF-8'] Binary data is decoded into string using this charset
          * @return {String} Decded string
          */
-        decode: function(buf, fromCharset) {
+        decode: function (buf, fromCharset) {
             fromCharset = mimefuncs.charset.normalizeCharset(fromCharset || 'UTF-8');
 
             // ensure the value is a Uint8Array, not ArrayBuffer if used
@@ -993,7 +983,6 @@
                     }
                 }
             }
-
         },
 
         /**
@@ -1003,7 +992,7 @@
          * @param {String} [fromCharset='UTF-8'] Source encoding for the string
          * @return {Uint8Array} UTF-8 encoded typed array
          */
-        convert: function(data, fromCharset) {
+        convert: function (data, fromCharset) {
             fromCharset = mimefuncs.charset.normalizeCharset(fromCharset || 'UTF-8');
 
             var bufString;
@@ -1025,18 +1014,18 @@
          * @param {String} charset Charset name to convert
          * @return {String} Canoninicalized charset name
          */
-        normalizeCharset: function(charset) {
+        normalizeCharset: function (charset) {
             var match;
 
-            if ((match = charset.match(/^utf[\-_]?(\d+)$/i))) {
+            if (match = charset.match(/^utf[\-_]?(\d+)$/i)) {
                 return 'UTF-' + match[1];
             }
 
-            if ((match = charset.match(/^win[\-_]?(\d+)$/i))) {
+            if (match = charset.match(/^win[\-_]?(\d+)$/i)) {
                 return 'WINDOWS-' + match[1];
             }
 
-            if ((match = charset.match(/^latin[\-_]?(\d+)$/i))) {
+            if (match = charset.match(/^latin[\-_]?(\d+)$/i)) {
                 return 'ISO-8859-' + match[1];
             }
 
@@ -1055,7 +1044,7 @@
          * @param {String|Uint8Array} data Data to be encoded into base64
          * @return {String} Base64 encoded string
          */
-        encode: function(data) {
+        encode: function (data) {
             if (!data) {
                 return '';
             }
@@ -1087,7 +1076,7 @@
          * @param {String} [outputEncoding='buffer'] Output encoding, either 'string' or 'buffer' (Uint8Array)
          * @return {String|Uint8Array} Decoded string
          */
-        decode: function(data, outputEncoding) {
+        decode: function (data, outputEncoding) {
             outputEncoding = (outputEncoding || 'buffer').toLowerCase().trim();
 
             var buf = mimefuncs.base64.toTypedArray(data);
@@ -1109,7 +1098,7 @@
          * @param {String} base64Str Base64 encoded string
          * @returns {Uint8Array} Decoded binary blob
          */
-        toTypedArray: function(base64Str) {
+        toTypedArray: function (base64Str) {
             var bitsSoFar = 0;
             var validBits = 0;
             var iOut = 0;
@@ -1119,24 +1108,30 @@
 
             for (var i = 0, len = base64Str.length; i < len; i++) {
                 c = base64Str.charCodeAt(i);
-                if (c >= 0x41 && c <= 0x5a) { // [A-Z]
+                if (c >= 0x41 && c <= 0x5a) {
+                    // [A-Z]
                     bits = c - 0x41;
-                } else if (c >= 0x61 && c <= 0x7a) { // [a-z]
+                } else if (c >= 0x61 && c <= 0x7a) {
+                    // [a-z]
                     bits = c - 0x61 + 0x1a;
-                } else if (c >= 0x30 && c <= 0x39) { // [0-9]
+                } else if (c >= 0x30 && c <= 0x39) {
+                    // [0-9]
                     bits = c - 0x30 + 0x34;
-                } else if (c === 0x2b) { // +
+                } else if (c === 0x2b) {
+                    // +
                     bits = 0x3e;
-                } else if (c === 0x2f) { // /
+                } else if (c === 0x2f) {
+                    // /
                     bits = 0x3f;
-                } else if (c === 0x3d) { // =
+                } else if (c === 0x3d) {
+                    // =
                     validBits = 0;
                     continue;
                 } else {
                     // ignore all other characters!
                     continue;
                 }
-                bitsSoFar = (bitsSoFar << 6) | bits;
+                bitsSoFar = bitsSoFar << 6 | bits;
                 validBits += 6;
                 if (validBits >= 8) {
                     validBits -= 8;
@@ -1174,4 +1169,5 @@
     }
 
     return mimefuncs;
-}));
+});
+// THE SOFTWARE.

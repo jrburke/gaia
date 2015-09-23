@@ -1,69 +1,68 @@
-define(function(require) {
-'use strict';
+define(function (require) {
+  'use strict';
 
-let EntireListView = require('./entire_list_view');
-let MailAccount = require('./mail_account');
+  var EntireListView = require('./entire_list_view');
+  var MailAccount = require('./mail_account');
 
-function AccountsViewSlice(api, handle, opts) {
-  EntireListView.call(this, api, MailAccount, handle);
+  function AccountsViewSlice(api, handle, opts) {
+    EntireListView.call(this, api, MailAccount, handle);
 
-  this._autoViewFolders = opts && opts.autoViewFolders || false;
-}
-AccountsViewSlice.prototype = Object.create(EntireListView.prototype);
-
-/**
- * Return the account with the given ID, or null.
- */
-AccountsViewSlice.prototype.getAccountById = function(id) {
-  for (var i = 0; i < this.items.length; i++) {
-    if (this.items[i].id === id) {
-      return this.items[i];
-    }
+    this._autoViewFolders = opts && opts.autoViewFolders || false;
   }
-  return null;
-};
+  AccountsViewSlice.prototype = Object.create(EntireListView.prototype);
 
-/**
- * Return a promise that's resolved with the account with the given account id
- * when it shows up.  This used to also reject if the account failed to show up,
- * but it turned out that the emergent 'complete' semantics got rather complex
- * and, well, I'm copping out here.  Just don't ask for invalid account id's,
- * okay?
- * XXX generate unambiguous/correct rejections
- */
-AccountsViewSlice.prototype.eventuallyGetAccountById = function(id) {
-  return new Promise((resolve, reject) => {
-    var account = this.getAccountById(id);
-    if (account) {
-      resolve(account);
-      return;
+  /**
+   * Return the account with the given ID, or null.
+   */
+  AccountsViewSlice.prototype.getAccountById = function (id) {
+    for (var i = 0; i < this.items.length; i++) {
+      if (this.items[i].id === id) {
+        return this.items[i];
+      }
     }
+    return null;
+  };
 
-    let addListener = (account) => {
-      if (account.id === id) {
-        this.removeListener('add', addListener);
+  /**
+   * Return a promise that's resolved with the account with the given account id
+   * when it shows up.  This used to also reject if the account failed to show up,
+   * but it turned out that the emergent 'complete' semantics got rather complex
+   * and, well, I'm copping out here.  Just don't ask for invalid account id's,
+   * okay?
+   * XXX generate unambiguous/correct rejections
+   */
+  AccountsViewSlice.prototype.eventuallyGetAccountById = function (id) {
+    return new Promise((resolve, reject) => {
+      var account = this.getAccountById(id);
+      if (account) {
         resolve(account);
+        return;
       }
-    };
-    this.on('add', addListener);
-  });
-};
 
-Object.defineProperty(AccountsViewSlice.prototype, 'defaultAccount', {
-  get: function () {
-    var defaultAccount = this.items[0];
-    for (var i = 1; i < this.items.length; i++) {
-      // For UI upgrades, the defaultPriority may not be set, so default to
-      // zero for comparisons
-      if ((this.items[i]._wireRep.defaultPriority || 0) >
-          (defaultAccount._wireRep.defaultPriority || 0)) {
-        defaultAccount = this.items[i];
+      var addListener = account => {
+        if (account.id === id) {
+          this.removeListener('add', addListener);
+          resolve(account);
+        }
+      };
+      this.on('add', addListener);
+    });
+  };
+
+  Object.defineProperty(AccountsViewSlice.prototype, 'defaultAccount', {
+    get: function () {
+      var defaultAccount = this.items[0];
+      for (var i = 1; i < this.items.length; i++) {
+        // For UI upgrades, the defaultPriority may not be set, so default to
+        // zero for comparisons
+        if ((this.items[i]._wireRep.defaultPriority || 0) > (defaultAccount._wireRep.defaultPriority || 0)) {
+          defaultAccount = this.items[i];
+        }
       }
+
+      return defaultAccount;
     }
+  });
 
-    return defaultAccount;
-  }
-});
-
-return AccountsViewSlice;
+  return AccountsViewSlice;
 });

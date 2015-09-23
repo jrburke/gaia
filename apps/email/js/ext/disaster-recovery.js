@@ -1,4 +1,4 @@
-define(function(require) {
+define(function (require) {
   /**
    * DisasterRecovery: A universal error-handling helper. When
    * unexpected and unhandled exceptions occur in the world, do the
@@ -28,20 +28,20 @@ define(function(require) {
 
     // Monitor in-progress job operations in case we must abort.
 
-    setCurrentAccountOp: function(account, op, jobCompletedCallback) {
+    setCurrentAccountOp: function (account, op, jobCompletedCallback) {
       accountToOperationMap.set(account, {
         op: op,
         callback: jobCompletedCallback
       });
     },
 
-    clearCurrentAccountOp: function(account) {
+    clearCurrentAccountOp: function (account) {
       accountToOperationMap.delete(account);
     },
 
     // Track which account maps to each socket.
 
-    associateSocketWithAccount: function(socket, account) {
+    associateSocketWithAccount: function (socket, account) {
       socketToAccountMap.set(socket, account);
     },
 
@@ -49,10 +49,10 @@ define(function(require) {
      * Wrap calls to external socket handlers in this function; if
      * they throw an exception, we'll try to mitigate it.
      */
-    catchSocketExceptions: function(socket, fn) {
+    catchSocketExceptions: function (socket, fn) {
       try {
         fn();
-      } catch(e) {
+      } catch (e) {
         var account = socketToAccountMap.get(socket);
 
         // Attempt to close the socket so that we're less likely to
@@ -60,7 +60,7 @@ define(function(require) {
         // bogus data or barfing on further received data.
         try {
           socket.close();
-        } catch(socketEx) {
+        } catch (socketEx) {
           console.error('Error attempting to close socket:', socketEx);
         }
 
@@ -78,7 +78,7 @@ define(function(require) {
      * @param {Error} exception
      * @param {MailAccount|null} account
      */
-    handleDisastrousError: function(e, account) {
+    handleDisastrousError: function (e, account) {
       var op, jobDoneCallback;
       if (account) {
         var opInfo = accountToOperationMap.get(account);
@@ -97,10 +97,7 @@ define(function(require) {
         stack: e.stack
       });
 
-      console.error('*** Disastrous Error for email accountId',
-                    account && account.id,
-                    '-- attempting to recover...');
-
+      console.error('*** Disastrous Error for email accountId', account && account.id, '-- attempting to recover...');
 
       // See if we can recover in any way.
       if (account) {

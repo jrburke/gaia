@@ -1,4 +1,4 @@
-define(function(require) {
+define(function (require) {
   'use strict';
 
   const logic = require('logic');
@@ -39,10 +39,10 @@ define(function(require) {
     // the methods on this class) ensures that folks can ignore the
     // ugly asynchronous parts and not worry about when things happen
     // under the hood.
-    this._readyPromise = Promise.all(opts.locks.map((type) => {
+    this._readyPromise = Promise.all(opts.locks.map(type => {
       logic(this, 'requestLock', { type, durationMs: this.timeoutMs });
-      return new Promise((resolve) => {
-        sendMessage('requestWakeLock', [type], (lockId) => {
+      return new Promise(resolve => {
+        sendMessage('requestWakeLock', [type], lockId => {
           logic(this, 'locked', { type });
           locks[type] = lockId;
           resolve();
@@ -62,7 +62,7 @@ define(function(require) {
      * Renew the timeout, if you're certain that you still need to hold
      * the locks longer.
      */
-    renew: function(/* optional */ reason) {
+    renew: function ( /* optional */reason) {
       // Wait until we've successfully acquired the wakelocks, then...
       return this._readyPromise.then(() => {
         // If we've already set a timeout, we'll clear that first.
@@ -70,13 +70,11 @@ define(function(require) {
         // and don't need to clear or log anything.)
         if (this._timeout) {
           clearTimeout(this._timeout);
-          logic(this, 'renew',
-                {
-                  reason,
-                  renewDurationMs: this.timeoutMs,
-                  durationLeftMs: (this.timeoutMs -
-                               (Date.now() - this._timeLastRenewed))
-                });
+          logic(this, 'renew', {
+            reason,
+            renewDurationMs: this.timeoutMs,
+            durationLeftMs: this.timeoutMs - (Date.now() - this._timeLastRenewed)
+          });
         }
 
         this._timeLastRenewed = Date.now(); // Solely for debugging.
@@ -93,7 +91,7 @@ define(function(require) {
      * scenes; if you want to block on completion, hook onto the
      * Promise returned from this function.
      */
-    unlock: function(/* optional */ reason) {
+    unlock: function ( /* optional */reason) {
       // Make sure weve been locked before we try to unlock. Also,
       // return the promise, throughout the chain of calls here, so
       // that listeners can listen for completion if they need to.
@@ -104,21 +102,21 @@ define(function(require) {
         this._timeout = null;
 
         // Wait for all of them to successfully unlock.
-        return Promise.all(Object.keys(locks).map((type) => {
-          return new Promise((resolve) => {
+        return Promise.all(Object.keys(locks).map(type => {
+          return new Promise(resolve => {
             sendMessage('unlock', [locks[type]], () => {
               resolve(type);
             });
           });
-        })).then((type) => {
+        })).then(type => {
           logic(this, 'unlocked', { type, reason });
         });
       });
     },
 
-    toString: function() {
+    toString: function () {
       return Object.keys(this.locks).join('+') || '(no locks)';
-    },
+    }
   };
 
   return {

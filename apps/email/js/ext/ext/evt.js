@@ -14,7 +14,7 @@
  *   event emitter.
  * - Uses "this" internally, so always call object with the emitter args.
  */
-//
+
 (function (root, factory) {
   'use strict';
   if (typeof define === 'function' && define.amd) {
@@ -24,12 +24,11 @@
   } else {
     root.evt = factory();
   }
-}(this, function () {
+})(this, function () {
   'use strict';
   var evt,
       slice = Array.prototype.slice,
-      props = ['_events', '_pendingEvents', 'on', 'once', 'latest',
-               'latestOnce', 'removeListener', 'emitWhenListener', 'emit'];
+      props = ['_events', '_pendingEvents', 'on', 'once', 'latest', 'latestOnce', 'removeListener', 'emitWhenListener', 'emit'];
 
   function Emitter() {
     this._events = {};
@@ -37,7 +36,7 @@
   }
 
   Emitter.prototype = {
-    on: function(id, fn) {
+    on: function (id, fn) {
       var listeners = this._events[id],
           pending = this._pendingEvents[id];
       if (!listeners) {
@@ -46,7 +45,7 @@
       listeners.push(fn);
 
       if (pending) {
-        pending.forEach(function(args) {
+        pending.forEach(function (args) {
           fn.apply(null, args);
         });
         delete this._pendingEvents[id];
@@ -54,7 +53,7 @@
       return this;
     },
 
-    once: function(id, fn) {
+    once: function (id, fn) {
       var self = this,
           fired = false;
       function one() {
@@ -66,7 +65,7 @@
         // Remove at a further turn so that the event
         // forEach in emit does not get modified during
         // this turn.
-        setTimeout(function() {
+        setTimeout(function () {
           self.removeListener(id, one);
         });
       }
@@ -85,7 +84,7 @@
      * @param  {String}   id property name.
      * @param  {Function} fn listener.
      */
-    latest: function(id, fn) {
+    latest: function (id, fn) {
       if (this[id] && !this._pendingEvents[id]) {
         fn(this[id]);
       }
@@ -97,7 +96,7 @@
      * @param  {String}   id property name.
      * @param  {Function} fn listener.
      */
-    latestOnce: function(id, fn) {
+    latestOnce: function (id, fn) {
       if (this[id] && !this._pendingEvents[id]) {
         fn(this[id]);
       } else {
@@ -105,7 +104,7 @@
       }
     },
 
-    removeListener: function(id, fn) {
+    removeListener: function (id, fn) {
       var i,
           listeners = this._events[id];
       if (listeners) {
@@ -125,7 +124,7 @@
      * args after first one are passed to listeners.
      * @param  {String} id event ID.
      */
-    emitWhenListener: function(id) {
+    emitWhenListener: function (id) {
       var listeners = this._events[id];
       if (listeners) {
         this.emit.apply(this, arguments);
@@ -137,7 +136,7 @@
       }
     },
 
-    emit: function(id) {
+    emit: function (id) {
       var args = slice.call(arguments, 1),
           listeners = this._events[id];
 
@@ -156,7 +155,8 @@
             // valued more in this tradeoff.
             // This also means we do not need to .catch()
             // for the wrapping promise.
-            setTimeout(function() {
+            setTimeout(function () {
+              console.error('evt eating error:', e, e.stack);
               throw e;
             });
           }
@@ -174,9 +174,9 @@
   evt = new Emitter();
   evt.Emitter = Emitter;
 
-  evt.mix = function(obj) {
+  evt.mix = function (obj) {
     var e = new Emitter();
-    props.forEach(function(prop) {
+    props.forEach(function (prop) {
       if (obj.hasOwnProperty(prop)) {
         throw new Error('Object already has a property "' + prop + '"');
       }
@@ -186,4 +186,5 @@
   };
 
   return evt;
-}));
+});
+//

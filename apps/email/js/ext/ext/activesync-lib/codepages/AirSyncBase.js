@@ -14,61 +14,56 @@
  */
 
 (function (root, factory) {
-  if (typeof exports === 'object')
-    module.exports = factory();
-  else if (typeof define === 'function' && define.amd)
-    define([], factory);
-  else
-    root.ASCPAirSyncBase = factory();
-}(this, function() {
+  if (typeof exports === 'object') module.exports = factory();else if (typeof define === 'function' && define.amd) define([], factory);else root.ASCPAirSyncBase = factory();
+})(this, function () {
   'use strict';
 
   return {
     Tags: {
-      BodyPreference:     0x1105,
-      Type:               0x1106,
-      TruncationSize:     0x1107,
-      AllOrNone:          0x1108,
-      Reserved:           0x1109,
-      Body:               0x110A,
-      Data:               0x110B,
-      EstimatedDataSize:  0x110C,
-      Truncated:          0x110D,
-      Attachments:        0x110E,
-      Attachment:         0x110F,
-      DisplayName:        0x1110,
-      FileReference:      0x1111,
-      Method:             0x1112,
-      ContentId:          0x1113,
-      ContentLocation:    0x1114,
-      IsInline:           0x1115,
-      NativeBodyType:     0x1116,
-      ContentType:        0x1117,
-      Preview:            0x1118,
+      BodyPreference: 0x1105,
+      Type: 0x1106,
+      TruncationSize: 0x1107,
+      AllOrNone: 0x1108,
+      Reserved: 0x1109,
+      Body: 0x110A,
+      Data: 0x110B,
+      EstimatedDataSize: 0x110C,
+      Truncated: 0x110D,
+      Attachments: 0x110E,
+      Attachment: 0x110F,
+      DisplayName: 0x1110,
+      FileReference: 0x1111,
+      Method: 0x1112,
+      ContentId: 0x1113,
+      ContentLocation: 0x1114,
+      IsInline: 0x1115,
+      NativeBodyType: 0x1116,
+      ContentType: 0x1117,
+      Preview: 0x1118,
       BodyPartPreference: 0x1119,
-      BodyPart:           0x111A,
-      Status:             0x111B,
+      BodyPart: 0x111A,
+      Status: 0x111B
     },
     Enums: {
       Type: {
         PlainText: '1',
-        HTML:      '2',
-        RTF:       '3',
-        MIME:      '4',
+        HTML: '2',
+        RTF: '3',
+        MIME: '4'
       },
       Method: {
-        Normal:          '1',
+        Normal: '1',
         EmbeddedMessage: '5',
-        AttachOLE:       '6',
+        AttachOLE: '6'
       },
       NativeBodyType: {
         PlainText: '1',
-        HTML:      '2',
-        RTF:       '3',
+        HTML: '2',
+        RTF: '3'
       },
       Status: {
-        Success: '1',
+        Success: '1'
       }
     }
   };
-}));
+});
