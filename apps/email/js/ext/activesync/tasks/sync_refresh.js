@@ -1,80 +1,101 @@
-define(function(require) {
-'use strict';
+define(function (require) {
+  'use strict';
 
-const co = require('co');
-const evt = require('evt');
-const logic = require('logic');
+  const co = require('co');
+  const evt = require('evt');
+  const logic = require('logic');
 
-const TaskDefiner = require('../../task_definer');
+  const TaskDefiner = require('../../task_infra/task_definer');
 
-const FolderSyncStateHelper = require('../folder_sync_state_helper');
+  const { shallowClone } = require('../../util');
 
-const getFolderSyncKey = require('../smotocol/get_folder_sync_key');
-const inferFilterType = require('../smotocol/infer_filter_type');
-const enumerateFolderChanges = require('../smotocol/enum_folder_changes');
+  const FolderSyncStateHelper = require('../folder_sync_state_helper');
 
-const { convIdFromMessageId, messageIdComponentFromUmid } =
-  require('../../id_conversions');
+  const getFolderSyncKey = require('../smotocol/get_folder_sync_key');
+  const inferFilterType = require('../smotocol/infer_filter_type');
+  const enumerateFolderChanges = require('../smotocol/enum_folder_changes');
 
-const churnConversation = require('../../churn_drivers/conv_churn_driver');
+  const { convIdFromMessageId, messageIdComponentFromUmid } = require('../../id_conversions');
 
-const { SYNC_WHOLE_FOLDER_AT_N_MESSAGES } = require('../../syncbase');
+  const churnConversation = require('../../churn_drivers/conv_churn_driver');
 
+  const { SYNC_WHOLE_FOLDER_AT_N_MESSAGES } = require('../../syncbase');
 
-/**
- * This is the steady-state sync task that drives all of our gmail sync.
- */
-return TaskDefiner.defineSimpleTask([
-  {
+  /**
+   * Sync a folder for the first time and steady-state.  (Compare with our IMAP
+   * implementations that have special "sync_grow" tasks.)
+   */
+  return TaskDefiner.defineSimpleTask([{
     name: 'sync_refresh',
     args: ['accountId', 'folderId'],
 
-    exclusiveResources: function(args) {
-      return [
-        `sync:${args.folderId}`
-      ];
-    },
+    /**
+     * In our planning phase we discard nonsensical requests to refresh
+     * local-only folders.
+     *
+     * note: This is almost verbatim from the vanilla sync_refresh
+     * implementation right now, except for s/serverPath/serverId.  We're on the
+     * line right now between whether reuse would be better; keep it in mind as
+     * things change.
+     */
+    plan: co.wrap(function* (ctx, rawTask) {
+      // Get the folder
+      var foldersTOC = yield ctx.universe.acquireAccountFoldersTOC(ctx, ctx.accountId);
+      var folderInfo = foldersTOC.foldersById.get(rawTask.folderId);
 
-    priorityTags: function(args) {
-      return [
-        `view:folder:${args.folderId}`
-      ];
-    },
+      // - Only plan if the folder is real AKA it has a serverId.
+      // (We could also look at its type.  Or have additional explicit state.
+      // Checking the path is fine and likely future-proof.  The only real new
+      // edge case we would expect is offline folder creation.  But in that
+      // case we still wouldn't want refreshes triggered before we've created
+      // the folder and populated it.)
+      var plannedTask = undefined;
+      if (!folderInfo.serverId) {
+        plannedTask = null;
+      } else {
+        plannedTask = shallowClone(rawTask);
+        plannedTask.exclusiveResources = [`sync:${ rawTask.folderId }`];
+        plannedTask.priorityTags = [`view:folder:${ rawTask.folderId }`];
+      }
 
-    execute: co.wrap(function*(ctx, req) {
+      yield ctx.finishTask({
+        taskState: plannedTask
+      });
+    }),
+
+    execute: co.wrap(function* (ctx, req) {
       // -- Exclusively acquire the sync state for the folder
-      let fromDb = yield ctx.beginMutate({
+      var fromDb = yield ctx.beginMutate({
         syncStates: new Map([[req.folderId, null]])
       });
 
-      let rawSyncState = fromDb.syncStates.get(req.folderId);
-      let syncState = new FolderSyncStateHelper(
-        ctx, rawSyncState, req.accountId, req.folderId, 'refresh');
+      var rawSyncState = fromDb.syncStates.get(req.folderId);
+      var syncState = new FolderSyncStateHelper(ctx, rawSyncState, req.accountId, req.folderId, 'refresh');
 
-      let account = yield ctx.universe.acquireAccount(ctx, req.accountId);
-      let conn = yield account.ensureConnection();
+      var account = yield ctx.universe.acquireAccount(ctx, req.accountId);
+      var conn = yield account.ensureConnection();
 
-      let folderInfo = account.getFolderById(req.folderId);
+      var folderInfo = account.getFolderById(req.folderId);
 
       // -- Construct an emitter with our processing logic
-      let emitter = new evt.Emitter();
-      let newConversations = [];
-      let newMessages = [];
+      var emitter = new evt.Emitter();
+      var newConversations = [];
+      var newMessages = [];
 
       // The id issuing logic is a fundamental part of the 'add'ed message
       // processing.
-      let issueIds = () => {
-        let umid = syncState.issueUniqueMessageId();
-        let convId = req.accountId + '.' + messageIdComponentFromUmid(umid);
-        let messageId = convId + '.' + messageIdComponentFromUmid(umid);
+      var issueIds = () => {
+        var umid = syncState.issueUniqueMessageId();
+        var convId = req.accountId + '.' + messageIdComponentFromUmid(umid);
+        var messageId = convId + '.' + messageIdComponentFromUmid(umid);
         return { messageId, umid, folderId: req.folderId };
       };
       emitter.on('add', (serverMessageId, message) => {
         syncState.newMessage(serverMessageId, message);
 
-        let convId = convIdFromMessageId(message.id);
+        var convId = convIdFromMessageId(message.id);
         newMessages.push(message);
-        let convInfo = churnConversation(convId, null, [message]);
+        var convInfo = churnConversation(convId, null, [message]);
         newConversations.push(convInfo);
       });
 
@@ -82,7 +103,7 @@ return TaskDefiner.defineSimpleTask([
         syncState.messageChanged(serverMessageId, changes);
       });
 
-      emitter.on('remove', (serverMessageId) => {
+      emitter.on('remove', serverMessageId => {
         syncState.messageDeleted(serverMessageId);
       });
 
@@ -91,8 +112,8 @@ return TaskDefiner.defineSimpleTask([
       // It's possible for our syncKey to be invalid, in which case we'll need
       // to run the logic a second time (fetching a syncKey and re-enumerating)
       // so use a loop that errs on the side of not looping.
-      let syncKeyTriesAllowed = 1;
-      while(syncKeyTriesAllowed--) {
+      var syncKeyTriesAllowed = 1;
+      while (syncKeyTriesAllowed--) {
         // - Infer the filter type, if needed.
         // XXX allow the explicit account-level override for filter types.
         // For now we're just pretending auto, which is probably the best option
@@ -101,37 +122,30 @@ return TaskDefiner.defineSimpleTask([
         if (!syncState.filterType) {
           logic(ctx, 'inferringFilterType');
           // NB: manual destructing to shut up jslint.
-          let results = yield* inferFilterType(
-              conn,
-              {
-                folderServerId: folderInfo.serverId,
-                desiredMessageCount: SYNC_WHOLE_FOLDER_AT_N_MESSAGES
-              });
+          var results = yield* inferFilterType(conn, {
+            folderServerId: folderInfo.serverId,
+            desiredMessageCount: SYNC_WHOLE_FOLDER_AT_N_MESSAGES
+          });
           syncState.syncKey = results.syncKey;
           syncState.filterType = results.filterType;
         }
 
         // - Get a sync key if needed
         if (!syncState.syncKey || syncState.syncKey === '0') {
-          syncState.syncKey = (yield* getFolderSyncKey(
-            conn,
-            {
-              folderServerId: folderInfo.serverId,
-              filterType: syncState.filterType
-            })).syncKey;
+          syncState.syncKey = (yield* getFolderSyncKey(conn, {
+            folderServerId: folderInfo.serverId,
+            filterType: syncState.filterType
+          })).syncKey;
         }
 
         // - Try and sync
-        let { invalidSyncKey, syncKey, moreToSync } =
-          yield* enumerateFolderChanges(
-            conn,
-            {
-              folderSyncKey: syncState.syncKey,
-              folderServerId: folderInfo.serverId,
-              filterType: syncState.filterType,
-              issueIds,
-              emitter
-            });
+        var { invalidSyncKey, syncKey, moreToSync } = yield* enumerateFolderChanges(conn, {
+          folderSyncKey: syncState.syncKey,
+          folderServerId: folderInfo.serverId,
+          filterType: syncState.filterType,
+          issueIds,
+          emitter
+        });
 
         if (invalidSyncKey) {
           syncKeyTriesAllowed++;
@@ -166,6 +180,5 @@ return TaskDefiner.defineSimpleTask([
         }
       });
     })
-  }
-]);
+  }]);
 });

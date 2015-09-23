@@ -4,14 +4,8 @@
  * sustaining an account with.
  */
 
-define([
-  'browserbox',
-  'logic',
-  './client',
-  '../syncbase',
-  'exports'
-], function(BrowserBox, logic, imapclient, syncbase, exports) {
-'use strict';
+define(['browserbox', 'logic', './client', '../syncbase', 'exports'], function (BrowserBox, logic, imapclient, syncbase, exports) {
+  'use strict';
 
   /**
    * Log in to test credentials and determine sync engine to use, passing the
@@ -32,39 +26,33 @@ define([
    *   resolve => { conn, engine }
    *   reject => String (normalized)
    */
-  exports.probeAccount = function(credentials, connInfo) {
+  exports.probeAccount = function (credentials, connInfo) {
     var scope = logic.scope('ImapProber');
     logic(scope, 'connecting', { connInfo: connInfo });
 
     var conn;
-    return imapclient.createImapConnection(
-      credentials,
-      connInfo,
-      function onCredentialsUpdated() {
-        // Normally we shouldn't see a request to update credentials
-        // here, as the caller should have already passed a valid
-        // accessToken during account setup. This might indicate a
-        // problem with our OAUTH handling, so log it just in case.
-        logic(scope, 'credentials-updated');
+    return imapclient.createImapConnection(credentials, connInfo, function onCredentialsUpdated() {
+      // Normally we shouldn't see a request to update credentials
+      // here, as the caller should have already passed a valid
+      // accessToken during account setup. This might indicate a
+      // problem with our OAUTH handling, so log it just in case.
+      logic(scope, 'credentials-updated');
+    }).then(function (newConn) {
+      conn = newConn;
+      var engine = 'vanillaImap';
+      if (conn.capability.indexOf('X-GM-EXT-1') !== -1) {
+        engine = 'gmailImap';
       }
-    ).then(function(newConn) {
-        conn = newConn;
-        let engine = 'vanillaImap';
-        if (conn.capability.indexOf('X-GM-EXT-1') !== -1) {
-          engine = 'gmailImap';
-        }
-        logic(scope, 'success', { engine });
-        return { conn, engine };
-      })
-      .catch(function(err) {
-        // Normalize the error before passing it on.
-        err = imapclient.normalizeImapError(conn, err);
-        logic(scope, 'error', { error: err });
-        if (conn) {
-          conn.close();
-        }
-        throw err;
-      });
+      logic(scope, 'success', { engine });
+      return { conn, engine };
+    }).catch(function (err) {
+      // Normalize the error before passing it on.
+      err = imapclient.normalizeImapError(conn, err);
+      logic(scope, 'error', { error: err });
+      if (conn) {
+        conn.close();
+      }
+      throw err;
+    });
   };
-
 }); // end define

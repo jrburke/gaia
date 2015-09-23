@@ -90,41 +90,95 @@ function makeHackedUpSlice(storage, callback, parentLog) {
     newHeaders.push(header);
   };
 
-  proxy.sendStatus = function(status, requested, moreExpected,
-                              progress, newEmailCount) {
-    // (maintain normal behaviour)
-    oldStatusMethod.apply(this, arguments);
+  var SliceBridgeProxy = $sliceBridgeProxy.SliceBridgeProxy;
 
-    // We do not want to declare victory until the sync process has fully
-    // completed which (significantly!) includes waiting for the save to have
-    // completed.
-    // (Only fire completion once.)
-    if (callback) {
-      switch (status) {
-        // normal success and failure
-        case 'synced':
-        case 'syncfailed':
-        // ActiveSync specific edge-case where syncFolderList has not yet
-        // completed.  If the slice is still alive when syncFolderList completes
-        // the slice will auto-refresh itself.  We don't want or need this,
-        // which is fine since we kill the slice in the callback.
-        case 'syncblocked':
-          try {
-            callback(newHeaders);
-          }
-          catch (ex) {
-            console.error('cronsync callback error:', ex, '\n', ex.stack);
+  /**
+   * Create a specialized sync slice via clobbering that accumulates a list of
+   * new headers and invokes a callback when the sync has fully completed.
+   *
+   * Fully completed includes:
+   * - The account update has been fully saved to disk.
+   *
+   * New header semantics are:
+   * - Header is as new or newer than the newest header we previously knew about.
+   *   Specifically we're using SINCE which is >=, so a message that arrived at
+   *   the same second as the other message still counts as new.  Because the new
+   *   message will inherently have a higher id than the other message, this
+   *   meets with our other ordering semantics, although I'm thinking it wasn't
+   *   totally intentional.
+   * - Header is unread.  (AKA Not \Seen)
+   *
+   * "Clobbering" in this case means this is a little hacky.  What we do is:
+   * - Take a normal slice and hook it up to a normal SliceBridgeProxy, but
+   *   give the proxy a fake bridge that never sends any data anywhere.  This
+   *   is reasonably future-proof/safe.
+   *
+   * - Put an onNewHeader method on the slice to accumulate the new headers.
+   *   The new headers are all we care about.  The rest of the headers loaded/etc.
+   *   are boring to us and do not matter.  However, there's relatively little
+   *   memory or CPU overhead to letting that stuff get populated/retained since
+   *   it's in memory already anyways and at worst we're only delaying the GC by
+   *   a little bit.  (This is not to say there aren't pathological situations
+   *   possible, but they'd be largely the same if the user triggered the sync.
+   *   The main difference cronsync currently will definitely not shrink the
+   *   slice.
+   *
+   * - Clobber proy.sendStatus to know when the sync has completed via the
+   *   same signal the front-end uses to know when the sync is over.
+   *
+   * You as the caller need to:
+   * - Make sure to kill the slice in a timely fashion after we invoke the
+   *   callback.  Since killing the slice can result in the connection immediately
+   *   being closed, you want to make sure that if you're doing anything like
+   *   scheduling snippet downloads that you do that first.
+   */
+  function makeHackedUpSlice(storage, callback, parentLog) {
+    var fakeBridgeThatEatsStuff = {
+      __sendMessage: function () {}
+    },
+        proxy = new SliceBridgeProxy(fakeBridgeThatEatsStuff, 'cron'),
+        slice = new $mailslice.MailSlice(proxy, storage, parentLog),
+        oldStatusMethod = proxy.sendStatus,
+        newHeaders = [];
+
+    slice.onNewHeader = function (header) {
+      console.log('onNewHeader: ' + header);
+      newHeaders.push(header);
+    };
+
+    proxy.sendStatus = function (status, requested, moreExpected, progress, newEmailCount) {
+      // (maintain normal behaviour)
+      oldStatusMethod.apply(this, arguments);
+
+      // We do not want to declare victory until the sync process has fully
+      // completed which (significantly!) includes waiting for the save to have
+      // completed.
+      // (Only fire completion once.)
+      if (callback) {
+        switch (status) {
+          // normal success and failure
+          case 'synced':
+          case 'syncfailed':
+          // ActiveSync specific edge-case where syncFolderList has not yet
+          // completed.  If the slice is still alive when syncFolderList completes
+          // the slice will auto-refresh itself.  We don't want or need this,
+          // which is fine since we kill the slice in the callback.
+          case 'syncblocked':
+            try {
+              callback(newHeaders);
+            } catch (ex) {
+              console.error('cronsync callback error:', ex, '\n', ex.stack);
+              callback = null;
+              throw ex;
+            }
             callback = null;
-            throw ex;
-          }
-          callback = null;
-          break;
+            break;
+        }
       }
-    }
-  };
+    };
 
-  return slice;
-}
+    return slice;
+  }
 
 /**
  * The brains behind periodic account synchronization; only created by the
@@ -150,8 +204,7 @@ function CronSync(universe, _logParent) {
   });
   this.sendCronSync('hello');
 
-  this.ensureSync();
-}
+    this._LOG = LOGFAB.CronSync(this, null, _logParent);
 
 exports.CronSync = CronSync;
 CronSync.prototype = {
@@ -186,12 +239,13 @@ CronSync.prototype = {
 
       if (!syncData.hasOwnProperty(intervalKey)) {
         syncData[intervalKey] = [];
-      }
-      syncData[intervalKey].push(account.id);
-    });
 
-    this.sendCronSync('ensureSync', [syncData]);
-  },
+      }
+    }).bind(this));
+    this.sendCronSync('hello');
+
+    this.ensureSync();
+  }
 
   /**
    * Called from cronsync-main once ensureSync as set any alarms needed. Need to

@@ -46,168 +46,157 @@
  *  become obvious real quick.
  **/
 
-define(
-  [
-    'require',
-    'exports'
-  ],
-  function(
-    require,
-    exports
-  ) {
+define(['require', 'exports'], function (require, exports) {
 
-var baseUrl;
-// XXX previous requirejs web magic...
-if (false) {
-  baseUrl = require.s.contexts._.config.baseUrl;
-  if (baseUrl.length > 3 && baseUrl.substring(0, 3) === "../") {
-    var targUrl = document.location.origin + document.location.pathname;
-    // strip down to the parent directory (lose file or just trailing "/")
-    targUrl = targUrl.substring(0, targUrl.lastIndexOf("/"));
-    // eat the relative bits of the baseUrl
-    while (baseUrl.length >= 3 && baseUrl.substring(0, 3) === "../") {
+  var baseUrl;
+  // XXX previous requirejs web magic...
+  if (false) {
+    baseUrl = require.s.contexts._.config.baseUrl;
+    if (baseUrl.length > 3 && baseUrl.substring(0, 3) === "../") {
+      var targUrl = document.location.origin + document.location.pathname;
+      // strip down to the parent directory (lose file or just trailing "/")
       targUrl = targUrl.substring(0, targUrl.lastIndexOf("/"));
-      baseUrl = baseUrl.substring(3);
+      // eat the relative bits of the baseUrl
+      while (baseUrl.length >= 3 && baseUrl.substring(0, 3) === "../") {
+        targUrl = targUrl.substring(0, targUrl.lastIndexOf("/"));
+        baseUrl = baseUrl.substring(3);
+      }
+      baseUrl = targUrl + baseUrl + "/";
+      console.log("baseUrl", baseUrl);
     }
-    baseUrl = targUrl + baseUrl + "/";
-    console.log("baseUrl", baseUrl);
-  }
-}
-else {
-  // XXX ALMOND hack; don't even try and find node path where there is none
-  /*
-  require(['path'], function($path) {
-    baseUrl = $path.resolve('../..');
-  });
-  */
-}
-
-
-
-function uneval(x) {
-  return JSON.stringify(x);
-}
-
-function simplifyFilename(filename) {
-  if (!filename)
-    return filename;
-  // simple hack to eliminate jetpack ridiculousness where we have
-  //  "LONGPATH -> LONGPATH -> LONGPATH -> actualThing.js"
-  if (filename.length > 96) {
-    var lastSlash = filename.lastIndexOf('/');
-    if (lastSlash !== -1)
-      return filename.substring(lastSlash+1);
-  }
-  // can we reduce it?
-  if (baseUrl && filename.substring(0, baseUrl.length) === baseUrl) {
-    // we could take this a step further and do path analysis.
-    return filename.substring(baseUrl.length);
-  }
-  return filename;
-}
-
-// Thunk the stack format in v8
-Error.prepareStackTrace = function(e, frames) {
-  var o = [];
-  for (var i = 0; i < frames.length; i++) {
-    var frame = frames[i];
-    o.push({
-      filename: simplifyFilename(frame.getFileName()),
-      lineNo: frame.getLineNumber(),
-      funcName: frame.getFunctionName(),
+  } else {
+    // XXX ALMOND hack; don't even try and find node path where there is none
+    /*
+    require(['path'], function($path) {
+      baseUrl = $path.resolve('../..');
     });
+    */
   }
-  return o;
-};
-// raise the limit in case of super-nested require()s
-//Error.stackTraceLimit = 64;
 
-// XXX not sure if this even works since Error is not supposed to be
-//  configurable... provide a captureStackTrace method
-// nb: and obviously, in independent sandboxes, this does jack...
-if (!Error.captureStackTrace) {
-  Error.captureStackTrace = function(who, errType) {
-    try {
-      throw new Error();
+  function uneval(x) {
+    return JSON.stringify(x);
+  }
+
+  function simplifyFilename(filename) {
+    if (!filename) return filename;
+    // simple hack to eliminate jetpack ridiculousness where we have
+    //  "LONGPATH -> LONGPATH -> LONGPATH -> actualThing.js"
+    if (filename.length > 96) {
+      var lastSlash = filename.lastIndexOf('/');
+      if (lastSlash !== -1) return filename.substring(lastSlash + 1);
     }
-    catch(ex) {
-      var sframes = ex.stack.split("\n"), frames = who.stack = [], match;
+    // can we reduce it?
+    if (baseUrl && filename.substring(0, baseUrl.length) === baseUrl) {
+      // we could take this a step further and do path analysis.
+      return filename.substring(baseUrl.length);
+    }
+    return filename;
+  }
+
+  // Thunk the stack format in v8
+  Error.prepareStackTrace = function (e, frames) {
+    var o = [];
+    for (var i = 0; i < frames.length; i++) {
+      var frame = frames[i];
+      o.push({
+        filename: simplifyFilename(frame.getFileName()),
+        lineNo: frame.getLineNumber(),
+        funcName: frame.getFunctionName()
+      });
+    }
+    return o;
+  };
+  // raise the limit in case of super-nested require()s
+  //Error.stackTraceLimit = 64;
+
+  // XXX not sure if this even works since Error is not supposed to be
+  //  configurable... provide a captureStackTrace method
+  // nb: and obviously, in independent sandboxes, this does jack...
+  if (!Error.captureStackTrace) {
+    Error.captureStackTrace = function (who, errType) {
+      try {
+        throw new Error();
+      } catch (ex) {
+        var sframes = ex.stack.split("\n"),
+            frames = who.stack = [],
+            match;
+        for (var i = 0; i < sframes.length; i++) {
+          if (match = SM_STACK_FORMAT.exec(sframes[i])) {
+            frames.push({
+              filename: simplifyFilename(match[2]),
+              lineNo: match[3],
+              funcName: match[1]
+            });
+          }
+        }
+      }
+    };
+  }
+
+  exports.gimmeStack = function () {
+    var obj = {};
+    Error.captureStackTrace(obj);
+    // pop off captureStackTrace and us.
+    return obj.stack.slice(2);
+  };
+
+  var SM_STACK_FORMAT = /^(.*)@(.+):(\d+)$/;
+
+  // this is biased towards v8/chromium for now
+  /**
+   *
+   */
+  exports.transformException = function transformException(e) {
+    // it's conceivable someone
+    if (!(e instanceof Error) && (
+    // under jetpack, we are losing hard, probably because of the sandbox
+    //  issue where everybody gets their own fundamentals, so check for stack.
+    !e || typeof e !== "object" || !("stack" in e))) {
+      return {
+        n: "Object",
+        m: "" + e,
+        f: []
+      };
+    }
+
+    var stack = e.stack;
+    // evidence of v8 thunk?
+    if (Array.isArray(stack)) {
+      return {
+        n: e.name,
+        m: e.message,
+        f: stack
+      };
+    }
+
+    // handle the spidermonkey case, XXX maybe
+    var o = {
+      n: e.name,
+      m: e.message,
+      f: []
+    };
+    if (stack) {
+      var sframes = stack.split("\n"),
+          frames = o.f,
+          match;
       for (var i = 0; i < sframes.length; i++) {
-        if ((match = SM_STACK_FORMAT.exec(sframes[i]))) {
+        if (match = SM_STACK_FORMAT.exec(sframes[i])) {
           frames.push({
-                        filename: simplifyFilename(match[2]),
-                        lineNo: match[3],
-                        funcName: match[1],
-                      });
+            filename: simplifyFilename(match[2]),
+            lineNo: match[3],
+            funcName: match[1]
+          });
         }
       }
     }
-  };
-}
-
-exports.gimmeStack = function() {
-  var obj = {};
-  Error.captureStackTrace(obj);
-  // pop off captureStackTrace and us.
-  return obj.stack.slice(2);
-}
-
-var SM_STACK_FORMAT = /^(.*)@(.+):(\d+)$/;
-
-// this is biased towards v8/chromium for now
-/**
- *
- */
-exports.transformException = function transformException(e) {
-  // it's conceivable someone
-  if (!(e instanceof Error) &&
-      // under jetpack, we are losing hard, probably because of the sandbox
-      //  issue where everybody gets their own fundamentals, so check for stack.
-      (!e || typeof(e) !== "object" || !("stack" in e))) {
-    return {
-      n: "Object",
-      m: "" + e,
-      f: [],
-    };
-  }
-
-  var stack = e.stack;
-  // evidence of v8 thunk?
-  if (Array.isArray(stack)) {
-    return {
-      n: e.name,
-      m: e.message,
-      f: stack,
-    };
-  }
-
-  // handle the spidermonkey case, XXX maybe
-  var o = {
-    n: e.name,
-    m: e.message,
-    f: [],
-  };
-  if (stack) {
-    var sframes = stack.split("\n"), frames = o.f, match;
-    for (var i = 0; i < sframes.length; i++) {
-      if ((match = SM_STACK_FORMAT.exec(sframes[i]))) {
-        frames.push({
-          filename: simplifyFilename(match[2]),
-          lineNo: match[3],
-          funcName: match[1],
+    // otherwise this is probably an XPConnect exception...
+    else if (e.filename) {
+        o.f.push({
+          filename: e.filename,
+          lineNo: e.lineNumber,
+          funcName: ''
         });
       }
-    }
-  }
-  // otherwise this is probably an XPConnect exception...
-  else if (e.filename) {
-    o.f.push({
-      filename: e.filename,
-      lineNo: e.lineNumber,
-      funcName: '',
-    });
-  }
-  return o;
-};
-
+    return o;
+  };
 }); // end define

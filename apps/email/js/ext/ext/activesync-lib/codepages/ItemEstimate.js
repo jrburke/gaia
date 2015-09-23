@@ -14,35 +14,30 @@
  */
 
 (function (root, factory) {
-  if (typeof exports === 'object')
-    module.exports = factory();
-  else if (typeof define === 'function' && define.amd)
-    define([], factory);
-  else
-    root.ASCPItemEstimate = factory();
-}(this, function() {
+  if (typeof exports === 'object') module.exports = factory();else if (typeof define === 'function' && define.amd) define([], factory);else root.ASCPItemEstimate = factory();
+})(this, function () {
   'use strict';
 
   return {
     Tags: {
       GetItemEstimate: 0x0605,
-      Version:         0x0606,
-      Collections:     0x0607,
-      Collection:      0x0608,
-      Class:           0x0609,
-      CollectionId:    0x060A,
-      DateTime:        0x060B,
-      Estimate:        0x060C,
-      Response:        0x060D,
-      Status:          0x060E,
+      Version: 0x0606,
+      Collections: 0x0607,
+      Collection: 0x0608,
+      Class: 0x0609,
+      CollectionId: 0x060A,
+      DateTime: 0x060B,
+      Estimate: 0x060C,
+      Response: 0x060D,
+      Status: 0x060E
     },
     Enums: {
       Status: {
-        Success:           '1',
+        Success: '1',
         InvalidCollection: '2',
-        NoSyncState:       '3',
-        InvalidSyncKey:    '4',
-      },
-    },
+        NoSyncState: '3',
+        InvalidSyncKey: '4'
+      }
+    }
   };
-}));
+});

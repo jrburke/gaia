@@ -1,23 +1,22 @@
-define(function(require) {
-'use strict';
+define(function (require) {
+  'use strict';
 
-let co = require('co');
-let { shallowClone } = require('../../util');
+  var co = require('co');
+  var { shallowClone } = require('../../util');
 
-let TaskDefiner = require('../../task_definer');
+  var { NOW } = require('../../date');
 
-let FolderSyncStateHelper = require('../vanilla/folder_sync_state_helper');
+  var TaskDefiner = require('../../task_infra/task_definer');
 
+  var FolderSyncStateHelper = require('../vanilla/folder_sync_state_helper');
 
-let imapchew = require('../imapchew');
-let parseImapDateTime = imapchew.parseImapDateTime;
+  var imapchew = require('../imapchew');
+  var parseImapDateTime = imapchew.parseImapDateTime;
 
-
-/**
- * Steady state vanilla IMAP folder sync.
- */
-return TaskDefiner.defineSimpleTask([
-  {
+  /**
+   * Steady state vanilla IMAP folder sync.
+   */
+  return TaskDefiner.defineSimpleTask([{
     name: 'sync_refresh',
     args: ['accountId', 'folderId'],
 
@@ -25,11 +24,10 @@ return TaskDefiner.defineSimpleTask([
      * In our planning phase we discard nonsensical requests to refresh
      * local-only folders.
      */
-    plan: co.wrap(function*(ctx, rawTask) {
+    plan: co.wrap(function* (ctx, rawTask) {
       // Get the folder
-      let foldersTOC =
-        yield ctx.universe.acquireAccountFoldersTOC(ctx, ctx.accountId);
-      let folderInfo = foldersTOC.foldersById.get(rawTask.folderId);
+      var foldersTOC = yield ctx.universe.acquireAccountFoldersTOC(ctx, ctx.accountId);
+      var folderInfo = foldersTOC.foldersById.get(rawTask.folderId);
 
       // - Only plan if the folder is real AKA it has a path.
       // (We could also look at its type.  Or have additional explicit state.
@@ -37,17 +35,13 @@ return TaskDefiner.defineSimpleTask([
       // edge case we would expect is offline folder creation.  But in that
       // case we still wouldn't want refreshes triggered before we've created
       // the folder and populated it.)
-      let plannedTask;
+      var plannedTask = undefined;
       if (!folderInfo.serverPath) {
         plannedTask = null;
       } else {
         plannedTask = shallowClone(rawTask);
-        plannedTask.exclusiveResources = [
-          `sync:${rawTask.folderId}`
-        ];
-        plannedTask.priorityTags = [
-          `view:folder:${rawTask.folderId}`
-        ];
+        plannedTask.exclusiveResources = [`sync:${ rawTask.folderId }`];
+        plannedTask.priorityTags = [`view:folder:${ rawTask.folderId }`];
       }
 
       yield ctx.finishTask({
@@ -55,13 +49,13 @@ return TaskDefiner.defineSimpleTask([
       });
     }),
 
-    execute: co.wrap(function*(ctx, req) {
+    execute: co.wrap(function* (ctx, req) {
       // -- Exclusively acquire the sync state for the folder
-      let fromDb = yield ctx.beginMutate({
+      var fromDb = yield ctx.beginMutate({
         syncStates: new Map([[req.folderId, null]])
       });
 
-      let rawSyncState = fromDb.syncStates.get(req.folderId);
+      var rawSyncState = fromDb.syncStates.get(req.folderId);
 
       // -- Check to see if we need to spin-off a sync_grow instead
       // We need to do this if we don't have any sync state or if we do have
@@ -71,24 +65,23 @@ return TaskDefiner.defineSimpleTask([
           // we ourselves are done
           taskState: null,
           newData: {
-            tasks: [
-              {
-                type: 'sync_grow',
-                accountId: req.accountId,
-                folderId: req.folderId
-              }
-            ]
+            tasks: [{
+              type: 'sync_grow',
+              accountId: req.accountId,
+              folderId: req.folderId
+            }]
           }
         });
         return;
       }
 
-      let syncState = new FolderSyncStateHelper(
-        ctx, rawSyncState, req.accountId, req.folderId, 'refresh');
+      var syncState = new FolderSyncStateHelper(ctx, rawSyncState, req.accountId, req.folderId, 'refresh');
 
       // -- Parallel 1/2: Issue find new messages
-      let account = yield ctx.universe.acquireAccount(ctx, req.accountId);
-      let folderInfo = account.getFolderById(req.folderId);
+      var account = yield ctx.universe.acquireAccount(ctx, req.accountId);
+      var folderInfo = account.getFolderById(req.folderId);
+
+      var syncDate = NOW();
 
       // XXX fastpath out if UIDNEXT says there's nothing new.
       // For Yahoo at least, if there are no new messages, so we're asking
@@ -96,19 +89,10 @@ return TaskDefiner.defineSimpleTask([
       // number of the highest UID.  Oh. Hm.  Could it be the "*" that causes
       // the range to be N+1:N ?  Maybe that's it.  Anyways, be smarter by
       // adding a step that selects the folder first and checks UIDNEXT.
-      let parallelNewMessages = account.pimap.listMessages(
-        folderInfo,
-        (syncState.lastHighUid + 1) + ':*',
-        [
-          'UID',
-          'INTERNALDATE',
-          'FLAGS'
-        ],
-        {
-          byUid: true,
-          changedSince: syncState.modseq
-        }
-      );
+      var parallelNewMessages = account.pimap.listMessages(folderInfo, syncState.lastHighUid + 1 + ':*', ['UID', 'INTERNALDATE', 'FLAGS'], {
+        byUid: true,
+        changedSince: syncState.modseq
+      });
 
       // -- Parallel 2/2: Find deleted messages and look for flag changes.
       // - Do a UID SEARCH UID against the set of UIDs we know about
@@ -125,7 +109,7 @@ return TaskDefiner.defineSimpleTask([
       // would also allow deletion inference.  We're not particularly concerned
       // about the server costs here; we plan to support QRESYNC ASAP and any
       // server that doesn't implment QRESYNC really only has itself to blame.
-      let searchSpec = {
+      var searchSpec = {
         not: { deleted: true },
         // NB: deletion-wise, one might ask whether we should be consulting the
         // trash task here so that we can pretend like the message does not
@@ -136,35 +120,24 @@ return TaskDefiner.defineSimpleTask([
         // XXX have range-generation logic
         uid: syncState.getAllUids().join(',')
       };
-      let { result: searchedUids } = yield account.pimap.search(
-        folderInfo, searchSpec, { byUid: true });
+      var { result: searchedUids } = yield account.pimap.search(folderInfo, searchSpec, { byUid: true });
       syncState.inferDeletionFromExistingUids(searchedUids);
 
       // - Do envelope fetches on the non-deleted messages
       // XXX use SEARCHRES here when possible!
-      let { result: currentFlagMessages } = yield account.pimap.listMessages(
-        folderInfo,
-        searchedUids.join(','),
-        [
-          'UID',
-          'FLAGS'
-        ],
-        {
-          byUid: true,
-        }
-      );
-      for (let msg of currentFlagMessages) {
-        let flags = msg.flags;
-        let umid = syncState.getUmidForUid(msg.uid);
+      var { result: currentFlagMessages } = yield account.pimap.listMessages(folderInfo, searchedUids.join(','), ['UID', 'FLAGS'], {
+        byUid: true
+      });
+      for (var msg of currentFlagMessages) {
+        var flags = msg.flags;
+        var umid = syncState.getUmidForUid(msg.uid);
         // Have the flag-setting task fix-up the flags to compensate for any
         // changes we haven't played against the server.
         // TODO: get smarter in the future to avoid redundantly triggering a
         // sync_conv task that just re-asserts the already locally-applied
         // changes.
         if (umid) {
-          ctx.synchronouslyConsultOtherTask(
-            { name: 'store_flags', accountId: req.accountId },
-            { uid: msg.uid, value: flags });
+          ctx.synchronouslyConsultOtherTask({ name: 'store_flags', accountId: req.accountId }, { uid: msg.uid, value: flags });
         }
         syncState.checkFlagChanges(msg.uid, msg.flags);
       }
@@ -173,9 +146,9 @@ return TaskDefiner.defineSimpleTask([
       // NB: This processing must occur after the inferDeletionFromExistingUids
       // calls because otherwise we would infer the deletion of all the new
       // messages we find!
-      let highestUid = syncState.lastHighUid;
-      let { result: newMessages } = yield parallelNewMessages;
-      for (let msg of newMessages) {
+      var highestUid = syncState.lastHighUid;
+      var { result: newMessages } = yield parallelNewMessages;
+      for (var msg of newMessages) {
         // We want to filter out already known UIDs.  As an edge case we can end
         // up hearing about the highest message again.  But additionally it's
         // possible we might have backfilled to find out about a message before
@@ -184,7 +157,7 @@ return TaskDefiner.defineSimpleTask([
           continue;
         }
 
-        let dateTS = parseImapDateTime(msg.internaldate);
+        var dateTS = parseImapDateTime(msg.internaldate);
         highestUid = Math.max(highestUid, msg.uid);
         if (syncState.messageMeetsSyncCriteria(dateTS)) {
           syncState.yayMessageFoundByDate(msg.uid, dateTS, msg.flags);
@@ -208,9 +181,15 @@ return TaskDefiner.defineSimpleTask([
         },
         newData: {
           tasks: syncState.tasksToSchedule
+        },
+        atomicClobbers: {
+          folders: new Map([[req.folderId, {
+            lastSuccessfulSyncAt: syncDate,
+            lastAttemptedSyncAt: syncDate,
+            failedSyncsSinceLastSuccessfulSync: 0
+          }]])
         }
       });
     })
-  }
-]);
+  }]);
 });

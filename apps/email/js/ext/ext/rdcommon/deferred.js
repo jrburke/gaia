@@ -1,4 +1,4 @@
-define(function() {
+define(function () {
 
   var nextId = 1;
   var activeDeferreds = {};
@@ -12,20 +12,20 @@ define(function() {
    * @param {String} name
    *   Optional name for debugging.
    */
-  var Deferred = function(name) {
+  var Deferred = function (name) {
     var self = this;
     this.id = nextId++;
     this.name = name;
     this.stack = new Error().stack;
-    this.promise = new Promise(function(resolve, reject) {
-      self.resolve = function(val) {
+    this.promise = new Promise(function (resolve, reject) {
+      self.resolve = function (val) {
         delete activeDeferreds[self.id];
         self.resolved = true;
         self.value = val;
         resolve(val);
       };
-      self.reject = function(val) {
-        self.promise.catch(function(e) {
+      self.reject = function (val) {
+        self.promise.catch(function (e) {
           if (unhandledRejectionHandler) {
             unhandledRejectionHandler(e);
           }
@@ -44,25 +44,25 @@ define(function() {
     this.rejected = false;
   };
 
-  Deferred.prototype.toString = function() {
+  Deferred.prototype.toString = function () {
     return '<Deferred ' + (this.name || '') + '>';
   };
 
-  Deferred.setUnhandledRejectionHandler = function(rejectionHandler) {
+  Deferred.setUnhandledRejectionHandler = function (rejectionHandler) {
     unhandledRejectionHandler = rejectionHandler;
   };
 
-  Deferred.getAllActiveDeferreds = function() {
+  Deferred.getAllActiveDeferreds = function () {
     var vals = [];
     for (var key in activeDeferreds) {
       vals.push(activeDeferreds[key]);
     }
     return vals;
-  }
+  };
 
-  Deferred.clearActiveDeferreds = function() {
+  Deferred.clearActiveDeferreds = function () {
     activeDeferreds = {};
-  }
+  };
 
   return Deferred;
 });

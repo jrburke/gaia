@@ -1,4 +1,4 @@
-define(['slog', './client', 'exports'], function(slog, client, exports) {
+define(['slog', './client', 'exports'], function (slog, client, exports) {
 
   /**
    * Validate that we find an SMTP server using the connection info
@@ -15,45 +15,40 @@ define(['slog', './client', 'exports'], function(slog, client, exports) {
    * that can't send e-mail, and we currently don't allow them to
    * change their address after setup.
    */
-  exports.probeAccount = function(credentials, connInfo) {
+  exports.probeAccount = function (credentials, connInfo) {
     slog.info('probe:smtp:connecting', {
       _credentials: credentials,
       connInfo: connInfo
     });
 
     var conn;
-    return client.createSmtpConnection(
-      credentials,
-      connInfo,
-      function onCredentialsUpdated() {
-        // Normally we shouldn't see a request to update credentials
-        // here, as the caller should have already passed a valid
-        // accessToken during account setup. This might indicate a
-        // problem with our OAUTH handling, so log it just in case.
-        slog.warn('probe:smtp:credentials-updated');
-      }
-    ).then(function(newConn) {
-        conn = newConn;
-        return verifyAddress(conn, connInfo.emailAddress);
-      }).then(function() {
-        slog.info('probe:smtp:success');
+    return client.createSmtpConnection(credentials, connInfo, function onCredentialsUpdated() {
+      // Normally we shouldn't see a request to update credentials
+      // here, as the caller should have already passed a valid
+      // accessToken during account setup. This might indicate a
+      // problem with our OAUTH handling, so log it just in case.
+      slog.warn('probe:smtp:credentials-updated');
+    }).then(function (newConn) {
+      conn = newConn;
+      return verifyAddress(conn, connInfo.emailAddress);
+    }).then(function () {
+      slog.info('probe:smtp:success');
+      conn.close();
+      return conn;
+    }).catch(function (err) {
+      var errorString = client.analyzeSmtpError(conn, err, /* wasSending: */false);
+
+      if (conn) {
         conn.close();
-        return conn;
-      }).catch(function(err) {
-        var errorString = client.analyzeSmtpError(
-          conn, err, /* wasSending: */ false);
+      }
 
-        if (conn) {
-          conn.close();
-        }
-
-        slog.error('probe:smtp:error', {
-          error: errorString,
-          connInfo: connInfo
-        });
-
-        throw errorString;
+      slog.error('probe:smtp:error', {
+        error: errorString,
+        connInfo: connInfo
       });
+
+      throw errorString;
+    });
   };
 
   /**
@@ -66,14 +61,17 @@ define(['slog', './client', 'exports'], function(slog, client, exports) {
    */
   function verifyAddress(conn, emailAddress) {
     slog.log('probe:smtp:checking-address-validity');
-    return new Promise(function(resolve, reject) {
+    return new Promise(function (resolve, reject) {
       conn.useEnvelope({
         from: emailAddress,
         to: [emailAddress]
       });
-      conn.onready = function() { resolve(); };
-      conn.onerror = function(err) { reject(err); };
+      conn.onready = function () {
+        resolve();
+      };
+      conn.onerror = function (err) {
+        reject(err);
+      };
     });
   }
-
 }); // end define

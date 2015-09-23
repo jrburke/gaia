@@ -1,6 +1,6 @@
 /*jshint browser: true */
 /*global define, console */
-define(function(require) {
+define(function (require) {
   'use strict';
 
   var evt = require('evt');
@@ -37,7 +37,7 @@ define(function(require) {
       return false;
     }
 
-    var hasMismatch = ary1.some(function(item, i) {
+    var hasMismatch = ary1.some(function (item, i) {
       return item !== ary2[i];
     });
 
@@ -47,7 +47,7 @@ define(function(require) {
   var dispatcher = {
     _routeReady: false,
     _routeQueue: [],
-    _sendMessage: function(type, args) {
+    _sendMessage: function (type, args) {
       if (this._routeReady) {
         // sendMessage is added to routeRegistration by the main-router module.
         routeRegistration.sendMessage(null, type, args);
@@ -59,14 +59,14 @@ define(function(require) {
     /**
      * Called by worker side to indicate it can now receive messages.
      */
-    hello: function() {
+    hello: function () {
       this._routeReady = true;
       if (this._routeQueue.length) {
         var queue = this._routeQueue;
         this._routeQueue = [];
-        queue.forEach(function(args) {
+        queue.forEach((function (args) {
           this._sendMessage(args[0], args[1]);
-        }.bind(this));
+        }).bind(this));
       }
     },
 
@@ -267,15 +267,11 @@ define(function(require) {
       // TODO: removed wifi wake lock due to network complications, to
       // be addressed in a separate changset.
       if (navigator.requestWakeLock) {
-        var locks = [
-          navigator.requestWakeLock('cpu')
-        ];
+        var locks = [navigator.requestWakeLock('cpu')];
 
-        debug('wake locks acquired: ' + locks +
-              ' for account IDs: ' + data.accountIds);
+        debug('wake locks acquired: ' + locks + ' for account IDs: ' + data.accountIds);
 
-        evt.emitWhenListener('cronSyncWakeLocks',
-                             makeAccountKey(data.accountIds), locks);
+        evt.emitWhenListener('cronSyncWakeLocks', makeAccountKey(data.accountIds), locks);
       }
 
       debug('alarm dispatch started at ' + (new Date()));

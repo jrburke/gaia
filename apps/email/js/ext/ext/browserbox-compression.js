@@ -16,9 +16,8 @@
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
 
-(function(root, factory) {
+(function (root, factory) {
     'use strict';
 
     if (typeof define === 'function' && define.amd) {
@@ -28,7 +27,7 @@
     } else {
         root.BrowserboxCompressor = factory(root.pako);
     }
-}(this, function(pako) {
+})(this, function (pako) {
     'use strict';
 
     /**
@@ -38,40 +37,41 @@
      * The chunk we get from deflater is actually a view of a 16kB arraybuffer, so we need to copy the relevant parts
      * memory to a new arraybuffer. 
      */
-    var Compressor = function() {
+    var Compressor = function () {
         this.deflatedReady = false;
         this.inflatedReady = false;
 
         /**
          * emit inflated data
          */
-        this._inflate = pako.inflater(function(chunk) {
+        this._inflate = pako.inflater((function (chunk) {
             if (!this.inflatedReady) {
                 return;
             }
 
             this.inflatedReady(chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + chunk.length));
-        }.bind(this));
+        }).bind(this));
 
         /**
          * emit deflated data
          */
-        this._deflate = pako.deflater(function(chunk) {
+        this._deflate = pako.deflater((function (chunk) {
             if (!this.deflatedReady) {
                 return;
             }
 
             this.deflatedReady(chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + chunk.length));
-        }.bind(this));
+        }).bind(this));
     };
 
-    Compressor.prototype.inflate = function(buffer) {
+    Compressor.prototype.inflate = function (buffer) {
         this._inflate(new Uint8Array(buffer));
     };
 
-    Compressor.prototype.deflate = function(buffer) {
+    Compressor.prototype.deflate = function (buffer) {
         this._deflate(new Uint8Array(buffer));
     };
 
     return Compressor;
-}));
+});
+// SOFTWARE.

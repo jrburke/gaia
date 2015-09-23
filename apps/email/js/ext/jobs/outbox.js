@@ -4,8 +4,7 @@
  * `sendNextAvailableOutboxMessage`, which is used by the
  * sendOutboxMessages job in jobmixins.js.
  */
-define(function(require) {
-
+define(function (require) {
 
   /**
    * Send the next available outbox message. Returns a promise that
@@ -38,11 +37,9 @@ define(function(require) {
    * @return {Promise}
    * @public
    */
-  function sendNextAvailableOutboxMessage(
-    account, storage, beforeMessage, emitNotifications,
-    outboxNeedsFreshSync, wakeLock) {
+  function sendNextAvailableOutboxMessage(account, storage, beforeMessage, emitNotifications, outboxNeedsFreshSync, wakeLock) {
 
-    return getNextHeader(storage, beforeMessage).then(function(header) {
+    return getNextHeader(storage, beforeMessage).then(function (header) {
       // If there are no more messages to send, resolve `null`. This
       // should ordinarily not happen, because clients should pay
       // attention to the `moreExpected` results from earlier sends;
@@ -59,8 +56,7 @@ define(function(require) {
       // outbox.  (We are moving from newest to oldest, so this is the last one
       // if it is the oldest.  We need to figure this out before the send
       // process completes since we will delete the header once it's all sent.)
-      var moreExpected = !storage.headerIsOldestKnown(header.date,
-                                                      header.id);
+      var moreExpected = !storage.headerIsOldestKnown(header.date, header.id);
 
       if (!header.sendStatus) {
         header.sendStatus = {};
@@ -70,17 +66,15 @@ define(function(require) {
       // ignore any existing sendStatus, clear it out.
       if (header.sendStatus.state !== 'sending' || outboxNeedsFreshSync) {
         // If this message is not already being sent, send it.
-        return constructComposer(account, storage, header, wakeLock)
-          .then(sendMessage.bind(null, account, storage, emitNotifications))
-          .then(function(header) {
-            return {
-              moreExpected: moreExpected,
-              messageNamer: {
-                suid: header.suid,
-                date: header.date
-              }
-            };
-          });
+        return constructComposer(account, storage, header, wakeLock).then(sendMessage.bind(null, account, storage, emitNotifications)).then(function (header) {
+          return {
+            moreExpected: moreExpected,
+            messageNamer: {
+              suid: header.suid,
+              date: header.date
+            }
+          };
+        });
       } else {
         // If this message is currently being sent, advance to the
         // next header.
@@ -91,7 +85,6 @@ define(function(require) {
       }
     });
   }
-
 
   ////////////////////////////////////////////////////////////////
   // The following functions are internal helpers.
@@ -105,29 +98,22 @@ define(function(require) {
    * @param {MessageNamer} beforeMessage
    * @return {Promise(MailHeader)}
    */
-  function getNextHeader(storage, /* optional */ beforeMessage) {
-    return new Promise(function(resolve) {
+  function getNextHeader(storage, /* optional */beforeMessage) {
+    return new Promise(function (resolve) {
       if (beforeMessage) {
         // getMessagesBeforeMessage expects an 'id', not a 'suid'.
-        var id = parseInt(beforeMessage.suid.substring(
-          beforeMessage.suid.lastIndexOf('.') + 1));
-        storage.getMessagesBeforeMessage(
-          beforeMessage.date,
-          id,
-          /* limit = */ 1,
-          function(headers, moreExpected) {
-            // There may be no headers, and that's okay.
-            resolve(headers[0] || null);
-          });
+        var id = parseInt(beforeMessage.suid.substring(beforeMessage.suid.lastIndexOf('.') + 1));
+        storage.getMessagesBeforeMessage(beforeMessage.date, id,
+        /* limit = */1, function (headers, moreExpected) {
+          // There may be no headers, and that's okay.
+          resolve(headers[0] || null);
+        });
       } else {
-        storage.getMessagesInImapDateRange(
-          0,
-          null,
-          /* min */ 1,
-          /* max */ 1,
-          function(headers, moreExpected) {
-            resolve(headers[0]);
-          });
+        storage.getMessagesInImapDateRange(0, null,
+        /* min */1,
+        /* max */1, function (headers, moreExpected) {
+          resolve(headers[0]);
+        });
       }
     });
   }
@@ -142,8 +128,8 @@ define(function(require) {
    * @return {Promise(Composer)}
    */
   function constructComposer(account, storage, header, wakeLock) {
-    return new Promise(function(resolve, reject) {
-      storage.getMessage(header.suid, header.date, function(msg) {
+    return new Promise(function (resolve, reject) {
+      storage.getMessage(header.suid, header.date, function (msg) {
 
         // If for some reason the message doesn't have a body, we
         // can't construct a composer for this header.
@@ -153,7 +139,7 @@ define(function(require) {
           return;
         }
 
-        require(['../drafts/composer'], function(cmp) {
+        require(['../drafts/composer'], function (cmp) {
           var composer = new cmp.Composer(msg, account, account.identities[0]);
           composer.setSmartWakeLock(wakeLock);
 
@@ -184,8 +170,7 @@ define(function(require) {
    */
   function sendMessage(account, storage, emitNotifications, composer) {
     var header = composer.header;
-    var progress = publishStatus.bind(
-      null, account, storage, composer, header, emitNotifications);
+    var progress = publishStatus.bind(null, account, storage, composer, header, emitNotifications);
 
     // As part of the progress notification, the client would like to
     // know whether or not they can expect us to immediately send more
@@ -202,8 +187,8 @@ define(function(require) {
       sendFailures: header.sendStatus && header.sendStatus.sendFailures || 0
     });
 
-    return new Promise(function(resolve) {
-      account.sendMessage(composer, function(err, badAddresses) {
+    return new Promise(function (resolve) {
+      account.sendMessage(composer, function (err, badAddresses) {
         if (err) {
           console.log('Message failed to send (' + err + ')');
 
@@ -223,7 +208,7 @@ define(function(require) {
             err: null,
             badAddresses: null
           });
-          storage.deleteMessageHeaderAndBodyUsingHeader(header, function() {
+          storage.deleteMessageHeaderAndBodyUsingHeader(header, function () {
             resolve(composer.header);
           });
         }
@@ -242,8 +227,7 @@ define(function(require) {
    * actually atomic), we will want to checkpoint state during the
    * sending process.
    */
-  function publishStatus(account, storage, composer,
-                         header, emitNotifications, status) {
+  function publishStatus(account, storage, composer, header, emitNotifications, status) {
     header.sendStatus = {
       state: status.state,
       err: status.err,
@@ -266,12 +250,9 @@ define(function(require) {
       sentDate: composer.sentDate
     });
 
-    storage.updateMessageHeader(
-      header.date,
-      header.id,
-      /* partOfSync */ false,
-      header,
-      /* body hint */ null);
+    storage.updateMessageHeader(header.date, header.id,
+    /* partOfSync */false, header,
+    /* body hint */null);
   }
 
   return {

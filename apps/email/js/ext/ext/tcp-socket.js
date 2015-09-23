@@ -48,7 +48,7 @@
  * die, and then we keep holding the wi-fi wake-lock for much longer
  * than we should.
  */
-define(function(require, exports, module) {
+define(function (require, exports, module) {
 
   var router = require('worker-router');
   var routerMaker = router.registerInstanceType('netsocket');
@@ -67,17 +67,17 @@ define(function(require, exports, module) {
     this.readyState = 'connecting';
 
     // Event handlers:
-    var routerInfo = routerMaker.register(function(data) {
+    var routerInfo = routerMaker.register((function (data) {
       var eventHandlerName = data.cmd;
       var internalHandler = this['_' + eventHandlerName];
       var externalHandler = this[eventHandlerName];
       // Allow this class to update internal state first:
       internalHandler && internalHandler.call(this, data.args);
       // Then, emulate the real TCP socket events (vaguely):
-      DisasterRecovery.catchSocketExceptions(this, function() {
+      DisasterRecovery.catchSocketExceptions(this, function () {
         externalHandler && externalHandler.call(this, { data: data.args });
       });
-    }.bind(this));
+    }).bind(this));
 
     this._sendMessage = routerInfo.sendMessage;
     this._unregisterWithRouter = routerInfo.unregister;
@@ -86,28 +86,28 @@ define(function(require, exports, module) {
   }
 
   TCPSocketProxy.prototype = {
-    _onopen: function() {
+    _onopen: function () {
       this.readyState = 'open';
     },
 
-    _onclose: function() {
+    _onclose: function () {
       this._unregisterWithRouter();
       this.readyState = 'closed';
     },
 
-    upgradeToSecure: function() {
+    upgradeToSecure: function () {
       this._sendMessage('upgradeToSecure', []);
     },
 
-    suspend: function() {
+    suspend: function () {
       throw new Error('tcp-socket.js does not support suspend().');
     },
 
-    resume: function() {
+    resume: function () {
       throw new Error('tcp-socket.js does not support resume().');
     },
 
-    close: function() {
+    close: function () {
       if (this.readyState !== 'closed') {
         this._sendMessage('close');
       }
@@ -128,36 +128,28 @@ define(function(require, exports, module) {
     // ArrayBuffer.slice() does create an entirely new copy of the
     // buffer, so that works with our semantics and we can use that to
     // transfer only what needs to be transferred.
-    send: function(u8array) {
+    send: function (u8array) {
       if (u8array instanceof Blob) {
         // We always send blobs in their entirety; you should slice the blob and
         // give us that if that's what you want.
         this._sendMessage('write', [u8array]);
-      }
-      else if (u8array instanceof ArrayBuffer) {
+      } else if (u8array instanceof ArrayBuffer) {
         this._sendMessage('write', [u8array, 0, u8array.byteLength]);
       }
       // Slice the underlying buffer and transfer it if the array is a subarray
-      else if (u8array.byteOffset !== 0 ||
-          u8array.length !== u8array.buffer.byteLength) {
-        var buf = u8array.buffer.slice(u8array.byteOffset,
-                                       u8array.byteOffset + u8array.length);
-        this._sendMessage('write',
-                          [buf, 0, buf.byteLength],
-                          [buf]);
-      }
-      else {
-        this._sendMessage('write',
-                          [u8array.buffer, u8array.byteOffset, u8array.length]);
-      }
+      else if (u8array.byteOffset !== 0 || u8array.length !== u8array.buffer.byteLength) {
+          var buf = u8array.buffer.slice(u8array.byteOffset, u8array.byteOffset + u8array.length);
+          this._sendMessage('write', [buf, 0, buf.byteLength], [buf]);
+        } else {
+          this._sendMessage('write', [u8array.buffer, u8array.byteOffset, u8array.length]);
+        }
 
       return true;
     }
   };
 
-
   return {
-    open: function(host, port, options) {
+    open: function (host, port, options) {
       return new TCPSocketProxy(host, port, options);
     }
   };

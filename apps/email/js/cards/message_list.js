@@ -335,8 +335,8 @@ return [
 //todo: is this called any more?
     // onFoldersListChange: function(folder) {
     //   if (folder === this.curFolder) {
-    //     this.updateUnread(folder.unread);
-    //     this.updateLastSynced(folder.lastSyncedAt);
+    //     this.updateUnread(folder.localUnreadConversations);
+    //     this.updateLastSynced(folder.lastSuccessfulSyncAt);
     //   }
     // },
 
@@ -387,7 +387,7 @@ return [
       }
 
       this.folderNameNode.textContent = folder.name;
-      this.updateUnread(folder.unread);
+      this.updateUnread(folder.localUnreadConversations);
       this.msgVScroll.setAttribute('aria-label', folder.name);
       this.msgVScroll.hideEmptyLayout();
 
@@ -397,7 +397,7 @@ return [
 
       this.editToolbar.updateDomFolderType(folder.type);
 
-      this.updateLastSynced(folder.lastSyncedAt);
+      this.updateLastSynced(folder.lastSuccessfulSyncAt);
 
       if (forceNewSlice) {
         // We are creating a new slice, so any pending snippet requests are

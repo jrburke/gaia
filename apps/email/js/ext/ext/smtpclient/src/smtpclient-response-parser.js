@@ -16,9 +16,8 @@
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
 
-(function(root, factory) {
+(function (root, factory) {
     'use strict';
 
     if (typeof define === 'function' && define.amd) {
@@ -28,7 +27,7 @@
     } else {
         root.SmtpClientResponseParser = factory();
     }
-}(this, function() {
+})(this, function () {
     'use strict';
 
     /**
@@ -36,7 +35,7 @@
      *
      * @constructor
      */
-    var SmtpResponseParser = function() {
+    var SmtpResponseParser = function () {
 
         /**
          * If the complete line is not received yet, contains the beginning of it
@@ -63,9 +62,9 @@
     /**
      * NB! Errors do not block, the parsing and data emitting continues despite of the errors
      */
-    SmtpResponseParser.prototype.onerror = function() {};
-    SmtpResponseParser.prototype.ondata = function() {};
-    SmtpResponseParser.prototype.onend = function() {};
+    SmtpResponseParser.prototype.onerror = function () {};
+    SmtpResponseParser.prototype.ondata = function () {};
+    SmtpResponseParser.prototype.onend = function () {};
 
     // Public API
 
@@ -74,7 +73,7 @@
      *
      * @param {String} chunk Chunk of data received from the server
      */
-    SmtpResponseParser.prototype.send = function(chunk) {
+    SmtpResponseParser.prototype.send = function (chunk) {
         if (this.destroyed) {
             return this.onerror(new Error('This parser has already been closed, "write" is prohibited'));
         }
@@ -93,7 +92,7 @@
      *
      * @param {String} [chunk] Chunk of data received from the server
      */
-    SmtpResponseParser.prototype.end = function(chunk) {
+    SmtpResponseParser.prototype.end = function (chunk) {
         if (this.destroyed) {
             return this.onerror(new Error('This parser has already been closed, "end" is prohibited'));
         }
@@ -118,7 +117,7 @@
      *
      * @param {String} line Complete line of data from the server
      */
-    SmtpResponseParser.prototype._processLine = function(line) {
+    SmtpResponseParser.prototype._processLine = function (line) {
         var match, response;
 
         // possible input strings for the regex:
@@ -133,14 +132,13 @@
 
         this._block.lines.push(line);
 
-        if ((match = line.match(/^(\d{3})([\- ])(?:(\d+\.\d+\.\d+)(?: ))?(.*)/))) {
+        if (match = line.match(/^(\d{3})([\- ])(?:(\d+\.\d+\.\d+)(?: ))?(.*)/)) {
 
             this._block.data.push(match[4]);
 
             if (match[2] === '-') {
                 if (this._block.statusCode && this._block.statusCode !== Number(match[1])) {
-                    this.onerror('Invalid status code ' + match[1] +
-                        ' for multi line response (' + this._block.statusCode + ' expected)');
+                    this.onerror('Invalid status code ' + match[1] + ' for multi line response (' + this._block.statusCode + ' expected)');
                 } else if (!this._block.statusCode) {
                     this._block.statusCode = Number(match[1]);
                 }
@@ -180,4 +178,5 @@
     };
 
     return SmtpResponseParser;
-}));
+});
+// THE SOFTWARE.

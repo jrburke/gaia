@@ -1,4 +1,4 @@
-(function(global) {
+(function (global) {
   'use strict';
 
   //
@@ -24,7 +24,6 @@
     return Math.floor(n / d);
   }
 
-
   //
   // Implementation of Encoding specification
   // http://dvcs.w3.org/hg/encoding/raw-file/tip/Overview.html
@@ -38,8 +37,8 @@
   // 4. Encodings
   //
 
-  /** @const */ var EOF_byte = -1;
-  /** @const */ var EOF_code_point = -1;
+  /** @const */var EOF_byte = -1;
+  /** @const */var EOF_code_point = -1;
 
   /**
    * @constructor
@@ -50,13 +49,13 @@
     var pos = 0;
 
     /** @return {number} Get the next byte from the stream. */
-    this.get = function() {
-        return (pos >= bytes.length) ? EOF_byte : Number(bytes[pos]);
+    this.get = function () {
+      return pos >= bytes.length ? EOF_byte : Number(bytes[pos]);
     };
 
     /** @param {number} n Number (positive or negative) by which to
      *      offset the byte pointer. */
-    this.offset = function(n) {
+    this.offset = function (n) {
       pos += n;
       if (pos < 0) {
         throw new Error('Seeking past start of the buffer');
@@ -71,7 +70,7 @@
      * @return {boolean} True if the start of the stream matches the test
      *     bytes.
      */
-    this.match = function(test) {
+    this.match = function (test) {
       if (test.length > pos + bytes.length) {
         return false;
       }
@@ -97,7 +96,7 @@
      * @param {...number} var_args The byte or bytes to emit into the stream.
      * @return {number} The last byte emitted.
      */
-    this.emit = function(var_args) {
+    this.emit = function (var_args) {
       /** @type {number} */
       var last = EOF_byte;
       var i;
@@ -117,18 +116,20 @@
     /** @type {number} */
     var pos = 0;
     /** @type {Array.<number>} */
-    var cps = (/** @return {Array.<number>} Code points. */function() {
+    var cps = /** @return {Array.<number>} Code points. */(function () {
       /** @type {Array.<number>} */
       var cps = [];
       // Based on http://www.w3.org/TR/WebIDL/#idl-DOMString
-      var i = 0, n = string.length;
+      var i = 0,
+          n = string.length;
       while (i < string.length) {
         var c = string.charCodeAt(i);
         if (!inRange(c, 0xD800, 0xDFFF)) {
           cps.push(c);
         } else if (inRange(c, 0xDC00, 0xDFFF)) {
           cps.push(0xFFFD);
-        } else { // (inRange(cu, 0xD800, 0xDBFF))
+        } else {
+          // (inRange(cu, 0xD800, 0xDBFF))
           if (i === n - 1) {
             cps.push(0xFFFD);
           } else {
@@ -146,11 +147,11 @@
         i += 1;
       }
       return cps;
-    }());
+    })();
 
     /** @param {number} n The number of bytes (positive or negative)
      *      to advance the code point pointer by.*/
-    this.offset = function(n) {
+    this.offset = function (n) {
       pos += n;
       if (pos < 0) {
         throw new Error('Seeking past start of the buffer');
@@ -160,9 +161,8 @@
       }
     };
 
-
     /** @return {number} Get the next code point from the stream. */
-    this.get = function() {
+    this.get = function () {
       if (pos >= cps.length) {
         return EOF_code_point;
       }
@@ -178,17 +178,17 @@
     var string = '';
 
     /** @return {string} The accumulated string. */
-    this.string = function() {
+    this.string = function () {
       return string;
     };
 
     /** @param {number} c The code point to encode into the stream. */
-    this.emit = function(c) {
+    this.emit = function (c) {
       if (c <= 0xFFFF) {
         string += String.fromCharCode(c);
       } else {
         c -= 0x10000;
-        string += String.fromCharCode(0xD800 + ((c >> 10) & 0x3ff));
+        string += String.fromCharCode(0xD800 + (c >> 10 & 0x3ff));
         string += String.fromCharCode(0xDC00 + (c & 0x3ff));
       }
     };
@@ -226,409 +226,166 @@
 
   /** @type {Array.<{encodings: Array.<{name:string,labels:Array.<string>}>,
    *      heading: string}>} */
-  var encodings = [
-    {
-      "encodings": [
-        {
-          "labels": [
-            "unicode-1-1-utf-8",
-            "utf-8",
-            "utf8"
-          ],
-          "name": "utf-8"
-        }
-      ],
-      "heading": "The Encoding"
-    },
-    {
-      "encodings": [
-        {
-          "labels": [
-            "cp864",
-            "ibm864"
-          ],
-          "name": "ibm864"
-        },
-        {
-          "labels": [
-            "cp866",
-            "ibm866"
-          ],
-          "name": "ibm866"
-        },
-        {
-          "labels": [
-            "csisolatin2",
-            "iso-8859-2",
-            "iso-ir-101",
-            "iso8859-2",
-            "iso_8859-2",
-            "l2",
-            "latin2"
-          ],
-          "name": "iso-8859-2"
-        },
-        {
-          "labels": [
-            "csisolatin3",
-            "iso-8859-3",
-            "iso_8859-3",
-            "iso-ir-109",
-            "l3",
-            "latin3"
-          ],
-          "name": "iso-8859-3"
-        },
-        {
-          "labels": [
-            "csisolatin4",
-            "iso-8859-4",
-            "iso_8859-4",
-            "iso-ir-110",
-            "l4",
-            "latin4"
-          ],
-          "name": "iso-8859-4"
-        },
-        {
-          "labels": [
-            "csisolatincyrillic",
-            "cyrillic",
-            "iso-8859-5",
-            "iso_8859-5",
-            "iso-ir-144"
-          ],
-          "name": "iso-8859-5"
-        },
-        {
-          "labels": [
-            "arabic",
-            "csisolatinarabic",
-            "ecma-114",
-            "iso-8859-6",
-            "iso_8859-6",
-            "iso-ir-127"
-          ],
-          "name": "iso-8859-6"
-        },
-        {
-          "labels": [
-            "csisolatingreek",
-            "ecma-118",
-            "elot_928",
-            "greek",
-            "greek8",
-            "iso-8859-7",
-            "iso_8859-7",
-            "iso-ir-126"
-          ],
-          "name": "iso-8859-7"
-        },
-        {
-          "labels": [
-            "csisolatinhebrew",
-            "hebrew",
-            "iso-8859-8",
-            "iso-8859-8-i",
-            "iso-ir-138",
-            "iso_8859-8",
-            "visual"
-          ],
-          "name": "iso-8859-8"
-        },
-        {
-          "labels": [
-            "csisolatin6",
-            "iso-8859-10",
-            "iso-ir-157",
-            "iso8859-10",
-            "l6",
-            "latin6"
-          ],
-          "name": "iso-8859-10"
-        },
-        {
-          "labels": [
-            "iso-8859-13"
-          ],
-          "name": "iso-8859-13"
-        },
-        {
-          "labels": [
-            "iso-8859-14",
-            "iso8859-14"
-          ],
-          "name": "iso-8859-14"
-        },
-        {
-          "labels": [
-            "iso-8859-15",
-            "iso_8859-15"
-          ],
-          "name": "iso-8859-15"
-        },
-        {
-          "labels": [
-            "iso-8859-16"
-          ],
-          "name": "iso-8859-16"
-        },
-        {
-          "labels": [
-            "koi8-r",
-            "koi8_r"
-          ],
-          "name": "koi8-r"
-        },
-        {
-          "labels": [
-            "koi8-u"
-          ],
-          "name": "koi8-u"
-        },
-        {
-          "labels": [
-            "csmacintosh",
-            "mac",
-            "macintosh",
-            "x-mac-roman"
-          ],
-          "name": "macintosh"
-        },
-        {
-          "labels": [
-            "iso-8859-11",
-            "tis-620",
-            "windows-874"
-          ],
-          "name": "windows-874"
-        },
-        {
-          "labels": [
-            "windows-1250",
-            "x-cp1250"
-          ],
-          "name": "windows-1250"
-        },
-        {
-          "labels": [
-            "windows-1251",
-            "x-cp1251"
-          ],
-          "name": "windows-1251"
-        },
-        {
-          "labels": [
-            "ascii",
-            "ansi_x3.4-1968",
-            "csisolatin1",
-            "iso-8859-1",
-            "iso8859-1",
-            "iso_8859-1",
-            "l1",
-            "latin1",
-            "us-ascii",
-            "windows-1252"
-          ],
-          "name": "windows-1252"
-        },
-        {
-          "labels": [
-            "cp1253",
-            "windows-1253"
-          ],
-          "name": "windows-1253"
-        },
-        {
-          "labels": [
-            "csisolatin5",
-            "iso-8859-9",
-            "iso-ir-148",
-            "l5",
-            "latin5",
-            "windows-1254"
-          ],
-          "name": "windows-1254"
-        },
-        {
-          "labels": [
-            "cp1255",
-            "windows-1255"
-          ],
-          "name": "windows-1255"
-        },
-        {
-          "labels": [
-            "cp1256",
-            "windows-1256"
-          ],
-          "name": "windows-1256"
-        },
-        {
-          "labels": [
-            "windows-1257"
-          ],
-          "name": "windows-1257"
-        },
-        {
-          "labels": [
-            "cp1258",
-            "windows-1258"
-          ],
-          "name": "windows-1258"
-        },
-        {
-          "labels": [
-            "x-mac-cyrillic",
-            "x-mac-ukrainian"
-          ],
-          "name": "x-mac-cyrillic"
-        }
-      ],
-      "heading": "Legacy single-byte encodings"
-    },
-    {
-      "encodings": [
-        {
-          "labels": [
-            "chinese",
-            "csgb2312",
-            "csiso58gb231280",
-            "gb2312",
-            "gbk",
-            "gb_2312",
-            "gb_2312-80",
-            "iso-ir-58",
-            "x-gbk"
-          ],
-          "name": "gbk"
-        },
-        {
-          "labels": [
-            "gb18030"
-          ],
-          "name": "gb18030"
-        },
-        {
-          "labels": [
-            "hz-gb-2312"
-          ],
-          "name": "hz-gb-2312"
-        }
-      ],
-      "heading": "Legacy multi-byte Chinese (simplified) encodings"
-    },
-    {
-      "encodings": [
-        {
-          "labels": [
-            "big5",
-            "big5-hkscs",
-            "cn-big5",
-            "csbig5",
-            "x-x-big5"
-          ],
-          "name": "big5"
-        }
-      ],
-      "heading": "Legacy multi-byte Chinese (traditional) encodings"
-    },
-    {
-      "encodings": [
-        {
-          "labels": [
-            "cseucpkdfmtjapanese",
-            "euc-jp",
-            "x-euc-jp"
-          ],
-          "name": "euc-jp"
-        },
-        {
-          "labels": [
-            "csiso2022jp",
-            "iso-2022-jp"
-          ],
-          "name": "iso-2022-jp"
-        },
-        {
-          "labels": [
-            "csshiftjis",
-            "ms_kanji",
-            "shift-jis",
-            "shift_jis",
-            "sjis",
-            "windows-31j",
-            "x-sjis"
-          ],
-          "name": "shift_jis"
-        }
-      ],
-      "heading": "Legacy multi-byte Japanese encodings"
-    },
-    {
-      "encodings": [
-        {
-          "labels": [
-            "cseuckr",
-            "csksc56011987",
-            "euc-kr",
-            "iso-ir-149",
-            "korean",
-            "ks_c_5601-1987",
-            "ks_c_5601-1989",
-            "ksc5601",
-            "ksc_5601",
-            "windows-949"
-          ],
-          "name": "euc-kr"
-        },
-        {
-          "labels": [
-            "csiso2022kr",
-            "iso-2022-kr"
-          ],
-          "name": "iso-2022-kr"
-        }
-      ],
-      "heading": "Legacy multi-byte Korean encodings"
-    },
-    {
-      "encodings": [
-        {
-          "labels": [
-            "utf-16",
-            "utf-16le"
-          ],
-          "name": "utf-16"
-        },
-        {
-          "labels": [
-            "utf-16be"
-          ],
-          "name": "utf-16be"
-        }
-      ],
-      "heading": "Legacy utf-16 encodings"
-    }
-  ];
+  var encodings = [{
+    "encodings": [{
+      "labels": ["unicode-1-1-utf-8", "utf-8", "utf8"],
+      "name": "utf-8"
+    }],
+    "heading": "The Encoding"
+  }, {
+    "encodings": [{
+      "labels": ["cp864", "ibm864"],
+      "name": "ibm864"
+    }, {
+      "labels": ["cp866", "ibm866"],
+      "name": "ibm866"
+    }, {
+      "labels": ["csisolatin2", "iso-8859-2", "iso-ir-101", "iso8859-2", "iso_8859-2", "l2", "latin2"],
+      "name": "iso-8859-2"
+    }, {
+      "labels": ["csisolatin3", "iso-8859-3", "iso_8859-3", "iso-ir-109", "l3", "latin3"],
+      "name": "iso-8859-3"
+    }, {
+      "labels": ["csisolatin4", "iso-8859-4", "iso_8859-4", "iso-ir-110", "l4", "latin4"],
+      "name": "iso-8859-4"
+    }, {
+      "labels": ["csisolatincyrillic", "cyrillic", "iso-8859-5", "iso_8859-5", "iso-ir-144"],
+      "name": "iso-8859-5"
+    }, {
+      "labels": ["arabic", "csisolatinarabic", "ecma-114", "iso-8859-6", "iso_8859-6", "iso-ir-127"],
+      "name": "iso-8859-6"
+    }, {
+      "labels": ["csisolatingreek", "ecma-118", "elot_928", "greek", "greek8", "iso-8859-7", "iso_8859-7", "iso-ir-126"],
+      "name": "iso-8859-7"
+    }, {
+      "labels": ["csisolatinhebrew", "hebrew", "iso-8859-8", "iso-8859-8-i", "iso-ir-138", "iso_8859-8", "visual"],
+      "name": "iso-8859-8"
+    }, {
+      "labels": ["csisolatin6", "iso-8859-10", "iso-ir-157", "iso8859-10", "l6", "latin6"],
+      "name": "iso-8859-10"
+    }, {
+      "labels": ["iso-8859-13"],
+      "name": "iso-8859-13"
+    }, {
+      "labels": ["iso-8859-14", "iso8859-14"],
+      "name": "iso-8859-14"
+    }, {
+      "labels": ["iso-8859-15", "iso_8859-15"],
+      "name": "iso-8859-15"
+    }, {
+      "labels": ["iso-8859-16"],
+      "name": "iso-8859-16"
+    }, {
+      "labels": ["koi8-r", "koi8_r"],
+      "name": "koi8-r"
+    }, {
+      "labels": ["koi8-u"],
+      "name": "koi8-u"
+    }, {
+      "labels": ["csmacintosh", "mac", "macintosh", "x-mac-roman"],
+      "name": "macintosh"
+    }, {
+      "labels": ["iso-8859-11", "tis-620", "windows-874"],
+      "name": "windows-874"
+    }, {
+      "labels": ["windows-1250", "x-cp1250"],
+      "name": "windows-1250"
+    }, {
+      "labels": ["windows-1251", "x-cp1251"],
+      "name": "windows-1251"
+    }, {
+      "labels": ["ascii", "ansi_x3.4-1968", "csisolatin1", "iso-8859-1", "iso8859-1", "iso_8859-1", "l1", "latin1", "us-ascii", "windows-1252"],
+      "name": "windows-1252"
+    }, {
+      "labels": ["cp1253", "windows-1253"],
+      "name": "windows-1253"
+    }, {
+      "labels": ["csisolatin5", "iso-8859-9", "iso-ir-148", "l5", "latin5", "windows-1254"],
+      "name": "windows-1254"
+    }, {
+      "labels": ["cp1255", "windows-1255"],
+      "name": "windows-1255"
+    }, {
+      "labels": ["cp1256", "windows-1256"],
+      "name": "windows-1256"
+    }, {
+      "labels": ["windows-1257"],
+      "name": "windows-1257"
+    }, {
+      "labels": ["cp1258", "windows-1258"],
+      "name": "windows-1258"
+    }, {
+      "labels": ["x-mac-cyrillic", "x-mac-ukrainian"],
+      "name": "x-mac-cyrillic"
+    }],
+    "heading": "Legacy single-byte encodings"
+  }, {
+    "encodings": [{
+      "labels": ["chinese", "csgb2312", "csiso58gb231280", "gb2312", "gbk", "gb_2312", "gb_2312-80", "iso-ir-58", "x-gbk"],
+      "name": "gbk"
+    }, {
+      "labels": ["gb18030"],
+      "name": "gb18030"
+    }, {
+      "labels": ["hz-gb-2312"],
+      "name": "hz-gb-2312"
+    }],
+    "heading": "Legacy multi-byte Chinese (simplified) encodings"
+  }, {
+    "encodings": [{
+      "labels": ["big5", "big5-hkscs", "cn-big5", "csbig5", "x-x-big5"],
+      "name": "big5"
+    }],
+    "heading": "Legacy multi-byte Chinese (traditional) encodings"
+  }, {
+    "encodings": [{
+      "labels": ["cseucpkdfmtjapanese", "euc-jp", "x-euc-jp"],
+      "name": "euc-jp"
+    }, {
+      "labels": ["csiso2022jp", "iso-2022-jp"],
+      "name": "iso-2022-jp"
+    }, {
+      "labels": ["csshiftjis", "ms_kanji", "shift-jis", "shift_jis", "sjis", "windows-31j", "x-sjis"],
+      "name": "shift_jis"
+    }],
+    "heading": "Legacy multi-byte Japanese encodings"
+  }, {
+    "encodings": [{
+      "labels": ["cseuckr", "csksc56011987", "euc-kr", "iso-ir-149", "korean", "ks_c_5601-1987", "ks_c_5601-1989", "ksc5601", "ksc_5601", "windows-949"],
+      "name": "euc-kr"
+    }, {
+      "labels": ["csiso2022kr", "iso-2022-kr"],
+      "name": "iso-2022-kr"
+    }],
+    "heading": "Legacy multi-byte Korean encodings"
+  }, {
+    "encodings": [{
+      "labels": ["utf-16", "utf-16le"],
+      "name": "utf-16"
+    }, {
+      "labels": ["utf-16be"],
+      "name": "utf-16be"
+    }],
+    "heading": "Legacy utf-16 encodings"
+  }];
 
   var name_to_encoding = {};
   var label_to_encoding = {};
   encodings.forEach(
-    /** @param {{encodings: Array.<{name:string,labels:Array.<string>}>,
-     *      heading:string}} category */
-    function(category) {
-      category.encodings.forEach(
-        /** @param {{name:string,labels:Array.<string>}} encoding */
-        function(encoding) {
-          name_to_encoding[encoding.name] = encoding;
-          encoding.labels.forEach(
-            /** @param {string} label */
-            function(label) {
-              label_to_encoding[label] = encoding;
-            });
-        });
+  /** @param {{encodings: Array.<{name:string,labels:Array.<string>}>,
+   *      heading:string}} category */
+  function (category) {
+    category.encodings.forEach(
+    /** @param {{name:string,labels:Array.<string>}} encoding */
+    function (encoding) {
+      name_to_encoding[encoding.name] = encoding;
+      encoding.labels.forEach(
+      /** @param {string} label */
+      function (label) {
+        label_to_encoding[label] = encoding;
+      });
     });
+  });
 
   //
   // 5. Indexes
@@ -664,12 +421,14 @@
    *     or null if |code point| is not in the gb18030 index.
    */
   function indexGB18030CodePointFor(pointer) {
-    if ((pointer > 39419 && pointer < 189000) || (pointer > 1237575)) {
+    if (pointer > 39419 && pointer < 189000 || pointer > 1237575) {
       return null;
     }
-    var /** @type {number} */ offset = 0,
-        /** @type {number} */ code_point_offset = 0,
-        /** @type {Array.<Array.<number>>} */ index = indexes['gb18030'];
+    var /** @type {number} */offset = 0,
+
+    /** @type {number} */code_point_offset = 0,
+
+    /** @type {Array.<Array.<number>>} */index = indexes['gb18030'];
     var i;
     for (i = 0; i < index.length; ++i) {
       var entry = index[i];
@@ -689,9 +448,11 @@
    *     gb18030 index.
    */
   function indexGB18030PointerFor(code_point) {
-    var /** @type {number} */ offset = 0,
-        /** @type {number} */ pointer_offset = 0,
-        /** @type {Array.<Array.<number>>} */ index = indexes['gb18030'];
+    var /** @type {number} */offset = 0,
+
+    /** @type {number} */pointer_offset = 0,
+
+    /** @type {Array.<Array.<number>>} */index = indexes['gb18030'];
     var i;
     for (i = 0; i < index.length; ++i) {
       var entry = index[i];
@@ -717,17 +478,20 @@
    */
   function UTF8Decoder(options) {
     var fatal = options.fatal;
-    var /** @type {number} */ utf8_code_point = 0,
-        /** @type {number} */ utf8_bytes_needed = 0,
-        /** @type {number} */ utf8_bytes_seen = 0,
-        /** @type {number} */ utf8_lower_boundary = 0;
+    var /** @type {number} */utf8_code_point = 0,
+
+    /** @type {number} */utf8_bytes_needed = 0,
+
+    /** @type {number} */utf8_bytes_seen = 0,
+
+    /** @type {number} */utf8_lower_boundary = 0;
 
     /**
      * @param {ByteInputStream} byte_pointer
      * @return {?number} The next code point decoded, or null if not enough
      *     data exists in the input stream to decode a complete code point.
      */
-    this.decode = function(byte_pointer) {
+    this.decode = function (byte_pointer) {
       var bite = byte_pointer.get();
       if (bite === EOF_byte) {
         if (utf8_bytes_needed !== 0) {
@@ -769,8 +533,7 @@
         return decoderError(fatal);
       }
       utf8_bytes_seen += 1;
-      utf8_code_point = utf8_code_point + (bite - 0x80) *
-        Math.pow(64, utf8_bytes_needed - utf8_bytes_seen);
+      utf8_code_point = utf8_code_point + (bite - 0x80) * Math.pow(64, utf8_bytes_needed - utf8_bytes_seen);
       if (utf8_bytes_seen !== utf8_bytes_needed) {
         return null;
       }
@@ -780,8 +543,7 @@
       utf8_bytes_needed = 0;
       utf8_bytes_seen = 0;
       utf8_lower_boundary = 0;
-      if (inRange(code_point, lower_boundary, 0x10FFFF) &&
-          !inRange(code_point, 0xD800, 0xDFFF)) {
+      if (inRange(code_point, lower_boundary, 0x10FFFF) && !inRange(code_point, 0xD800, 0xDFFF)) {
         return code_point;
       }
       return decoderError(fatal);
@@ -799,7 +561,7 @@
      * @param {CodePointInputStream} code_point_pointer Input stream.
      * @return {number} The last byte emitted.
      */
-    this.encode = function(output_byte_stream, code_point_pointer) {
+    this.encode = function (output_byte_stream, code_point_pointer) {
       var code_point = code_point_pointer.get();
       if (code_point === EOF_code_point) {
         return EOF_byte;
@@ -813,7 +575,7 @@
       }
       var count, offset;
       if (inRange(code_point, 0x0080, 0x07FF)) {
-          count = 1;
+        count = 1;
         offset = 0xC0;
       } else if (inRange(code_point, 0x0800, 0xFFFF)) {
         count = 2;
@@ -822,21 +584,20 @@
         count = 3;
         offset = 0xF0;
       }
-      var result = output_byte_stream.emit(
-        div(code_point, Math.pow(64, count)) + offset);
+      var result = output_byte_stream.emit(div(code_point, Math.pow(64, count)) + offset);
       while (count > 0) {
         var temp = div(code_point, Math.pow(64, count - 1));
-        result = output_byte_stream.emit(0x80 + (temp % 64));
+        result = output_byte_stream.emit(0x80 + temp % 64);
         count -= 1;
       }
       return result;
     };
   }
 
-  name_to_encoding['utf-8'].getEncoder = function(options) {
+  name_to_encoding['utf-8'].getEncoder = function (options) {
     return new UTF8Encoder(options);
   };
-  name_to_encoding['utf-8'].getDecoder = function(options) {
+  name_to_encoding['utf-8'].getDecoder = function (options) {
     return new UTF8Decoder(options);
   };
 
@@ -856,7 +617,7 @@
      * @return {?number} The next code point decoded, or null if not enough
      *     data exists in the input stream to decode a complete code point.
      */
-    this.decode = function(byte_pointer) {
+    this.decode = function (byte_pointer) {
       var bite = byte_pointer.get();
       if (bite === EOF_byte) {
         return EOF_code_point;
@@ -885,7 +646,7 @@
      * @param {CodePointInputStream} code_point_pointer Input stream.
      * @return {number} The last byte emitted.
      */
-    this.encode = function(output_byte_stream, code_point_pointer) {
+    this.encode = function (output_byte_stream, code_point_pointer) {
       var code_point = code_point_pointer.get();
       if (code_point === EOF_code_point) {
         return EOF_byte;
@@ -902,26 +663,18 @@
     };
   }
 
-  (function() {
-    ['ibm864', 'ibm866', 'iso-8859-2', 'iso-8859-3', 'iso-8859-4',
-     'iso-8859-5', 'iso-8859-6', 'iso-8859-7', 'iso-8859-8', 'iso-8859-10',
-     'iso-8859-13', 'iso-8859-14', 'iso-8859-15', 'iso-8859-16', 'koi8-r',
-     'koi8-u', 'macintosh', 'windows-874', 'windows-1250', 'windows-1251',
-     'windows-1252', 'windows-1253', 'windows-1254', 'windows-1255',
-     'windows-1256', 'windows-1257', 'windows-1258', 'x-mac-cyrillic'
-    ].forEach(
-      function(name) {
-        var encoding = name_to_encoding[name];
-        var index = indexes[name];
-        encoding.getDecoder = function(options) {
-          return new SingleByteDecoder(index, options);
-        };
-        encoding.getEncoder = function(options) {
-          return new SingleByteEncoder(index, options);
-        };
-      }
-    );
-  }());
+  (function () {
+    ['ibm864', 'ibm866', 'iso-8859-2', 'iso-8859-3', 'iso-8859-4', 'iso-8859-5', 'iso-8859-6', 'iso-8859-7', 'iso-8859-8', 'iso-8859-10', 'iso-8859-13', 'iso-8859-14', 'iso-8859-15', 'iso-8859-16', 'koi8-r', 'koi8-u', 'macintosh', 'windows-874', 'windows-1250', 'windows-1251', 'windows-1252', 'windows-1253', 'windows-1254', 'windows-1255', 'windows-1256', 'windows-1257', 'windows-1258', 'x-mac-cyrillic'].forEach(function (name) {
+      var encoding = name_to_encoding[name];
+      var index = indexes[name];
+      encoding.getDecoder = function (options) {
+        return new SingleByteDecoder(index, options);
+      };
+      encoding.getEncoder = function (options) {
+        return new SingleByteEncoder(index, options);
+      };
+    });
+  })();
 
   //
   // 9. Legacy multi-byte Chinese (simplified) encodings
@@ -936,22 +689,22 @@
    */
   function GBKDecoder(gb18030, options) {
     var fatal = options.fatal;
-    var /** @type {number} */ gbk_first = 0x00,
-        /** @type {number} */ gbk_second = 0x00,
-        /** @type {number} */ gbk_third = 0x00;
+    var /** @type {number} */gbk_first = 0x00,
+
+    /** @type {number} */gbk_second = 0x00,
+
+    /** @type {number} */gbk_third = 0x00;
     /**
      * @param {ByteInputStream} byte_pointer
      * @return {?number} The next code point decoded, or null if not enough
      *     data exists in the input stream to decode a complete code point.
      */
-    this.decode = function(byte_pointer) {
+    this.decode = function (byte_pointer) {
       var bite = byte_pointer.get();
-      if (bite === EOF_byte && gbk_first === 0x00 &&
-          gbk_second === 0x00 && gbk_third === 0x00) {
+      if (bite === EOF_byte && gbk_first === 0x00 && gbk_second === 0x00 && gbk_third === 0x00) {
         return EOF_code_point;
       }
-      if (bite === EOF_byte &&
-          (gbk_first !== 0x00 || gbk_second !== 0x00 || gbk_third !== 0x00)) {
+      if (bite === EOF_byte && (gbk_first !== 0x00 || gbk_second !== 0x00 || gbk_third !== 0x00)) {
         gbk_first = 0x00;
         gbk_second = 0x00;
         gbk_third = 0x00;
@@ -962,9 +715,7 @@
       if (gbk_third !== 0x00) {
         code_point = null;
         if (inRange(bite, 0x30, 0x39)) {
-          code_point = indexGB18030CodePointFor(
-            (((gbk_first - 0x81) * 10 + (gbk_second - 0x30)) * 126 +
-             (gbk_third - 0x81)) * 10 + bite - 0x30);
+          code_point = indexGB18030CodePointFor((((gbk_first - 0x81) * 10 + (gbk_second - 0x30)) * 126 + (gbk_third - 0x81)) * 10 + bite - 0x30);
         }
         gbk_first = 0x00;
         gbk_second = 0x00;
@@ -997,8 +748,7 @@
         if (inRange(bite, 0x40, 0x7E) || inRange(bite, 0x80, 0xFE)) {
           pointer = (lead - 0x81) * 190 + (bite - offset);
         }
-        code_point = pointer === null ? null :
-          indexCodePointFor(pointer, indexes['gbk']);
+        code_point = pointer === null ? null : indexCodePointFor(pointer, indexes['gbk']);
         if (pointer === null) {
           byte_pointer.offset(-1);
         }
@@ -1033,7 +783,7 @@
      * @param {CodePointInputStream} code_point_pointer Input stream.
      * @return {number} The last byte emitted.
      */
-    this.encode = function(output_byte_stream, code_point_pointer) {
+    this.encode = function (output_byte_stream, code_point_pointer) {
       var code_point = code_point_pointer.get();
       if (code_point === EOF_code_point) {
         return EOF_byte;
@@ -1059,25 +809,22 @@
       pointer = pointer - byte2 * 10 * 126;
       var byte3 = div(pointer, 10);
       var byte4 = pointer - byte3 * 10;
-      return output_byte_stream.emit(byte1 + 0x81,
-                                     byte2 + 0x30,
-                                     byte3 + 0x81,
-                                     byte4 + 0x30);
+      return output_byte_stream.emit(byte1 + 0x81, byte2 + 0x30, byte3 + 0x81, byte4 + 0x30);
     };
   }
 
-  name_to_encoding['gbk'].getEncoder = function(options) {
+  name_to_encoding['gbk'].getEncoder = function (options) {
     return new GBKEncoder(false, options);
   };
-  name_to_encoding['gbk'].getDecoder = function(options) {
+  name_to_encoding['gbk'].getDecoder = function (options) {
     return new GBKDecoder(false, options);
   };
 
   // 9.2 gb18030
-  name_to_encoding['gb18030'].getEncoder = function(options) {
+  name_to_encoding['gb18030'].getEncoder = function (options) {
     return new GBKEncoder(true, options);
   };
-  name_to_encoding['gb18030'].getDecoder = function(options) {
+  name_to_encoding['gb18030'].getDecoder = function (options) {
     return new GBKDecoder(true, options);
   };
 
@@ -1089,14 +836,15 @@
    */
   function HZGB2312Decoder(options) {
     var fatal = options.fatal;
-    var /** @type {boolean} */ hzgb2312 = false,
-        /** @type {number} */ hzgb2312_lead = 0x00;
+    var /** @type {boolean} */hzgb2312 = false,
+
+    /** @type {number} */hzgb2312_lead = 0x00;
     /**
      * @param {ByteInputStream} byte_pointer
      * @return {?number} The next code point decoded, or null if not enough
      *     data exists in the input stream to decode a complete code point.
      */
-    this.decode = function(byte_pointer) {
+    this.decode = function (byte_pointer) {
       var bite = byte_pointer.get();
       if (bite === EOF_byte && hzgb2312_lead === 0x00) {
         return EOF_code_point;
@@ -1130,8 +878,7 @@
         hzgb2312_lead = 0x00;
         var code_point = null;
         if (inRange(bite, 0x21, 0x7E)) {
-          code_point = indexCodePointFor((lead - 1) * 190 +
-                                         (bite + 0x3F), indexes['gbk']);
+          code_point = indexCodePointFor((lead - 1) * 190 + (bite + 0x3F), indexes['gbk']);
         }
         if (bite === 0x0A) {
           hzgb2312 = false;
@@ -1174,7 +921,7 @@
      * @param {CodePointInputStream} code_point_pointer Input stream.
      * @return {number} The last byte emitted.
      */
-    this.encode = function(output_byte_stream, code_point_pointer) {
+    this.encode = function (output_byte_stream, code_point_pointer) {
       var code_point = code_point_pointer.get();
       if (code_point === EOF_code_point) {
         return EOF_byte;
@@ -1209,10 +956,10 @@
     };
   }
 
-  name_to_encoding['hz-gb-2312'].getEncoder = function(options) {
+  name_to_encoding['hz-gb-2312'].getEncoder = function (options) {
     return new HZGB2312Encoder(options);
   };
-  name_to_encoding['hz-gb-2312'].getDecoder = function(options) {
+  name_to_encoding['hz-gb-2312'].getDecoder = function (options) {
     return new HZGB2312Decoder(options);
   };
 
@@ -1228,15 +975,16 @@
    */
   function Big5Decoder(options) {
     var fatal = options.fatal;
-    var /** @type {number} */ big5_lead = 0x00,
-        /** @type {?number} */ big5_pending = null;
+    var /** @type {number} */big5_lead = 0x00,
+
+    /** @type {?number} */big5_pending = null;
 
     /**
      * @param {ByteInputStream} byte_pointer
      * @return {?number} The next code point decoded, or null if not enough
      *     data exists in the input stream to decode a complete code point.
      */
-    this.decode = function(byte_pointer) {
+    this.decode = function (byte_pointer) {
       // NOTE: Hack to support emitting two code points
       if (big5_pending !== null) {
         var pending = big5_pending;
@@ -1276,8 +1024,7 @@
           big5_pending = 0x030C;
           return 0x00EA;
         }
-        var code_point = (pointer === null) ? null :
-              indexCodePointFor(pointer, indexes['big5']);
+        var code_point = pointer === null ? null : indexCodePointFor(pointer, indexes['big5']);
         if (pointer === null) {
           byte_pointer.offset(-1);
         }
@@ -1308,7 +1055,7 @@
      * @param {CodePointInputStream} code_point_pointer Input stream.
      * @return {number} The last byte emitted.
      */
-    this.encode = function(output_byte_stream, code_point_pointer) {
+    this.encode = function (output_byte_stream, code_point_pointer) {
       var code_point = code_point_pointer.get();
       if (code_point === EOF_code_point) {
         return EOF_byte;
@@ -1331,13 +1078,12 @@
     };
   }
 
-  name_to_encoding['big5'].getEncoder = function(options) {
+  name_to_encoding['big5'].getEncoder = function (options) {
     return new Big5Encoder(options);
   };
-  name_to_encoding['big5'].getDecoder = function(options) {
+  name_to_encoding['big5'].getDecoder = function (options) {
     return new Big5Decoder(options);
   };
-
 
   //
   // 11. Legacy multi-byte Japanese encodings
@@ -1351,14 +1097,15 @@
    */
   function EUCJPDecoder(options) {
     var fatal = options.fatal;
-    var /** @type {number} */ eucjp_first = 0x00,
-        /** @type {number} */ eucjp_second = 0x00;
+    var /** @type {number} */eucjp_first = 0x00,
+
+    /** @type {number} */eucjp_second = 0x00;
     /**
      * @param {ByteInputStream} byte_pointer
      * @return {?number} The next code point decoded, or null if not enough
      *     data exists in the input stream to decode a complete code point.
      */
-    this.decode = function(byte_pointer) {
+    this.decode = function (byte_pointer) {
       var bite = byte_pointer.get();
       if (bite === EOF_byte) {
         if (eucjp_first === 0x00 && eucjp_second === 0x00) {
@@ -1376,8 +1123,7 @@
         eucjp_second = 0x00;
         code_point = null;
         if (inRange(lead, 0xA1, 0xFE) && inRange(bite, 0xA1, 0xFE)) {
-          code_point = indexCodePointFor((lead - 0xA1) * 94 + bite - 0xA1,
-                                         indexes['jis0212']);
+          code_point = indexCodePointFor((lead - 0xA1) * 94 + bite - 0xA1, indexes['jis0212']);
         }
         if (!inRange(bite, 0xA1, 0xFE)) {
           byte_pointer.offset(-1);
@@ -1401,8 +1147,7 @@
         eucjp_first = 0x00;
         code_point = null;
         if (inRange(lead, 0xA1, 0xFE) && inRange(bite, 0xA1, 0xFE)) {
-          code_point = indexCodePointFor((lead - 0xA1) * 94 + bite - 0xA1,
-                                         indexes['jis0208']);
+          code_point = indexCodePointFor((lead - 0xA1) * 94 + bite - 0xA1, indexes['jis0208']);
         }
         if (!inRange(bite, 0xA1, 0xFE)) {
           byte_pointer.offset(-1);
@@ -1415,7 +1160,7 @@
       if (inRange(bite, 0x00, 0x7F)) {
         return bite;
       }
-      if (bite === 0x8E || bite === 0x8F || (inRange(bite, 0xA1, 0xFE))) {
+      if (bite === 0x8E || bite === 0x8F || inRange(bite, 0xA1, 0xFE)) {
         eucjp_first = bite;
         return null;
       }
@@ -1434,7 +1179,7 @@
      * @param {CodePointInputStream} code_point_pointer Input stream.
      * @return {number} The last byte emitted.
      */
-    this.encode = function(output_byte_stream, code_point_pointer) {
+    this.encode = function (output_byte_stream, code_point_pointer) {
       var code_point = code_point_pointer.get();
       if (code_point === EOF_code_point) {
         return EOF_byte;
@@ -1463,10 +1208,10 @@
     };
   }
 
-  name_to_encoding['euc-jp'].getEncoder = function(options) {
+  name_to_encoding['euc-jp'].getEncoder = function (options) {
     return new EUCJPEncoder(options);
   };
-  name_to_encoding['euc-jp'].getDecoder = function(options) {
+  name_to_encoding['euc-jp'].getDecoder = function (options) {
     return new EUCJPDecoder(options);
   };
 
@@ -1488,133 +1233,133 @@
       trail: 5,
       Katakana: 6
     };
-    var /** @type {number} */ iso2022jp_state = state.ASCII,
-        /** @type {boolean} */ iso2022jp_jis0212 = false,
-        /** @type {number} */ iso2022jp_lead = 0x00;
+    var /** @type {number} */iso2022jp_state = state.ASCII,
+
+    /** @type {boolean} */iso2022jp_jis0212 = false,
+
+    /** @type {number} */iso2022jp_lead = 0x00;
     /**
      * @param {ByteInputStream} byte_pointer
      * @return {?number} The next code point decoded, or null if not enough
      *     data exists in the input stream to decode a complete code point.
      */
-    this.decode = function(byte_pointer) {
+    this.decode = function (byte_pointer) {
       var bite = byte_pointer.get();
       if (bite !== EOF_byte) {
         byte_pointer.offset(1);
       }
       switch (iso2022jp_state) {
-      default:
-      case state.ASCII:
-        if (bite === 0x1B) {
-          iso2022jp_state = state.escape_start;
-          return null;
-        }
-        if (inRange(bite, 0x00, 0x7F)) {
-          return bite;
-        }
-        if (bite === EOF_byte) {
-          return EOF_code_point;
-        }
-        return decoderError(fatal);
+        default:
+        case state.ASCII:
+          if (bite === 0x1B) {
+            iso2022jp_state = state.escape_start;
+            return null;
+          }
+          if (inRange(bite, 0x00, 0x7F)) {
+            return bite;
+          }
+          if (bite === EOF_byte) {
+            return EOF_code_point;
+          }
+          return decoderError(fatal);
 
-      case state.escape_start:
-        if (bite === 0x24 || bite === 0x28) {
+        case state.escape_start:
+          if (bite === 0x24 || bite === 0x28) {
+            iso2022jp_lead = bite;
+            iso2022jp_state = state.escape_middle;
+            return null;
+          }
+          if (bite !== EOF_byte) {
+            byte_pointer.offset(-1);
+          }
+          iso2022jp_state = state.ASCII;
+          return decoderError(fatal);
+
+        case state.escape_middle:
+          var lead = iso2022jp_lead;
+          iso2022jp_lead = 0x00;
+          if (lead === 0x24 && (bite === 0x40 || bite === 0x42)) {
+            iso2022jp_jis0212 = false;
+            iso2022jp_state = state.lead;
+            return null;
+          }
+          if (lead === 0x24 && bite === 0x28) {
+            iso2022jp_state = state.escape_final;
+            return null;
+          }
+          if (lead === 0x28 && (bite === 0x42 || bite === 0x4A)) {
+            iso2022jp_state = state.ASCII;
+            return null;
+          }
+          if (lead === 0x28 && bite === 0x49) {
+            iso2022jp_state = state.Katakana;
+            return null;
+          }
+          if (bite === EOF_byte) {
+            byte_pointer.offset(-1);
+          } else {
+            byte_pointer.offset(-2);
+          }
+          iso2022jp_state = state.ASCII;
+          return decoderError(fatal);
+
+        case state.escape_final:
+          if (bite === 0x44) {
+            iso2022jp_jis0212 = true;
+            iso2022jp_state = state.lead;
+            return null;
+          }
+          if (bite === EOF_byte) {
+            byte_pointer.offset(-2);
+          } else {
+            byte_pointer.offset(-3);
+          }
+          iso2022jp_state = state.ASCII;
+          return decoderError(fatal);
+
+        case state.lead:
+          if (bite === 0x0A) {
+            iso2022jp_state = state.ASCII;
+            return decoderError(fatal, 0x000A);
+          }
+          if (bite === 0x1B) {
+            iso2022jp_state = state.escape_start;
+            return null;
+          }
+          if (bite === EOF_byte) {
+            return EOF_code_point;
+          }
           iso2022jp_lead = bite;
-          iso2022jp_state = state.escape_middle;
+          iso2022jp_state = state.trail;
           return null;
-        }
-        if (bite !== EOF_byte) {
-          byte_pointer.offset(-1);
-        }
-        iso2022jp_state = state.ASCII;
-        return decoderError(fatal);
 
-      case state.escape_middle:
-        var lead = iso2022jp_lead;
-        iso2022jp_lead = 0x00;
-        if (lead === 0x24 && (bite === 0x40 || bite === 0x42)) {
-          iso2022jp_jis0212 = false;
+        case state.trail:
           iso2022jp_state = state.lead;
-          return null;
-        }
-        if (lead === 0x24 && bite === 0x28) {
-          iso2022jp_state = state.escape_final;
-          return null;
-        }
-        if (lead === 0x28 && (bite === 0x42 || bite === 0x4A)) {
-          iso2022jp_state = state.ASCII;
-          return null;
-        }
-        if (lead === 0x28 && bite === 0x49) {
-          iso2022jp_state = state.Katakana;
-          return null;
-        }
-        if (bite === EOF_byte) {
-          byte_pointer.offset(-1);
-        } else {
-          byte_pointer.offset(-2);
-        }
-        iso2022jp_state = state.ASCII;
-        return decoderError(fatal);
+          if (bite === EOF_byte) {
+            return decoderError(fatal);
+          }
+          var code_point = null;
+          var pointer = (iso2022jp_lead - 0x21) * 94 + bite - 0x21;
+          if (inRange(iso2022jp_lead, 0x21, 0x7E) && inRange(bite, 0x21, 0x7E)) {
+            code_point = iso2022jp_jis0212 === false ? indexCodePointFor(pointer, indexes['jis0208']) : indexCodePointFor(pointer, indexes['jis0212']);
+          }
+          if (code_point === null) {
+            return decoderError(fatal);
+          }
+          return code_point;
 
-      case state.escape_final:
-        if (bite === 0x44) {
-          iso2022jp_jis0212 = true;
-          iso2022jp_state = state.lead;
-          return null;
-        }
-        if (bite === EOF_byte) {
-          byte_pointer.offset(-2);
-        } else {
-          byte_pointer.offset(-3);
-        }
-        iso2022jp_state = state.ASCII;
-        return decoderError(fatal);
-
-      case state.lead:
-        if (bite === 0x0A) {
-          iso2022jp_state = state.ASCII;
-          return decoderError(fatal, 0x000A);
-        }
-        if (bite === 0x1B) {
-          iso2022jp_state = state.escape_start;
-          return null;
-        }
-        if (bite === EOF_byte) {
-          return EOF_code_point;
-        }
-        iso2022jp_lead = bite;
-        iso2022jp_state = state.trail;
-        return null;
-
-      case state.trail:
-        iso2022jp_state = state.lead;
-        if (bite === EOF_byte) {
+        case state.Katakana:
+          if (bite === 0x1B) {
+            iso2022jp_state = state.escape_start;
+            return null;
+          }
+          if (inRange(bite, 0x21, 0x5F)) {
+            return 0xFF61 + bite - 0x21;
+          }
+          if (bite === EOF_byte) {
+            return EOF_code_point;
+          }
           return decoderError(fatal);
-        }
-        var code_point = null;
-        var pointer = (iso2022jp_lead - 0x21) * 94 + bite - 0x21;
-        if (inRange(iso2022jp_lead, 0x21, 0x7E) && inRange(bite, 0x21, 0x7E)) {
-          code_point = (iso2022jp_jis0212 === false) ?
-            indexCodePointFor(pointer, indexes['jis0208']) :
-            indexCodePointFor(pointer, indexes['jis0212']);
-        }
-        if (code_point === null) {
-          return decoderError(fatal);
-        }
-        return code_point;
-
-      case state.Katakana:
-        if (bite === 0x1B) {
-          iso2022jp_state = state.escape_start;
-          return null;
-        }
-        if (inRange(bite, 0x21, 0x5F)) {
-          return 0xFF61 + bite - 0x21;
-        }
-        if (bite === EOF_byte) {
-          return EOF_code_point;
-        }
-        return decoderError(fatal);
       }
     };
   }
@@ -1631,21 +1376,19 @@
       lead: 1,
       Katakana: 2
     };
-    var /** @type {number} */ iso2022jp_state = state.ASCII;
+    var /** @type {number} */iso2022jp_state = state.ASCII;
     /**
      * @param {ByteOutputStream} output_byte_stream Output byte stream.
      * @param {CodePointInputStream} code_point_pointer Input stream.
      * @return {number} The last byte emitted.
      */
-    this.encode = function(output_byte_stream, code_point_pointer) {
+    this.encode = function (output_byte_stream, code_point_pointer) {
       var code_point = code_point_pointer.get();
       if (code_point === EOF_code_point) {
         return EOF_byte;
       }
       code_point_pointer.offset(1);
-      if ((inRange(code_point, 0x0000, 0x007F) ||
-           code_point === 0x00A5 || code_point === 0x203E) &&
-          iso2022jp_state !== state.ASCII) {
+      if ((inRange(code_point, 0x0000, 0x007F) || code_point === 0x00A5 || code_point === 0x203E) && iso2022jp_state !== state.ASCII) {
         code_point_pointer.offset(-1);
         iso2022jp_state = state.ASCII;
         return output_byte_stream.emit(0x1B, 0x28, 0x42);
@@ -1659,8 +1402,7 @@
       if (code_point === 0x203E) {
         return output_byte_stream.emit(0x7E);
       }
-      if (inRange(code_point, 0xFF61, 0xFF9F) &&
-          iso2022jp_state !== state.Katakana) {
+      if (inRange(code_point, 0xFF61, 0xFF9F) && iso2022jp_state !== state.Katakana) {
         code_point_pointer.offset(-1);
         iso2022jp_state = state.Katakana;
         return output_byte_stream.emit(0x1B, 0x28, 0x49);
@@ -1683,10 +1425,10 @@
     };
   }
 
-  name_to_encoding['iso-2022-jp'].getEncoder = function(options) {
+  name_to_encoding['iso-2022-jp'].getEncoder = function (options) {
     return new ISO2022JPEncoder(options);
   };
-  name_to_encoding['iso-2022-jp'].getDecoder = function(options) {
+  name_to_encoding['iso-2022-jp'].getDecoder = function (options) {
     return new ISO2022JPDecoder(options);
   };
 
@@ -1698,13 +1440,13 @@
    */
   function ShiftJISDecoder(options) {
     var fatal = options.fatal;
-    var /** @type {number} */ shiftjis_lead = 0x00;
+    var /** @type {number} */shiftjis_lead = 0x00;
     /**
      * @param {ByteInputStream} byte_pointer
      * @return {?number} The next code point decoded, or null if not enough
      *     data exists in the input stream to decode a complete code point.
      */
-    this.decode = function(byte_pointer) {
+    this.decode = function (byte_pointer) {
       var bite = byte_pointer.get();
       if (bite === EOF_byte && shiftjis_lead === 0x00) {
         return EOF_code_point;
@@ -1718,10 +1460,9 @@
         var lead = shiftjis_lead;
         shiftjis_lead = 0x00;
         if (inRange(bite, 0x40, 0x7E) || inRange(bite, 0x80, 0xFC)) {
-          var offset = (bite < 0x7F) ? 0x40 : 0x41;
-          var lead_offset = (lead < 0xA0) ? 0x81 : 0xC1;
-          var code_point = indexCodePointFor((lead - lead_offset) * 188 +
-                                             bite - offset, indexes['jis0208']);
+          var offset = bite < 0x7F ? 0x40 : 0x41;
+          var lead_offset = lead < 0xA0 ? 0x81 : 0xC1;
+          var code_point = indexCodePointFor((lead - lead_offset) * 188 + bite - offset, indexes['jis0208']);
           if (code_point === null) {
             return decoderError(fatal);
           }
@@ -1755,7 +1496,7 @@
      * @param {CodePointInputStream} code_point_pointer Input stream.
      * @return {number} The last byte emitted.
      */
-    this.encode = function(output_byte_stream, code_point_pointer) {
+    this.encode = function (output_byte_stream, code_point_pointer) {
       var code_point = code_point_pointer.get();
       if (code_point === EOF_code_point) {
         return EOF_byte;
@@ -1785,10 +1526,10 @@
     };
   }
 
-  name_to_encoding['shift_jis'].getEncoder = function(options) {
+  name_to_encoding['shift_jis'].getEncoder = function (options) {
     return new ShiftJISEncoder(options);
   };
-  name_to_encoding['shift_jis'].getDecoder = function(options) {
+  name_to_encoding['shift_jis'].getDecoder = function (options) {
     return new ShiftJISDecoder(options);
   };
 
@@ -1804,13 +1545,13 @@
    */
   function EUCKRDecoder(options) {
     var fatal = options.fatal;
-    var /** @type {number} */ euckr_lead = 0x00;
+    var /** @type {number} */euckr_lead = 0x00;
     /**
      * @param {ByteInputStream} byte_pointer
      * @return {?number} The next code point decoded, or null if not enough
      *     data exists in the input stream to decode a complete code point.
      */
-    this.decode = function(byte_pointer) {
+    this.decode = function (byte_pointer) {
       var bite = byte_pointer.get();
       if (bite === EOF_byte && euckr_lead === 0) {
         return EOF_code_point;
@@ -1837,12 +1578,10 @@
         }
 
         if (inRange(lead, 0xC7, 0xFD) && inRange(bite, 0xA1, 0xFE)) {
-          pointer = (26 + 26 + 126) * (0xC7 - 0x81) + (lead - 0xC7) * 94 +
-            (bite - 0xA1);
+          pointer = (26 + 26 + 126) * (0xC7 - 0x81) + (lead - 0xC7) * 94 + (bite - 0xA1);
         }
 
-        var code_point = (pointer === null) ? null :
-              indexCodePointFor(pointer, indexes['euc-kr']);
+        var code_point = pointer === null ? null : indexCodePointFor(pointer, indexes['euc-kr']);
         if (pointer === null) {
           byte_pointer.offset(-1);
         }
@@ -1876,7 +1615,7 @@
      * @param {CodePointInputStream} code_point_pointer Input stream.
      * @return {number} The last byte emitted.
      */
-    this.encode = function(output_byte_stream, code_point_pointer) {
+    this.encode = function (output_byte_stream, code_point_pointer) {
       var code_point = code_point_pointer.get();
       if (code_point === EOF_code_point) {
         return EOF_byte;
@@ -1890,8 +1629,8 @@
         return encoderError(code_point);
       }
       var lead, trail;
-      if (pointer < ((26 + 26 + 126) * (0xC7 - 0x81))) {
-        lead = div(pointer, (26 + 26 + 126)) + 0x81;
+      if (pointer < (26 + 26 + 126) * (0xC7 - 0x81)) {
+        lead = div(pointer, 26 + 26 + 126) + 0x81;
         trail = pointer % (26 + 26 + 126);
         var offset = trail < 26 ? 0x41 : trail < 26 + 26 ? 0x47 : 0x4D;
         return output_byte_stream.emit(lead, trail + offset);
@@ -1903,10 +1642,10 @@
     };
   }
 
-  name_to_encoding['euc-kr'].getEncoder = function(options) {
+  name_to_encoding['euc-kr'].getEncoder = function (options) {
     return new EUCKREncoder(options);
   };
-  name_to_encoding['euc-kr'].getDecoder = function(options) {
+  name_to_encoding['euc-kr'].getDecoder = function (options) {
     return new EUCKRDecoder(options);
   };
 
@@ -1927,113 +1666,107 @@
       lead: 4,
       trail: 5
     };
-    var /** @type {number} */ iso2022kr_state = state.ASCII,
-        /** @type {number} */ iso2022kr_lead = 0x00;
+    var /** @type {number} */iso2022kr_state = state.ASCII,
+
+    /** @type {number} */iso2022kr_lead = 0x00;
     /**
      * @param {ByteInputStream} byte_pointer
      * @return {?number} The next code point decoded, or null if not enough
      *     data exists in the input stream to decode a complete code point.
      */
-    this.decode = function(byte_pointer) {
+    this.decode = function (byte_pointer) {
       var bite = byte_pointer.get();
       if (bite !== EOF_byte) {
         byte_pointer.offset(1);
       }
       switch (iso2022kr_state) {
-      default:
-      case state.ASCII:
-        if (bite === 0x0E) {
-          iso2022kr_state = state.lead;
-          return null;
-        }
-        if (bite === 0x0F) {
-          return null;
-        }
-        if (bite === 0x1B) {
-          iso2022kr_state = state.escape_start;
-          return null;
-        }
-        if (inRange(bite, 0x00, 0x7F)) {
-          return bite;
-        }
-        if (bite === EOF_byte) {
-          return EOF_code_point;
-        }
-        return decoderError(fatal);
-      case state.escape_start:
-        if (bite === 0x24) {
-          iso2022kr_state = state.escape_middle;
-          return null;
-        }
-        if (bite !== EOF_byte) {
-          byte_pointer.offset(-1);
-        }
-        iso2022kr_state = state.ASCII;
-        return decoderError(fatal);
-      case state.escape_middle:
-        if (bite === 0x29) {
-          iso2022kr_state = state.escape_end;
-          return null;
-        }
-        if (bite === EOF_byte) {
-          byte_pointer.offset(-1);
-        } else {
-          byte_pointer.offset(-2);
-        }
-        iso2022kr_state = state.ASCII;
-        return decoderError(fatal);
-      case state.escape_end:
-        if (bite === 0x43) {
-          iso2022kr_state = state.ASCII;
-          return null;
-        }
-        if (bite === EOF_byte) {
-          byte_pointer.offset(-2);
-        } else {
-          byte_pointer.offset(-3);
-        }
-        iso2022kr_state = state.ASCII;
-        return decoderError(fatal);
-      case state.lead:
-        if (bite === 0x0A) {
-          iso2022kr_state = state.ASCII;
-          return decoderError(fatal, 0x000A);
-        }
-        if (bite === 0x0E) {
-          return null;
-        }
-        if (bite === 0x0F) {
-          iso2022kr_state = state.ASCII;
-          return null;
-        }
-        if (bite === EOF_byte) {
-          return EOF_code_point;
-        }
-        iso2022kr_lead = bite;
-        iso2022kr_state = state.trail;
-        return null;
-      case state.trail:
-        iso2022kr_state = state.lead;
-        if (bite === EOF_byte) {
+        default:
+        case state.ASCII:
+          if (bite === 0x0E) {
+            iso2022kr_state = state.lead;
+            return null;
+          }
+          if (bite === 0x0F) {
+            return null;
+          }
+          if (bite === 0x1B) {
+            iso2022kr_state = state.escape_start;
+            return null;
+          }
+          if (inRange(bite, 0x00, 0x7F)) {
+            return bite;
+          }
+          if (bite === EOF_byte) {
+            return EOF_code_point;
+          }
           return decoderError(fatal);
-        }
-        var code_point = null;
-        if (inRange(iso2022kr_lead, 0x21, 0x46) && inRange(bite, 0x21, 0x7E)) {
-          code_point = indexCodePointFor((26 + 26 + 126) *
-                                         (iso2022kr_lead - 1) +
-                                         26 + 26 + bite - 1,
-                                         indexes['euc-kr']);
-        } else if (inRange(iso2022kr_lead, 0x47, 0x7E) &&
-                   inRange(bite, 0x21, 0x7E)) {
-          code_point = indexCodePointFor((26 + 26 + 126) * (0xC7 - 0x81) +
-                                         (iso2022kr_lead - 0x47) * 94 +
-                                         (bite - 0x21),
-                                         indexes['euc-kr']);
-        }
-        if (code_point !== null) {
-          return code_point;
-        }
-        return decoderError(fatal);
+        case state.escape_start:
+          if (bite === 0x24) {
+            iso2022kr_state = state.escape_middle;
+            return null;
+          }
+          if (bite !== EOF_byte) {
+            byte_pointer.offset(-1);
+          }
+          iso2022kr_state = state.ASCII;
+          return decoderError(fatal);
+        case state.escape_middle:
+          if (bite === 0x29) {
+            iso2022kr_state = state.escape_end;
+            return null;
+          }
+          if (bite === EOF_byte) {
+            byte_pointer.offset(-1);
+          } else {
+            byte_pointer.offset(-2);
+          }
+          iso2022kr_state = state.ASCII;
+          return decoderError(fatal);
+        case state.escape_end:
+          if (bite === 0x43) {
+            iso2022kr_state = state.ASCII;
+            return null;
+          }
+          if (bite === EOF_byte) {
+            byte_pointer.offset(-2);
+          } else {
+            byte_pointer.offset(-3);
+          }
+          iso2022kr_state = state.ASCII;
+          return decoderError(fatal);
+        case state.lead:
+          if (bite === 0x0A) {
+            iso2022kr_state = state.ASCII;
+            return decoderError(fatal, 0x000A);
+          }
+          if (bite === 0x0E) {
+            return null;
+          }
+          if (bite === 0x0F) {
+            iso2022kr_state = state.ASCII;
+            return null;
+          }
+          if (bite === EOF_byte) {
+            return EOF_code_point;
+          }
+          iso2022kr_lead = bite;
+          iso2022kr_state = state.trail;
+          return null;
+        case state.trail:
+          iso2022kr_state = state.lead;
+          if (bite === EOF_byte) {
+            return decoderError(fatal);
+          }
+          var code_point = null;
+          if (inRange(iso2022kr_lead, 0x21, 0x46) && inRange(bite, 0x21, 0x7E)) {
+            code_point = indexCodePointFor((26 + 26 + 126) * (iso2022kr_lead - 1) + 26 + 26 + bite - 1, indexes['euc-kr']);
+          } else if (inRange(iso2022kr_lead, 0x47, 0x7E) && inRange(bite, 0x21, 0x7E)) {
+            code_point = indexCodePointFor((26 + 26 + 126) * (0xC7 - 0x81) + (iso2022kr_lead - 0x47) * 94 + (bite - 0x21), indexes['euc-kr']);
+          }
+          if (code_point !== null) {
+            return code_point;
+          }
+          return decoderError(fatal);
       }
     };
   }
@@ -2049,14 +1782,15 @@
       ASCII: 0,
       lead: 1
     };
-    var /** @type {boolean} */ iso2022kr_initialization = false,
-        /** @type {number} */ iso2022kr_state = state.ASCII;
+    var /** @type {boolean} */iso2022kr_initialization = false,
+
+    /** @type {number} */iso2022kr_state = state.ASCII;
     /**
      * @param {ByteOutputStream} output_byte_stream Output byte stream.
      * @param {CodePointInputStream} code_point_pointer Input stream.
      * @return {number} The last byte emitted.
      */
-    this.encode = function(output_byte_stream, code_point_pointer) {
+    this.encode = function (output_byte_stream, code_point_pointer) {
       var code_point = code_point_pointer.get();
       if (code_point === EOF_code_point) {
         return EOF_byte;
@@ -2066,8 +1800,7 @@
         output_byte_stream.emit(0x1B, 0x24, 0x29, 0x43);
       }
       code_point_pointer.offset(1);
-      if (inRange(code_point, 0x0000, 0x007F) &&
-          iso2022kr_state !== state.ASCII) {
+      if (inRange(code_point, 0x0000, 0x007F) && iso2022kr_state !== state.ASCII) {
         code_point_pointer.offset(-1);
         iso2022kr_state = state.ASCII;
         return output_byte_stream.emit(0x0F);
@@ -2086,7 +1819,7 @@
       }
       var lead, trail;
       if (pointer < (26 + 26 + 126) * (0xC7 - 0x81)) {
-        lead = div(pointer, (26 + 26 + 126)) + 1;
+        lead = div(pointer, 26 + 26 + 126) + 1;
         trail = pointer % (26 + 26 + 126) - 26 - 26 + 1;
         if (!inRange(lead, 0x21, 0x46) || !inRange(trail, 0x21, 0x7E)) {
           return encoderError(code_point);
@@ -2103,13 +1836,12 @@
     };
   }
 
-  name_to_encoding['iso-2022-kr'].getEncoder = function(options) {
+  name_to_encoding['iso-2022-kr'].getEncoder = function (options) {
     return new ISO2022KREncoder(options);
   };
-  name_to_encoding['iso-2022-kr'].getDecoder = function(options) {
+  name_to_encoding['iso-2022-kr'].getDecoder = function (options) {
     return new ISO2022KRDecoder(options);
   };
-
 
   //
   // 13. Legacy utf-16 encodings
@@ -2124,21 +1856,20 @@
    */
   function UTF16Decoder(utf16_be, options) {
     var fatal = options.fatal;
-    var /** @type {?number} */ utf16_lead_byte = null,
-        /** @type {?number} */ utf16_lead_surrogate = null;
+    var /** @type {?number} */utf16_lead_byte = null,
+
+    /** @type {?number} */utf16_lead_surrogate = null;
     /**
      * @param {ByteInputStream} byte_pointer
      * @return {?number} The next code point decoded, or null if not enough
      *     data exists in the input stream to decode a complete code point.
      */
-    this.decode = function(byte_pointer) {
+    this.decode = function (byte_pointer) {
       var bite = byte_pointer.get();
-      if (bite === EOF_byte && utf16_lead_byte === null &&
-          utf16_lead_surrogate === null) {
+      if (bite === EOF_byte && utf16_lead_byte === null && utf16_lead_surrogate === null) {
         return EOF_code_point;
       }
-      if (bite === EOF_byte && (utf16_lead_byte !== null ||
-                                utf16_lead_surrogate !== null)) {
+      if (bite === EOF_byte && (utf16_lead_byte !== null || utf16_lead_surrogate !== null)) {
         return decoderError(fatal);
       }
       byte_pointer.offset(1);
@@ -2157,8 +1888,7 @@
         var lead_surrogate = utf16_lead_surrogate;
         utf16_lead_surrogate = null;
         if (inRange(code_point, 0xDC00, 0xDFFF)) {
-          return 0x10000 + (lead_surrogate - 0xD800) * 0x400 +
-            (code_point - 0xDC00);
+          return 0x10000 + (lead_surrogate - 0xD800) * 0x400 + (code_point - 0xDC00);
         }
         byte_pointer.offset(-2);
         return decoderError(fatal);
@@ -2186,7 +1916,7 @@
      * @param {CodePointInputStream} code_point_pointer Input stream.
      * @return {number} The last byte emitted.
      */
-    this.encode = function(output_byte_stream, code_point_pointer) {
+    this.encode = function (output_byte_stream, code_point_pointer) {
       function convert_to_bytes(code_unit) {
         var byte1 = code_unit >> 8;
         var byte2 = code_unit & 0x00FF;
@@ -2206,28 +1936,27 @@
       if (code_point <= 0xFFFF) {
         return convert_to_bytes(code_point);
       }
-      var lead = div((code_point - 0x10000), 0x400) + 0xD800;
-      var trail = ((code_point - 0x10000) % 0x400) + 0xDC00;
+      var lead = div(code_point - 0x10000, 0x400) + 0xD800;
+      var trail = (code_point - 0x10000) % 0x400 + 0xDC00;
       convert_to_bytes(lead);
       return convert_to_bytes(trail);
     };
   }
 
-  name_to_encoding['utf-16'].getEncoder = function(options) {
+  name_to_encoding['utf-16'].getEncoder = function (options) {
     return new UTF16Encoder(false, options);
   };
-  name_to_encoding['utf-16'].getDecoder = function(options) {
+  name_to_encoding['utf-16'].getDecoder = function (options) {
     return new UTF16Decoder(false, options);
   };
 
   // 13.2 utf-16be
-  name_to_encoding['utf-16be'].getEncoder = function(options) {
+  name_to_encoding['utf-16be'].getEncoder = function (options) {
     return new UTF16Encoder(true, options);
   };
-  name_to_encoding['utf-16be'].getDecoder = function(options) {
+  name_to_encoding['utf-16be'].getDecoder = function (options) {
     return new UTF16Decoder(true, options);
   };
-
 
   // NOTE: currently unused
   function detectEncoding(label, input_stream) {
@@ -2250,7 +1979,7 @@
   // Implementation of Text Encoding Web API
   //
 
-  /** @const */ var DEFAULT_ENCODING = 'utf-8';
+  /** @const */var DEFAULT_ENCODING = 'utf-8';
 
   /**
    * @constructor
@@ -2274,9 +2003,9 @@
     this._options = { fatal: Boolean(options.fatal) };
 
     if (Object.defineProperty) {
-      Object.defineProperty(
-        this, 'encoding',
-        { get: function() { return this._encoding.name; } });
+      Object.defineProperty(this, 'encoding', { get: function () {
+          return this._encoding.name;
+        } });
     } else {
       this.encoding = this._encoding.name;
     }
@@ -2315,7 +2044,6 @@
     }
   };
 
-
   /**
    * @constructor
    * @param {string=} opt_encoding The label of the encoding;
@@ -2338,9 +2066,9 @@
     this._options = { fatal: Boolean(options.fatal) };
 
     if (Object.defineProperty) {
-      Object.defineProperty(
-        this, 'encoding',
-        { get: function() { return this._encoding.name; } });
+      Object.defineProperty(this, 'encoding', { get: function () {
+          return this._encoding.name;
+        } });
     } else {
       this.encoding = this._encoding.name;
     }
@@ -2357,8 +2085,7 @@
      * @param {{stream: boolean}=} options
      */
     decode: function decode(opt_view, options) {
-      if (opt_view && !('buffer' in opt_view && 'byteOffset' in opt_view &&
-                        'byteLength' in opt_view)) {
+      if (opt_view && !('buffer' in opt_view && 'byteOffset' in opt_view && 'byteLength' in opt_view)) {
         throw new TypeError('Expected ArrayBufferView');
       } else if (!opt_view) {
         opt_view = new Uint8Array(0);
@@ -2372,9 +2099,7 @@
 
       // TODO: encoding detection via BOM?
 
-      var bytes = new Uint8Array(opt_view.buffer,
-                                 opt_view.byteOffset,
-                                 opt_view.byteLength);
+      var bytes = new Uint8Array(opt_view.buffer, opt_view.byteOffset, opt_view.byteLength);
       var input_stream = new ByteInputStream(bytes);
 
       var detected = detectEncoding(this._encoding.name, input_stream);
@@ -2382,7 +2107,8 @@
         throw new Error('BOM mismatch'); // TODO: what to do here?
       }
 
-      var output_stream = new CodePointOutputStream(), code_point;
+      var output_stream = new CodePointOutputStream(),
+          code_point;
       while (input_stream.get() !== EOF_byte) {
         code_point = this._decoder.decode(input_stream);
         if (code_point !== null && code_point !== EOF_code_point) {
@@ -2404,4 +2130,4 @@
 
   global['TextEncoder'] = global['TextEncoder'] || TextEncoder;
   global['TextDecoder'] = global['TextDecoder'] || TextDecoder;
-}(this));
+})(this);

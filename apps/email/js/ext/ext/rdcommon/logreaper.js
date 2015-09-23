@@ -47,123 +47,107 @@
  *  be much longer than our log transmission interval.
  **/
 
-define(
-  [
-    './log',
-    './microtime',
-    'exports'
-  ],
-  function(
-    $log,
-    $microtime,
-    exports
-  ) {
+define(['./log', './microtime', 'exports'], function ($log, $microtime, exports) {
 
-var EMPTY = [];
+  var EMPTY = [];
 
-function LogReaper(rootLogger) {
-  this._rootLogger = rootLogger;
-  this._lastTimestamp = null;
-  this._lastSeq = null;
-}
-exports.LogReaper = LogReaper;
-LogReaper.prototype = {
-  /**
-   * Process a logger, producing a time slice representation.
-   *
-   * Our strategy is roughly to manually traverse the logger hiearchy and:
-   * - Ignore loggers with no entries/events and no notably active children that
-   *    were already alive at the last reaping and have not died, not mentioning
-   *    them at all in the output fragment.  This can also be thought of as:
-   * - Emit loggers that have been born.
-   * - Emit loggers that have died.
-   * - Emit loggers with entries/events.
-   * - Emit loggers whose children have had notable activity so that the
-   *    hierarchy can be known.
-   * - Emit loggers that have experienced a semantic ident change.
-   *
-   * Potential future optimizations:
-   */
-  reapHierLogTimeSlice: function() {
-    var rootLogger = this._rootLogger,
-        startSeq, startTimestamp;
-    if (this._lastTimestamp === null) {
-      startSeq = 0;
-      startTimestamp = rootLogger._born;
-    }
-    else {
-      startSeq = this._lastSeq + 1;
-      startTimestamp = this._lastTimestamp;
-    }
-    var endSeq = $log.getCurrentSeq(),
-        endTimestamp = this._lastTimestamp = $microtime.now();
-
-    function traverseLogger(logger) {
-      var empty = true;
-      // speculatively start populating an output representation
-      var outrep = logger.toJSON();
-      outrep.events = null;
-      outrep.kids = null;
-
-      // - check born/death
-      // actually, being born doesn't generate an event, so ignore.
-      //if (logger._born >= startTimestamp)
-      //  empty = false;
-      if (logger._died !== null)
-        empty = false;
-
-      // - check events
-      var outEvents = null;
-      for (var eventKey in logger._eventMap) {
-        var eventVal = logger._eventMap[eventKey];
-        if (eventVal) {
-          empty = false;
-          if (outEvents === null)
-            outrep.events = outEvents = {};
-          outEvents[eventKey] = eventVal;
-          logger._eventMap[eventKey] = 0;
-        }
+  function LogReaper(rootLogger) {
+    this._rootLogger = rootLogger;
+    this._lastTimestamp = null;
+    this._lastSeq = null;
+  }
+  exports.LogReaper = LogReaper;
+  LogReaper.prototype = {
+    /**
+     * Process a logger, producing a time slice representation.
+     *
+     * Our strategy is roughly to manually traverse the logger hiearchy and:
+     * - Ignore loggers with no entries/events and no notably active children that
+     *    were already alive at the last reaping and have not died, not mentioning
+     *    them at all in the output fragment.  This can also be thought of as:
+     * - Emit loggers that have been born.
+     * - Emit loggers that have died.
+     * - Emit loggers with entries/events.
+     * - Emit loggers whose children have had notable activity so that the
+     *    hierarchy can be known.
+     * - Emit loggers that have experienced a semantic ident change.
+     *
+     * Potential future optimizations:
+     */
+    reapHierLogTimeSlice: function () {
+      var rootLogger = this._rootLogger,
+          startSeq,
+          startTimestamp;
+      if (this._lastTimestamp === null) {
+        startSeq = 0;
+        startTimestamp = rootLogger._born;
+      } else {
+        startSeq = this._lastSeq + 1;
+        startTimestamp = this._lastTimestamp;
       }
+      var endSeq = $log.getCurrentSeq(),
+          endTimestamp = this._lastTimestamp = $microtime.now();
 
-      // - check and reap entries
-      if (outrep.entries.length) {
-        empty = false;
-        // (we keep/use outrep.entries, and zero the logger's entries)
-        logger._entries = [];
-      }
-      else {
-        // Avoid subsequent mutation of the list mutating our representation
-        //  and without creating gratuitous garbage by using a shared empty
-        //  list for such cases.
-        outrep.entries = EMPTY;
-      }
+      function traverseLogger(logger) {
+        var empty = true;
+        // speculatively start populating an output representation
+        var outrep = logger.toJSON();
+        outrep.events = null;
+        outrep.kids = null;
 
-      // - check and reap children
-      if (logger._kids && logger._kids.length) {
-        for (var iKid = 0; iKid < logger._kids.length; iKid++) {
-          var kidLogger = logger._kids[iKid];
-          var kidrep = traverseLogger(kidLogger);
-          if (kidrep) {
-            if (!outrep.kids)
-              outrep.kids = [];
-            outrep.kids.push(kidrep);
+        // - check born/death
+        // actually, being born doesn't generate an event, so ignore.
+        //if (logger._born >= startTimestamp)
+        //  empty = false;
+        if (logger._died !== null) empty = false;
+
+        // - check events
+        var outEvents = null;
+        for (var eventKey in logger._eventMap) {
+          var eventVal = logger._eventMap[eventKey];
+          if (eventVal) {
             empty = false;
+            if (outEvents === null) outrep.events = outEvents = {};
+            outEvents[eventKey] = eventVal;
+            logger._eventMap[eventKey] = 0;
           }
-          // reap (and adjust iteration)
-          if (kidLogger._died !== null)
-            logger._kids.splice(iKid--, 1);
         }
+
+        // - check and reap entries
+        if (outrep.entries.length) {
+          empty = false;
+          // (we keep/use outrep.entries, and zero the logger's entries)
+          logger._entries = [];
+        } else {
+          // Avoid subsequent mutation of the list mutating our representation
+          //  and without creating gratuitous garbage by using a shared empty
+          //  list for such cases.
+          outrep.entries = EMPTY;
+        }
+
+        // - check and reap children
+        if (logger._kids && logger._kids.length) {
+          for (var iKid = 0; iKid < logger._kids.length; iKid++) {
+            var kidLogger = logger._kids[iKid];
+            var kidrep = traverseLogger(kidLogger);
+            if (kidrep) {
+              if (!outrep.kids) outrep.kids = [];
+              outrep.kids.push(kidrep);
+              empty = false;
+            }
+            // reap (and adjust iteration)
+            if (kidLogger._died !== null) logger._kids.splice(iKid--, 1);
+          }
+        }
+
+        return empty ? null : outrep;
       }
 
-      return (empty ? null : outrep);
+      return {
+        begin: startTimestamp,
+        end: endTimestamp,
+        logFrag: traverseLogger(rootLogger)
+      };
     }
-
-    return {
-      begin: startTimestamp,
-      end: endTimestamp,
-      logFrag: traverseLogger(rootLogger),
-    };
-  },
-};
-
+  };
 }); // end define

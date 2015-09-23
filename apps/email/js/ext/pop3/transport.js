@@ -1,4 +1,4 @@
-define(['mimefuncs', 'exports'], function(mimefuncs, exports) {
+define(['mimefuncs', 'exports'], function (mimefuncs, exports) {
 
   /**
    * This file contains the following classes:
@@ -56,7 +56,7 @@ define(['mimefuncs', 'exports'], function(mimefuncs, exports) {
    *
    * @param {Uint8Array} data
    */
-  Pop3Parser.prototype.push = function(data) {
+  Pop3Parser.prototype.push = function (data) {
     // append the data to be processed
     var buffer = this.buffer = concatBuffers(this.buffer, data);
 
@@ -72,7 +72,7 @@ define(['mimefuncs', 'exports'], function(mimefuncs, exports) {
         i = -1;
       }
     }
-  }
+  };
 
   /**
    * Attempt to parse and return a single message from the buffered
@@ -89,7 +89,7 @@ define(['mimefuncs', 'exports'], function(mimefuncs, exports) {
    * @param {boolean} multiline true to parse a multiline response.
    * @return {Response|null}
    */
-  Pop3Parser.prototype.extractResponse = function(multiline) {
+  Pop3Parser.prototype.extractResponse = function (multiline) {
     if (!this.unprocessedLines.length) {
       return null;
     }
@@ -102,8 +102,7 @@ define(['mimefuncs', 'exports'], function(mimefuncs, exports) {
       var endLineIndex = -1;
       for (var i = 1; i < this.unprocessedLines.length; i++) {
         var line = this.unprocessedLines[i];
-        if (line.byteLength === 3 &&
-            line[0] === PERIOD && line[1] === CR && line[2] === LF) {
+        if (line.byteLength === 3 && line[0] === PERIOD && line[1] === CR && line[2] === LF) {
           endLineIndex = i;
           break;
         }
@@ -122,7 +121,7 @@ define(['mimefuncs', 'exports'], function(mimefuncs, exports) {
       }
       return new Response(lines, true);
     }
-  }
+  };
 
   /**
    * Represent a POP3 response (both success and failure). You should
@@ -135,7 +134,7 @@ define(['mimefuncs', 'exports'], function(mimefuncs, exports) {
   function Response(lines, isMultiline) {
     this.lines = lines; // list of UInt8Arrays
     this.isMultiline = isMultiline;
-    this.ok = (this.lines[0][0] === PLUS);
+    this.ok = this.lines[0][0] === PLUS;
     this.err = !this.ok;
     this.request = null;
   }
@@ -143,9 +142,9 @@ define(['mimefuncs', 'exports'], function(mimefuncs, exports) {
   /**
    * Return the description text for the status line as a string.
    */
-  Response.prototype.getStatusLine = function() {
+  Response.prototype.getStatusLine = function () {
     return this.getLineAsString(0).replace(/^(\+OK|-ERR) /, '');
-  }
+  };
 
   /**
    * Return the line at `index` as a string.
@@ -153,9 +152,9 @@ define(['mimefuncs', 'exports'], function(mimefuncs, exports) {
    * @param {int} index
    * @return {String}
    */
-  Response.prototype.getLineAsString = function(index) {
+  Response.prototype.getLineAsString = function (index) {
     return mimefuncs.fromTypedArray(this.lines[index]);
-  }
+  };
 
   /**
    * Return an array of strings, one for each line, including CRLFs.
@@ -164,46 +163,46 @@ define(['mimefuncs', 'exports'], function(mimefuncs, exports) {
    *
    * @return {String[]}
    */
-  Response.prototype.getLinesAsString = function() {
+  Response.prototype.getLinesAsString = function () {
     var lines = [];
     for (var i = 0; i < this.lines.length; i++) {
       lines.push(this.getLineAsString(i));
     }
     return lines;
-  }
+  };
 
   /**
    * Return an array of strings, _excluding_ CRLFs, starting from the
    * line after the +OK/-ERR line.
    */
-  Response.prototype.getDataLines = function() {
+  Response.prototype.getDataLines = function () {
     var lines = [];
     for (var i = 1; i < this.lines.length; i++) {
       var line = this.getLineAsString(i);
       lines.push(line.slice(0, line.length - 2)); // strip CRLF
     }
     return lines;
-  }
+  };
 
   /**
    * Return the data portion of a multiline response as a string,
    * with the lines' CRLFs intact.
    */
-  Response.prototype.getDataAsString = function() {
+  Response.prototype.getDataAsString = function () {
     var lines = [];
     for (var i = 1; i < this.lines.length; i++) {
       lines.push(this.getLineAsString(i));
     }
     return lines.join(''); // lines already have '\r\n'
-  }
+  };
 
   /**
    * Return a string representation of the message, primarily for
    * debugging purposes.
    */
-  Response.prototype.toString = function() {
+  Response.prototype.toString = function () {
     return this.getLinesAsString().join('\r\n');
-  }
+  };
 
   /**
    * Represent a POP3 request, with enough data to allow the parser
@@ -230,20 +229,18 @@ define(['mimefuncs', 'exports'], function(mimefuncs, exports) {
    * Encode the request into a byte array suitable for transport over
    * a socket.
    */
-  Request.prototype.toByteArray = function() {
-    return textEncoder.encode(
-      this.command + (this.args.length ? ' ' + this.args.join(' ') : '') + '\r\n');
-  }
+  Request.prototype.toByteArray = function () {
+    return textEncoder.encode(this.command + (this.args.length ? ' ' + this.args.join(' ') : '') + '\r\n');
+  };
 
   /**
    * Trigger the response callback with '-ERR desc\r\n'.
    */
-  Request.prototype._respondWithError = function(desc) {
-    var rsp = new Response([textEncoder.encode(
-      '-ERR ' + desc + '\r\n')], false);
+  Request.prototype._respondWithError = function (desc) {
+    var rsp = new Response([textEncoder.encode('-ERR ' + desc + '\r\n')], false);
     rsp.request = this;
     this.onresponse(rsp, null);
-  }
+  };
 
   /**
    * Couple a POP3 parser with a request/response model, such that
@@ -256,7 +253,7 @@ define(['mimefuncs', 'exports'], function(mimefuncs, exports) {
    */
   function Pop3Protocol() {
     this.parser = new Pop3Parser();
-    this.onsend = function(data) {
+    this.onsend = function (data) {
       throw new Error("You must implement Pop3Protocol.onsend to send data.");
     };
     this.unsentRequests = []; // if not pipelining, queue requests one at a time
@@ -282,8 +279,7 @@ define(['mimefuncs', 'exports'], function(mimefuncs, exports) {
    * @param {function(err, rsp)} cb The callback to invoke upon
    *                                receipt of a response.
    */
-  Pop3Protocol.prototype.sendRequest = function(
-    cmd, args, expectMultiline, cb) {
+  Pop3Protocol.prototype.sendRequest = function (cmd, args, expectMultiline, cb) {
     var req;
     if (cmd instanceof Request) {
       req = cmd;
@@ -302,14 +298,14 @@ define(['mimefuncs', 'exports'], function(mimefuncs, exports) {
     } else {
       this.unsentRequests.push(req);
     }
-  }
+  };
 
   /**
    * Call this function to send received data to the parser. This
    * method automatically calls the appropriate response callback for
    * its respective request.
    */
-  Pop3Protocol.prototype.onreceive = function(evt) {
+  Pop3Protocol.prototype.onreceive = function (evt) {
     this.parser.push(new Uint8Array(evt.data));
 
     var response;
@@ -339,7 +335,7 @@ define(['mimefuncs', 'exports'], function(mimefuncs, exports) {
         }
       }
     }
-  }
+  };
 
   /**
    * Call this function when the socket attached to this protocol is
@@ -349,7 +345,7 @@ define(['mimefuncs', 'exports'], function(mimefuncs, exports) {
    * responding. This avoids the case where we hang if we never
    * receive a response from the server.
    */
-  Pop3Protocol.prototype.onclose = function() {
+  Pop3Protocol.prototype.onclose = function () {
     this.closed = true;
     var requestsToRespond = this.pendingRequests.concat(this.unsentRequests);
     this.pendingRequests = [];
@@ -358,5 +354,5 @@ define(['mimefuncs', 'exports'], function(mimefuncs, exports) {
       var req = requestsToRespond[i];
       req._respondWithError('(connection closed, no response)');
     }
-  }
+  };
 });

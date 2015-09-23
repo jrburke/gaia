@@ -53,7 +53,7 @@ SetupController.prototype = {
       setupController: this
     }).then((progressNode) => {
       this.progressCard = progressNode;
-      this.learnAbout(args);
+      return this.learnAbout(args);
     });
   },
 
@@ -76,6 +76,8 @@ SetupController.prototype = {
     // Remove cards between the initial card and the one active one.
     cards.removeBetweenActive(this.setupAccountInfoCard);
 
+    cards.back();
+
     // Long term, use API to cancel account creation here.
   },
 
@@ -86,7 +88,7 @@ SetupController.prototype = {
   learnAbout: function(args) {
     MailAPI.learnAboutAccount({
       emailAddress: args.emailAddress
-    }, (details) => {
+    }).then((details) => {
       args.configInfo = details.configInfo;
       var result = details.result;
 
@@ -136,6 +138,9 @@ SetupController.prototype = {
       } else { // must be no-config-info and even if not, we'd want this.
         this._divertToManualConfig(args);
       }
+    })
+    .catch(function(err) {
+      console.error('setup_controller learnAbout failed: ' + err);
     });
   },
 
@@ -159,8 +164,12 @@ SetupController.prototype = {
       outgoingPassword: args.outgoingPassword
     };
 
-    MailAPI.tryToCreateAccount(options, args.configInfo || null,
-    (err, errDetails, account) => {
+    MailAPI.tryToCreateAccount(options, args.configInfo || null)
+    .then((result) => {
+      var err = result.error,
+          errDetails = result.errorDetails,
+          account = result.account;
+
       this.creationInProcess = false;
       if (err) {
         this.cancel(err, errDetails);
@@ -172,6 +181,9 @@ SetupController.prototype = {
           this.onCreationSuccess(account);
         }
       }
+    })
+    .catch(function(err) {
+      console.error('setup_controller tryCreate failed: ' + err);
     });
   },
 
