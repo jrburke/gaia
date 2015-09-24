@@ -13,17 +13,39 @@
     { "request-sync": "/index.html" }
   ],
   "permissions": {
-    "alarms":{},
-    "themeable":{},
-    "browser": {},
-    "audio-channel-notification":{},
-    "contacts":{ "access": "readcreate" },
-    "desktop-notification":{},
+    "alarms":{
+      "description": "Used to sync messages in the background"
+    },
+    "themeable":{
+      "description": "Part of the Gaia default app theming"
+    },
+    "browser": {
+      "description": "Allows signing in to Google accounts via their web site"
+    },
+    "audio-channel-notification":{
+      "description": "Trigger notification sounds for new e-mail"
+    },
+    "contacts":{
+      "access": "readcreate",
+      "description": "Enables compose auto-complete and tying e-mail addresses to names"
+    },
+    "desktop-notification":{
+      "description": "Notification of new e-mails"
+    },
     "downloads":{},
-    "device-storage:sdcard":{ "access": "readcreate" },
-    "systemXHR":{},
-    "tcp-socket":{},
-    "moz-extremely-unstable-and-will-change-webcomponents":{}
+    "device-storage:sdcard":{
+      "access": "readcreate",
+      "description": "Save e-mail downloads to device"
+    },
+    "systemXHR":{
+      "description": "Used to discover e-mail server capabilities"
+    },
+    "tcp-socket":{
+      "description": "Enables communicating with mail servers"
+    },
+    "moz-extremely-unstable-and-will-change-webcomponents":{
+      "description": "The visual interface uses custom elements"
+    }
   },
   "locales": {
     "ar": {
@@ -86,5 +108,5 @@
       "to": "/js/cards/oauth2/redirect.html"
     }
   ],
-  "orientation": "default"
+  "orientation": "portrait"
 }

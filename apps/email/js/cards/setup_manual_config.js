@@ -225,7 +225,7 @@ return [
       var socketType = event.target.value;
       var portField = this.formItems.smtp.port;
 
-      if (socketType == 'PLAIN') {
+      if (socketType === 'PLAIN') {
         this.showPlainSocketWarning();
       }
 
@@ -235,11 +235,11 @@ return [
       if (socketType === 'SSL' && (portField.value === STARTTLS_VALUE ||
                                    portField.value === PLAIN_VALUE)) {
         portField.value = SSL_VALUE;
-      } else if (socketType == 'STARTTLS' && (portField.value == SSL_VALUE ||
-                                              portField.value == PLAIN_VALUE)) {
+      } else if (socketType === 'STARTTLS' && (portField.value === SSL_VALUE ||
+                                             portField.value === PLAIN_VALUE)) {
         portField.value = STARTTLS_VALUE;
-      } else if (socketType == 'PLAIN' && (portField.value == SSL_VALUE ||
-                                           portField.value == STARTTLS_VALUE)) {
+      } else if (socketType === 'PLAIN' && (portField.value === SSL_VALUE ||
+                                          portField.value === STARTTLS_VALUE)) {
         portField.value = PLAIN_VALUE;
       }
     },
