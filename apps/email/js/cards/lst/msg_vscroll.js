@@ -9,24 +9,6 @@ var cards = require('cards'),
     toaster = require('toaster'),
     VScroll = require('vscroll');
 
-var sliceEvents = ['seeked'];
-
-/**
- * Minimum number of items there must be in the message slice
- * for us to attempt to limit the selection of snippets to fetch.
- */
-// var MINIMUM_ITEMS_FOR_SCROLL_CALC = 10;
-
-/**
- * Maximum amount of time between issuing snippet requests.
- */
-var MAXIMUM_MS_BETWEEN_SNIPPET_REQUEST = 6000;
-
-/**
- * Fetch up to 4kb while scrolling
- */
-// var MAXIMUM_BYTES_PER_MESSAGE_DURING_SCROLL = 4 * 1024;
-
 /**
  * Component that shows a message-based vscroll. Assumes the following are set
  * on the this component before vscroll is active:
@@ -136,11 +118,7 @@ console.log('MSG_VSCROLL SETLISTCURSOR: ' + listCursor);
 
       this.listCursor = listCursor;
 
-      sliceEvents.forEach((type) => {
-        var name = 'winList_' + type;
-        listCursor.on(name, this, name);
-      });
-
+      listCursor.on('seeked', this, 'onWinListSeeked');
       listCursor.on('currentItem', this, 'onCurrentMessage');
     },
 
@@ -163,14 +141,13 @@ console.log('MSG_VSCROLL SETLISTCURSOR: ' + listCursor);
     _onVScrollStopped: function() {
       // Give any pending requests in the slice priority.
       if (!this.listCursor || !this.listCursor.list) {
-//todo: removed, ok? || this.listCursor.list.pendingRequestCount) {
         return;
       }
 
       // Do not bother fetching snippets if this card is not in view.
       // The card could still have a scroll event triggered though
       // by the next/previous work done in message_reader.
-      if (cards.isVisible(this.cardParent) && !this._hasSnippetRequest()) {
+      if (cards.isVisible(this.cardParent)) {
         this._requestSnippets();
       }
     },
@@ -241,9 +218,8 @@ console.log('MSG_VSCROLL SETLISTCURSOR: ' + listCursor);
       this.emit('syncInProgress', syncInProgress);
     },
 
-    // The funny name because it is auto-bound as a listener for
-    // list events in listCursor using a naming convention.
-    winList_seeked: function(whatChanged) {
+    // A listener for list 'seek' events in the list cursor.
+    onWinListSeeked: function(whatChanged) {
       var listCursor = this.listCursor,
           list = this.listCursor.list,
           index = list.offset,
@@ -437,71 +413,8 @@ console.log('MSG_VSCROLL CALLING seekFocusedOnAbsoluteIndex, index: ' +
       }
     },
 
-    _hasSnippetRequest: function() {
-      var max = MAXIMUM_MS_BETWEEN_SNIPPET_REQUEST;
-      var now = Date.now();
-
-      // if we before the maximum time to wait between requests...
-      var beforeTimeout =
-        (this._lastSnippetRequest + max) > now;
-
-      // there is an important case where the backend may be slow OR have some
-      // fatal error which would prevent us from ever requesting an new set of
-      // snippets because we wait until the last batch finishes. To prevent that
-      // from ever happening we maintain the request start time and if more then
-      // MAXIMUM_MS_BETWEEN_SNIPPET_REQUEST passes we issue a new request.
-      if (this._snippetRequestPending && beforeTimeout) {
-        return true;
-      }
-
-      return false;
-    },
-
-    _pendingSnippetRequest: function() {
-      this._snippetRequestPending = true;
-      this._lastSnippetRequest = Date.now();
-    },
-
-    _clearSnippetRequest: function() {
-      this._snippetRequestPending = false;
-    },
-
     _requestSnippets: function() {
-      var listCursor = this.listCursor;
-      var items = listCursor.list.items;
-      var len = items.length;
-
-      if (!len) {
-        return;
-      }
-
       this.listCursor.list.ensureSnippets();
-
-//todo: fix
-      // var clearSnippets = this._clearSnippetRequest.bind(this);
-      // var options = {
-      //   // this is per message
-      //   maximumBytesToFetch: MAXIMUM_BYTES_PER_MESSAGE_DURING_SCROLL
-      // };
-
-      // if (len < MINIMUM_ITEMS_FOR_SCROLL_CALC) {
-      //   this._pendingSnippetRequest();
-      //   listCursor.list.maybeRequestBodies(0,
-      //       MINIMUM_ITEMS_FOR_SCROLL_CALC - 1, options, clearSnippets);
-      //   return;
-      // }
-
-      // var visibleIndices = this.vScroll.getVisibleIndexRange();
-
-      // if (visibleIndices) {
-      //   this._pendingSnippetRequest();
-      //   listCursor.list.maybeRequestBodies(
-      //     visibleIndices[0],
-      //     visibleIndices[1],
-      //     options,
-      //     clearSnippets
-      //   );
-      // }
     },
 
     releaseFromListCursor: function() {

@@ -186,33 +186,6 @@ return [
       model.latest('folder', this, '_folderChanged');
       model.on('newInboxMessages', this, 'onNewMail');
       model.on('backgroundSendStatus', this, 'onBackgroundSendStatus');
-
-
-//todo: figure if this still makes sense.
-//The foldersListOnChange event is no longer emitted
-/*      model.on('foldersListOnChange', this, 'onFoldersListChange');
-      // If this card is created after list_cursor is set up
-      // with a list, then need to bootstrap this card
-      // to catch up, since the normal events will not fire.
-      // Common scenarios for this case are: going back to the
-      // message list after reading a message from a notification,
-      // or from a compose triggered from an activity. However,
-      // only do this if there is a current folder. A case
-      // where there is not a folder: after deleting an account,
-      // and the UI is bootstrapping back to existing account.
-      // Also, search pushes a new message_list card, but search
-      // needs a special slice, created only when the search
-      // actually starts. So do not bootstrap in that case.
-      if (this.curFolder) {
-
-        // var items = listCursor.list &&
-        //             listCursor.list.items;
-        // if (items && items.length) {
-        //   this.msgVScroll.messages_splice(0, 0, items);
-        //   this.msgVScroll.messages_complete(0);
-        // }
-      }
-*/
     },
 
     /**
@@ -331,14 +304,6 @@ return [
       this.folderUnread.classList.toggle('collapsed', !content);
       this.callHeaderFontSize();
     },
-
-//todo: is this called any more?
-    // onFoldersListChange: function(folder) {
-    //   if (folder === this.curFolder) {
-    //     this.updateUnread(folder.localUnreadConversations);
-    //     this.updateLastSynced(folder.lastSuccessfulSyncAt);
-    //   }
-    // },
 
     /**
      * A workaround for font_size_utils not recognizing child node content
