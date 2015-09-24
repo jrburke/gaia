@@ -5,22 +5,12 @@ define(function(require) {
   var array = require('array'),
       evt = require('evt');
 
-  function makeListener(type, obj) {
-    return function() {
-      var args = Array.slice(arguments);
-      this.emit.apply(this, ['winList_' + type].concat(args));
-    }.bind(obj);
-  }
-
   /**
    * @constructor
    */
   function ListCursor() {
     // Inherit from evt.Emitter.
     evt.Emitter.call(this);
-
-    // Listen for some list events to do some special work.
-    this.on('winList_seeked', this, 'onWinListSeeked');
   }
 
   ListCursor.prototype = evt.mix({
@@ -32,8 +22,6 @@ define(function(require) {
      * @type {String}
      */
     expectingItemSuid: null,
-
-    winListEvents: ['seeked'],
 
     chooseAdvanceIndex: function(direction) {
       var index = this.indexOfItemById(this.currentItem.item.id);
@@ -181,10 +169,8 @@ define(function(require) {
       this.release();
 
       this.list = list;
+      this.list.on('seeked', this, 'onWinListSeeked');
 
-      this.winListEvents.forEach((type) => {
-        list.on(type, makeListener(type, this));
-      });
 //todo: once mail_app_logic thing worked out, the front_end can use a
 //conv_churn with a height of 1 and then use seekInCoordinateSpace
 console.log('LIST_CURSOR CALLING SEEKTOTOP 20, 20');
@@ -192,12 +178,6 @@ console.log('LIST_CURSOR CALLING SEEKTOTOP 20, 20');
     },
 
     onWinListSeeked: function(whatChanged) {
-      // Avoid doing work if get called while in the process of
-      // shutting down.
-      if (!this.list) {
-        return;
-      }
-
       // If there was a itemSuid expected and at the top, then
       // check to see if it was received. This is really just nice
       // for when a new item notification comes in, as the atTop
@@ -206,9 +186,12 @@ console.log('LIST_CURSOR CALLING SEEKTOTOP 20, 20');
           this.list.items && this.list.items.length) {
         this.checkExpectingItemSuid(true);
       }
+
+      this.emit('seeked', whatChanged);
     },
 
-//todo: remove/repurpose
+//todo: remove/repurpose? How to know when an item is removed, and if it affects
+//the currentItem choice?
     /**
      * Choose a new currentItem if we spilled the existing one.
      * Otherwise, emit 'currentItem' event to update stale listeners
@@ -236,6 +219,7 @@ console.log('LIST_CURSOR CALLING SEEKTOTOP 20, 20');
 
     release: function() {
       if (this.list) {
+        this.list.removeObjectListener(this);
         this.list.release();
         this.list = null;
       }
