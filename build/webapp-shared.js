@@ -92,8 +92,11 @@ WebappShared.prototype.copyBuildingBlock =
     var subFolder = utils.getFile(styleFolder.path, blockName);
     utils.ls(subFolder, true).forEach(function(file) {
       var relativePath = utils.relativePath(styleFolder.path, file.path);
-      // Ignore HTML files at style root folder
-      if (relativePath.match(/^[^\/]+\.html$/)) {
+      // Ignore HTML files at style root folder.
+      // JRB: all .html files in the style area are just examples, do not
+      // copy them since they contain CSP warnings that show up if the app zip
+      // is uploaded to marketplace.
+      if (relativePath.match(/\.html$/)) {
         return;
       }
       // Do not process directory as `addToZip` will add files recursively
