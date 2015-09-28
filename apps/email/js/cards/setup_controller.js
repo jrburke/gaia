@@ -20,7 +20,6 @@ define(function(require) {
 
 var cards = require('cards'),
     MailAPI = require('api'),
-    mix = require('mix'),
     oauthFetch = require('cards/oauth2/fetch');
 
 function SetupController() {
@@ -60,7 +59,7 @@ SetupController.prototype = {
   startManual: function(setupCard, args) {
     this._init(setupCard);
 
-    cards.add('animate', 'setup_manual_config', mix({
+    cards.add('animate', 'setup_manual_config', Object.assign({
       setupController: this
     }, args));
   },

@@ -1,8 +1,7 @@
 'use strict';
 define(function(require) {
 
-var mix = require('mix'),
-    cards = require('cards'),
+var cards = require('cards'),
     FormNavigation = require('form_navigation');
 
 // Function to avoid jshint error about "Do not use 'new' for side effects"
@@ -43,7 +42,7 @@ return [
       // The progress card is the dude that actually tries to create the
       // account. Send a new object for sanitation, avoid state modifications
       // downstream.
-      cards.add('animate', 'setup_progress', mix({
+      cards.add('animate', 'setup_progress', Object.assign({
         callingCard: this
       }, this.args));
     },

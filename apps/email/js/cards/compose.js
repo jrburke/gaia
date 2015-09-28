@@ -19,7 +19,6 @@ var cmpAttachmentItemNode = require('tmpl!./cmp/attachment_item.html'),
     toaster = require('toaster'),
     iframeShims = require('iframe_shims'),
     Marquee = require('marquee'),
-    mix = require('mix'),
     mozL10n = require('l10n!'),
     setStatusColor = require('set_status_color'),
 
@@ -216,7 +215,7 @@ return [
 
           var composeOptions = {};
           if (data.options) {
-            mix(composeOptions, data.options);
+            composeOptions = Object.assign(composeOptions, data.options);
           }
 
           if (!composeOptions.command) {
