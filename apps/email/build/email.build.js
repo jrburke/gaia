@@ -42,7 +42,6 @@
         'moz_intl',
         'tmpl',
         'text',
-        'mix',
         'value_selector',
         'folder_depth_classes',
         'iframe_shims',
