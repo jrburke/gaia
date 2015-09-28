@@ -3,7 +3,6 @@ define(function(require) {
   var queryString = require('query_string');
   var services = require('services');
   var cards = require('cards');
-  var mix = require('mix');
 
   // All of the oauthSecrets we know.
   var oauthSecrets = services.oauth2;
@@ -222,7 +221,7 @@ define(function(require) {
       }
     }
 
-    cards.add('animate', 'setup_oauth2', mix({
+    cards.add('animate', 'setup_oauth2', Object.assign({
       url,
       onBrowserComplete
     }, oauthCardArgs));
