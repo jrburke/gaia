@@ -15,7 +15,8 @@ define(function(require, exports, module) {
       idToTag = function(id) {
         return id.toLowerCase().replace(charRegExp, '-');
       },
-      moduleConfig = module.config();
+      moduleConfig = module.config(),
+      chainMethods = moduleConfig.chainMethods || {};
 
   if (moduleConfig.hasOwnProperty('idToTag')) {
     idToTag = moduleConfig.idToTag;
@@ -104,8 +105,9 @@ define(function(require, exports, module) {
       // Any property that ends in Callback, like the custom element
       // lifecycle events, can be multiplexed.
       suffixIndex = key.indexOf(callbackSuffix);
-      if (suffixIndex > 0 &&
-          suffixIndex === key.length - callbackSuffixLength) {
+      if ((suffixIndex > 0 &&
+          suffixIndex === key.length - callbackSuffixLength) ||
+          chainMethods.hasOwnProperty(key)) {
         mixFnProp(proto, key, descriptor.value);
       } else {
         Object.defineProperty(proto, key, descriptor);

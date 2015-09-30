@@ -60,6 +60,13 @@ define(function(require) {
     account: null,
 
     /**
+    * folders event is fired when the property changes.
+    * event: folders
+    * @param {Object} the folders object.
+    **/
+    folders: null,
+
+    /**
     * folder event is fired when the property changes.
     * event: folder
     * @param {Object} the folder object.
@@ -160,12 +167,12 @@ define(function(require) {
           var onComplete = () => {
             // Wait for all folder lists to load. If no accounts, still works
             // out to fall through to the then.
-            Promise.all(accounts.items.map(function(account) {
+            Promise.all(accounts.items.map((account) => {
               var folders = account.folders;
               if (folders.complete) {
                 return Promise.resolve();
               } else {
-                return new Promise(function(resolve) {
+                return new Promise((resolve) => {
                   folders.once('complete', resolve);
                 });
               }
@@ -192,9 +199,15 @@ define(function(require) {
             accounts.once('complete', onComplete);
           }
         }, reject);
-      }).then(function(api) {
+      }).then((api) => {
         // Listen for changes in 'complete' status and update the cache value.
-        api.accounts.on('complete', saveHasAccount);
+        api.accounts.on('complete', (accounts) => {
+          saveHasAccount(accounts);
+
+          // Emit again for accounts since it changed.
+          this._callEmit('accounts');
+        });
+
         return api;
       }));
     },
@@ -210,8 +223,19 @@ define(function(require) {
       if (!this.account || this.account.id !== account.id) {
         this.reset();
         this.account = account;
-        this.selectInbox();
         this._callEmit('account');
+
+        var onFoldersComplete = (folders) => {
+          this.folders = account.folders;
+          this._callEmit('folders');
+          this.selectInbox();
+        };
+
+        account.folders.on('complete', this, onFoldersComplete);
+
+        if (account.folders.complete) {
+          onFoldersComplete();
+        }
       }
 
       return this.account;
@@ -306,6 +330,10 @@ define(function(require) {
     reset: function() {
       this.account = null;
       this.folder = null;
+      if (this.folders) {
+        this.folders.removeObjectListener(this);
+        this.folders = null;
+      }
     }
   };
 

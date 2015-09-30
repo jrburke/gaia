@@ -14,6 +14,8 @@ require('css!style/folder_cards');
 
 return [
   require('./base_card')(require('template!./folder_picker.html')),
+  require('./mixins/model_render')(['accounts', 'folders']),
+
   {
     createdCallback: function() {
       containerListen(this.foldersContainer, 'click',
@@ -25,73 +27,64 @@ return [
       transitionEnd(this, this.onTransitionEnd.bind(this));
     },
 
-    onArgs: function(args) {
-      var model = this.model = args.model;
-      model.latest('account', this, 'updateAccount');
-      var accountCount = this.model.getAccountCount();
-
-      if (accountCount > 1) {
-        this.classList.remove('one-account');
-      }
-    },
-
     /**
      * Called after the element that shows the accounts is visible. Need to wait
      * until the element is visible for the size measurements to be correct.
      */
     initAccountDisplay: function() {
-      // If more than one account, need to show the account dropdown
-      var accountCount = this.model.getAccountCount();
-
-      if (accountCount > 1) {
-        // Set up size needed to handle translation animation for showing
-        // accounts later.
-        this.currentAccountContainerHeight = this.accountHeader
-                                             .getBoundingClientRect().height *
-                                             accountCount;
-        this.hideAccounts();
+      // Do not bother if the accountHeader is hidden with no height, need it
+      // to be visible before calculations will work. So this method should be
+      // called both on state changes and once it is known accountHeader is
+      // visible enough to calculate correctly.
+      if (!this.accountHeaderHeight) {
+        this.accountHeaderHeight = this.accountHeader.getBoundingClientRect()
+                                   .height;
+        if (!this.accountHeaderHeight) {
+          return;
+        }
       }
 
-      this.accounts = this.model.api.accounts;
-      this.accounts.on('complete', this, 'onAccountsUpdate');
+      var accountListContainer = this.accountListContainer;
+      accountListContainer.innerHTML = '';
 
-      // Accounts already likely loaded, so do first render.
-      this.onAccountsUpdate();
+      // If more than one account, need to show the account dropdown
+      var accountCount = this.renderModel.getAccountCount();
+
+      if (accountCount > 1) {
+          // Use the accountHeader as a unit of height and multiple
+          // by the number of children, to get total height needed for
+          // all accounts. Doing this instead of measuring the height
+          // for accountListContainer, since to get a good measurement
+          // needs to not be display none, which could introduce a flash
+          // of seeing the element.
+        this.currentAccountContainerHeight = this.accountHeaderHeight *
+                                             accountCount;
+
+        this.hideAccounts();
+
+        // Add DOM for each account.
+        if (this.state.accounts) {
+          this.state.accounts.items.forEach((account, index) => {
+            var childCount = accountListContainer.childElementCount;
+            var insertBuddy = (index >= childCount) ?
+                              null : accountListContainer.children[index];
+
+            var accountNode = account.element =
+              fldAccountItemNode.cloneNode(true);
+            accountNode.account = account;
+            this.updateAccountDom(account);
+            accountListContainer.insertBefore(accountNode, insertBuddy);
+          });
+        }
+      }
     },
 
     extraClasses: ['anim-vertical', 'anim-overlay', 'one-account'],
 
     onShowSettings: function(event) {
-      cards.add('animate', 'settings_main');
-    },
-
-    /**
-     * Clicking a different account changes the list of folders displayed.  We
-     * then trigger a select of the inbox for that account because otherwise
-     * things get permutationally complex.
-     */
-    updateAccount: function(account) {
-      var oldAccount = this.curAccount;
-
-      this.mostRecentSyncTimestamp = 0;
-
-      if (oldAccount !== account) {
-        this.foldersContainer.innerHTML = '';
-        this.curAccount = account;
-
-        // - DOM!
-        // update header
-        this.querySelector('.fld-acct-header-account-label')
-            .textContent = account.name;
-
-        // Clean up any old bindings.
-        if (oldAccount && oldAccount.folders) {
-          oldAccount.folders.removeObjectListener(this);
-        }
-
-        this.curAccount.folders.on('complete', this, 'onFoldersComplete');
-        this.onFoldersComplete();
-      }
+      cards.add('animate', 'settings_main', {
+        model: this.renderModel
+      });
     },
 
     /**
@@ -100,10 +93,8 @@ return [
      * and only after hiding the folder_picker.
      */
     onClickAccount: function(accountNode, event) {
-      var oldAccountId = this.curAccount.id,
+      var oldAccountId = this.renderModel.account.id,
           accountId = accountNode.account.id;
-
-      this.curAccount = accountNode.account;
 
       if (oldAccountId !== accountId) {
         // Store the ID and wait for the closing animation to finish
@@ -165,46 +156,41 @@ return [
       this.accountHeader.classList.add('closed');
     },
 
-    /**
-     * Used to populate the account list.
-     */
-    onAccountsUpdate: function() {
-      var accountListContainer = this.accountListContainer;
-
-      accountListContainer.innerHTML = '';
-
-      if (!this.accounts.items.length) {
+    render: function() {
+      var account = this.renderModel.account;
+      if (!account) {
         return;
       }
 
-      var accountCount = this.accounts.items.length;
+      this.mostRecentSyncTimestamp = 0;
 
+      // - DOM!
+      // update header
+      this.querySelector('.fld-acct-header-account-label')
+          .textContent = account.name;
+
+      var accountCount = this.state.accounts.items.length;
       this.classList.toggle('one-account', accountCount <= 1);
 
-      // Add DOM for each account
-      this.accounts.items.forEach((account, index) => {
-        var insertBuddy = (index >= accountListContainer.childElementCount) ?
-                          null : accountListContainer.children[index];
+      // Since the number of accounts could have changed, redo calculations
+      // around the size of the accounts and transform offsets needed, and
+      // populate the list of accounts.
+      this.initAccountDisplay();
 
-        var accountNode = account.element =
-          fldAccountItemNode.cloneNode(true);
-        accountNode.account = account;
-        this.updateAccountDom(account);
-        accountListContainer.insertBefore(accountNode, insertBuddy);
+      // Update folder contents.
+      var foldersContainer = this.foldersContainer;
+
+      foldersContainer.innerHTML = '';
+
+      this.state.folders.items.forEach((folder, index) => {
+        var insertBuddy = (index >= foldersContainer.childElementCount) ?
+                          null : foldersContainer.children[index];
+
+        var folderNode = folder.element = fldFolderItemNode.cloneNode(true);
+        folderNode.folder = folder;
+        this.updateFolderDom(folder);
+        foldersContainer.insertBefore(folderNode, insertBuddy);
       });
-
-      // Use the accountHeader as a unit of height and multiple
-      // by the number of children, to get total height needed for
-      // all accounts. Doing this instead of measuring the height
-      // for accountListContainer, since to get a good measurement
-      // needs to not be display none, which could introduce a flash
-      // of seeing the element.
-      this.currentAccountContainerHeight = this.accountHeader
-                                           .getBoundingClientRect().height *
-                                           accountListContainer.children.length;
-
-      // Recalculate heights needed to properly hide the accounts.
-      this.hideAccounts();
     },
 
     updateAccountDom: function(account) {
@@ -214,25 +200,10 @@ return [
         .textContent = account.name;
 
       // Highlight the account currently in use
-      if (this.curAccount && this.curAccount.id === account.id) {
+      if (this.renderModel.account &&
+          this.renderModel.account.id === account.id) {
         accountNode.classList.add('fld-account-selected');
       }
-    },
-
-    onFoldersComplete: function() {
-      var foldersContainer = this.foldersContainer;
-
-      foldersContainer.innerHTML = '';
-
-      this.curAccount.folders.items.forEach((folder, index) => {
-        var insertBuddy = (index >= foldersContainer.childElementCount) ?
-                          null : foldersContainer.children[index];
-
-        var folderNode = folder.element = fldFolderItemNode.cloneNode(true);
-        folderNode.folder = folder;
-        this.updateFolderDom(folder);
-        foldersContainer.insertBefore(folderNode, insertBuddy);
-      });
     },
 
     updateFolderDom: function(folder) {
@@ -252,7 +223,7 @@ return [
         .textContent = folder.name;
       folderNode.dataset.type = folder.type;
 
-      if (folder === this.model.folder) {
+      if (folder === this.renderModel.folder) {
         folderNode.classList.add('fld-folder-selected');
       } else {
         folderNode.classList.remove('fld-folder-selected');
@@ -261,24 +232,14 @@ return [
       // XXX do the unread count stuff once we have that info
     },
 
-    resetFolderSelectedState: function() {
-      var selectedNodes = this.foldersContainer
-                         .querySelectorAll('.fld-folder-selected');
-      Array.from(selectedNodes).forEach(function(node) {
-        node.classList.remove('fld-folder-selected');
-      });
-    },
-
     onClickFolder: function(folderNode, event) {
       var folder = folderNode.folder;
       if (!folder.selectable) {
         return;
       }
 
-      this.resetFolderSelectedState();
-      this.updateFolderDom(folder);
+      this.renderModel.changeFolder(folder);
 
-      this._showFolder(folder);
       this._closeCard();
     },
 
@@ -297,7 +258,7 @@ return [
         // After card is removed, then switch the account, to provide
         // smooth animation on closing of drawer.
         if (this._waitingAccountId) {
-          var model = this.model;
+          var model = this.renderModel;
           model.changeAccountFromId(this._waitingAccountId);
           this._waitingAccountId = null;
         }
@@ -316,13 +277,6 @@ return [
     },
 
     /**
-     * Tell the message-list to show this folder; exists for single code path.
-     */
-    _showFolder: function(folder) {
-      this.model.changeFolder(folder);
-    },
-
-    /**
      * When the card is visible, start the animations to show the content
      * and fade in the tap shield.
      */
@@ -330,16 +284,7 @@ return [
       this.classList.add('opened');
     },
 
-    /**
-     * Our card is going away; perform all cleanup except destroying our DOM.
-     * This will enable the UI to animate away from our card without weird
-     * graphical glitches.
-     */
     release: function() {
-      if (this.accounts) {
-        this.accounts.removeObjectListener(this);
-      }
-      this.model.removeObjectListener(this);
     }
   }
 ];
