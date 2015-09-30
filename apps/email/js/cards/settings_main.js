@@ -3,19 +3,13 @@
 define(function(require) {
 
 var tngAccountItemNode = require('tmpl!./tng/account_item.html'),
-    api = require('api'),
     cards = require('cards');
 
 return [
   require('./base_card')(require('template!./settings_main.html')),
+  require('./mixins/model_render')('accounts'),
   {
     createdCallback: function() {
-      this.accounts = api.accounts;
-      this.accounts.on('complete', this, 'onAccountsComplete');
-
-      // Accounts already likely loaded, so do first render.
-      this.onAccountsComplete();
-
       this._secretButtonClickCount = 0;
       this._secretButtonTimer = null;
 
@@ -28,16 +22,17 @@ return [
       cards.back('animate');
     },
 
-    onAccountsComplete: function() {
+    render: function() {
       // Just rerender the whole account list.
       var accountsContainer = this.accountsContainer;
       accountsContainer.innerHTML = '';
 
-      if (!this.accounts.items.length) {
+      if (!this.state.accounts.items.length) {
         return;
       }
 
-      this.accounts.items.forEach((account, index) => {
+      this.state.accounts &&
+      this.state.accounts.items.forEach((account, index) => {
         var insertBuddy = (index >= accountsContainer.childElementCount) ?
                           null : accountsContainer.children[index];
         var accountNode = tngAccountItemNode.cloneNode(true);
@@ -84,7 +79,6 @@ return [
     },
 
     release: function() {
-      this.accounts.removeObjectListener(this);
     }
   }
 ];

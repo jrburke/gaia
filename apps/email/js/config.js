@@ -66,6 +66,11 @@ if (typeof TestUrlResolver === 'undefined') {
       },
 
       element: {
+        chainMethods: {
+          onArgs: true,
+          release: true
+        },
+
         idToTag: function(id) {
           return id.toLowerCase()
                  .replace(/^cards\/lst\//, 'lst-')
