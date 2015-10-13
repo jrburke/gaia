@@ -209,9 +209,8 @@ return [
       listPerson.onchange = updatePeepDom;
       listPerson.onchange(listPerson);
       // date
-      var dateTime = message.date.valueOf();
-      dateNode.dataset.time = dateTime;
-      dateNode.textContent = dateTime ? date.prettyDate(message.date) : '';
+      var dateTime = dateNode.dataset.time = message.date.valueOf();
+      date.relativeDateElement(dateNode, dateTime);
 
       // attachments (can't change within a message but can change between
       // messages, and since we reuse DOM nodes...)

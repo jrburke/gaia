@@ -657,7 +657,8 @@ return [
       });
 
       // date
-      var dateTime = dateNode.dataset.time = message.date.valueOf();
+      var dateTime = dateNode.dataset.time =
+                     message.mostRecentMessageDate.valueOf();
       date.relativeDateElement(dateNode, dateTime);
 
       // subject
