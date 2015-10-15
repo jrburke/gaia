@@ -111,10 +111,16 @@ define(function (require) {
           obj = existingSet.get(id);
           // Update the object if we have new state
           if (newStates.has(id)) {
+            var [newState, newOverlays] = newStates.get(id);
             contentsChanged = true;
             obj.serial = newSerial;
-            obj.__update(newStates.get(id));
-            obj.emit('change');
+            if (newState) {
+              obj.__update(newState);
+            }
+            if (newOverlays) {
+              obj.__updateOverlays(newOverlays);
+            }
+            obj.emit('change', !!newState, !!newOverlays);
           }
           // Remove it from the existingSet so we can infer objects no longer in
           // the set.
@@ -122,7 +128,8 @@ define(function (require) {
           newSet.set(id, obj);
         } else if (newStates.has(id)) {
           itemSetChanged = true;
-          obj = new this._itemConstructor(this._api, newStates.get(id), this);
+          var [newState, newOverlays] = newStates.get(id);
+          obj = new this._itemConstructor(this._api, newState, newOverlays, this);
           obj.serial = newSerial;
           newSet.set(id, obj);
         } else {
@@ -257,7 +264,15 @@ define(function (require) {
     /**
      * Given a quantized-height-supporting back-end where every item has an
      * integer height associated with it that creates an arbitrary coordinate
-     * space, seek using that coordinate space.
+     * space, seek using that coordinate space, latching on the first visible
+     * item.
+     *
+     * IMPORTANT NOTE!  Latching on the item is usually not what you want if you
+     * are at the top of the list and you want to see new items as they come in.
+     * AKA, if you are seeking to offset 0, you probably want to use `seekToTop`.
+     * I'm a bit conflicted about whether we should just be baking this mode of
+     * operation into this or support flags/etc. to help you do this.  But for
+     * now it's on you.
      *
      * This mode of seeking assumes a virtual list widget with some concept of
      * the visible region and a buffer before it and after it.

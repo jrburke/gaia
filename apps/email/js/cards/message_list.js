@@ -140,15 +140,6 @@ return [
         this.refreshBtn.disabled = false;
       });
 
-      this.msgVScroll.on('syncInProgress', this, function(syncInProgress) {
-        if (syncInProgress) {
-          this.setRefreshState(true);
-        } else {
-          this.setRefreshState(false);
-          this._manuallyTriggeredSync = false;
-        }
-      });
-
       var vScrollBindData = (model, node) => {
         model.element = node;
         node.message = model;
@@ -317,13 +308,41 @@ return [
       });
     },
 
+    onFolderPropsChange: function() {
+      var folder = this.curFolder;
+
+      this.folderNameNode.textContent = folder.name;
+      this.updateUnread(folder.localUnreadConversations);
+      this.msgVScroll.setAttribute('aria-label', folder.name);
+
+      this.updateLastSynced(folder.lastSuccessfulSyncAt);
+
+      // You can't refresh messages in the localdrafts folder.
+      this.refreshBtn.classList.toggle('collapsed',
+                                               folder.type === 'localdrafts');
+
+      // Update refresh icon.
+      //todo: consder effects of .syncBlocked when implemented on back end.
+      if (folder.syncStatus === 'pending' || folder.syncStatus === 'active') {
+        this.setRefreshState(true);
+      } else {
+        this.setRefreshState(false);
+        this._manuallyTriggeredSync = false;
+      }
+    },
+
     /**
      * Show a folder, returning true if we actually changed folders or false if
      * we did nothing because we were already in the folder.
      */
-    showFolder: function(folder, forceNewSlice) {
-      if (folder === this.curFolder && !forceNewSlice) {
-        return false;
+    showFolder: function(folder, forceRefresh) {
+      var isSameFolder = false;
+      if (folder === this.curFolder) {
+        if (forceRefresh) {
+          isSameFolder = true;
+        } else {
+          return false;
+        }
       }
 
       // If using a cache, do not clear the HTML as it will
@@ -334,7 +353,14 @@ return [
       }
       this.msgVScroll._needVScrollData = true;
 
+
+      if (folder) {
+        folder.removeObjectListener(this);
+      }
+
       this.curFolder = folder;
+      this.curFolder.on('change', this, 'onFolderPropsChange');
+      this.onFolderPropsChange();
 
       // Now that a folder is available, enable edit mode toggling.
       this.editModeEnabled = true;
@@ -351,24 +377,21 @@ return [
           break;
       }
 
-      this.folderNameNode.textContent = folder.name;
-      this.updateUnread(folder.localUnreadConversations);
-      this.msgVScroll.setAttribute('aria-label', folder.name);
       this.msgVScroll.hideEmptyLayout();
-
-      // You can't refresh messages in the localdrafts folder.
-      this.refreshBtn.classList.toggle('collapsed',
-                                               folder.type === 'localdrafts');
 
       this.editToolbar.updateDomFolderType(folder.type);
 
-      this.updateLastSynced(folder.lastSuccessfulSyncAt);
-
-      if (forceNewSlice) {
+      if (forceRefresh) {
         // We are creating a new slice, so any pending snippet requests are
         // moot.
+//todo: does msgVScroll need to be notified here or can remove?
         this.msgVScroll._snippetRequestPending = false;
-        this.freshMessagesList();
+
+        if (isSameFolder) {
+          this.listCursor.list.refresh();
+        } else {
+          this.freshMessagesList();
+        }
       }
 
       this.onFolderShown();
@@ -378,7 +401,7 @@ return [
 
     freshMessagesList: function() {
       this.listCursor.bindToList(this.model.api
-                                  .viewFolderConversations(this.model.folder));
+                                  .viewFolderConversations(this.curFolder));
     },
 
     /**
@@ -862,6 +885,7 @@ return [
           items[i].classList.remove('msg-message-syncing-section-syncing');
         }
       }
+//todo: this is not needed/valid any more?
       this.setRefreshState(syncing);
     },
 
@@ -877,31 +901,26 @@ return [
         // Rather than refreshing the folder, we'll send the pending
         // outbox messages, and spin the refresh icon while doing so.
         this.toggleOutboxSyncingDisplay(true);
-      }
-      // If this is a normal folder...
-      else {
-        switch (listCursor.list.status) {
-        // If we're still synchronizing, then the user is not well served by
-        // queueing a refresh yet, let's just squash this.
-        case 'new':
-        case 'synchronizing':
-          break;
-        // If we fully synchronized, then yes, let us refresh.
-        case 'synced':
+      } else {
+        // Normal folder.
+
+        var status = this.curFolder.syncStatus;
+        if (status !== 'pending' && status !== 'active') {
           this._manuallyTriggeredSync = true;
           listCursor.list.refresh();
-          break;
+        }
+//todo: revist once folder.syncBlocked is available
         // If we failed to talk to the server, then let's only do a refresh if
         // we know about any messages.  Otherwise let's just create a new slice
         // by forcing reentry into the folder.
-        case 'syncfailed':
-          if (listCursor.list.items.length) {
-            listCursor.list.refresh();
-          } else {
-            this.showFolder(this.curFolder, /* force new slice */ true);
-          }
-          break;
-        }
+        // case 'syncfailed':
+        //   if (listCursor.list.items.length) {
+        //     listCursor.list.refresh();
+        //   } else {
+        //     this.showFolder(this.curFolder, /* force new slice */ true);
+        //   }
+        //   break;
+        // }
       }
 
       // Even if we're not actually viewing the outbox right now, we

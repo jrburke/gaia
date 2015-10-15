@@ -32,7 +32,7 @@ define(['./a64', './slog', './allback', 'require', 'module', 'exports'], functio
    *        account
    */
   function recreateAccount(universe, oldVersion, accountInfo) {
-    return new Promise((resolve, reject) => {
+    return new Promise(function (resolve, reject) {
       requireConfigurator(accountInfo.def.type, function (mod) {
         // resolve the promise with the promise returned by the configurator
         resolve(mod.configurator.recreateAccount(universe, oldVersion, accountInfo));
@@ -42,7 +42,7 @@ define(['./a64', './slog', './allback', 'require', 'module', 'exports'], functio
   exports.recreateAccount = recreateAccount;
 
   function tryToManuallyCreateAccount(universe, userDetails, domainInfo) {
-    return new Promise((resolve, reject) => {
+    return new Promise(function (resolve, reject) {
       requireConfigurator(domainInfo.type, function (mod) {
         // resolve the promise with the promise returned by the configurator
         resolve(mod.configurator.tryToCreateAccount(universe, userDetails, domainInfo));

@@ -71,7 +71,7 @@ define(function (require) {
       logic(this, 'flushing', {
         proxyCount: this._pendingProxies.size,
         // TODO: this is arguably expensive; investigate logic on-demand funcs
-        tocTypes: Array.from(this._pendingProxies).map(proxy => {
+        tocTypes: Array.from(this._pendingProxies).map(function (proxy) {
           return proxy.toc.type;
         })
       });

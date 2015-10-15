@@ -8,7 +8,7 @@ define(function (require) {
   const { Connection, HttpError } = require('activesync/protocol');
 
   function checkServerCertificate(url) {
-    return new Promise(resolve => {
+    return new Promise(function (resolve) {
       var match = /^https:\/\/([^:/]+)(?::(\d+))?/.exec(url);
       // probably unit test http case?
       if (!match) {
@@ -55,12 +55,12 @@ define(function (require) {
   }
 
   return function probe({ connInfo, credentials }) {
-    return new Promise(resolve => {
+    return new Promise(function (resolve) {
       var conn = new Connection(connInfo.deviceId);
       conn.open(connInfo.server, credentials.username, credentials.password);
       conn.timeout = AUTOCONFIG_TIMEOUT_MS;
 
-      conn.connect(error /*, options*/ => {
+      conn.connect(function (error /*, options*/) {
         if (error) {
           // This error is basically an indication of whether we were able to
           // call getOptions or not.  If the XHR request completed, we get an
@@ -85,7 +85,7 @@ define(function (require) {
             // We didn't talk to the server, so it's either an unresponsive
             // server or a server with a bad certificate.  (We require https
             // outside of unit tests so there's no need to branch here.)
-            resolve(checkServerCertificate(connInfo.server).then(securityError => {
+            resolve(checkServerCertificate(connInfo.server).then(function (securityError) {
               return {
                 error: securityError ? 'bad-security' : 'unresponsive-server',
                 errorDetails: failureDetails

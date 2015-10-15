@@ -66,7 +66,7 @@ define(function (require) {
    * @property {Boolean} hasDraft
    * @property {Boolean} hasAttachments
    */
-  function MailConversation(api, wireRep, slice, handle) {
+  function MailConversation(api, wireRep, overlays, slice, handle) {
     evt.Emitter.call(this);
     this._api = api;
     this._slice = slice;
@@ -215,6 +215,10 @@ define(function (require) {
       this.hasStarred = wireRep.hasStarred;
       this.hasDrafts = wireRep.hasDrafts;
       this.hasAttachments = wireRep.hasAttachments;
+    },
+
+    __updateOverlays: function () /*overlays*/{
+      // XXX currently no overlays for conversations
     },
 
     /**

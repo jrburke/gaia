@@ -30,19 +30,18 @@ define(function (require) {
       displayName: 'localdrafts'
     }],
 
-    syncFolders: function* (ctx, req) {
-      var account = yield ctx.universe.acquireAccount(ctx, req.accountId);
+    syncFolders: function* (ctx, account) {
       var foldersTOC = account.foldersTOC;
       var conn = yield account.ensureConnection();
       var newFolders = [];
       var modifiedFolders = new Map();
 
       var fromDb = yield ctx.beginMutate({
-        syncStates: new Map([[req.accountId, null]])
+        syncStates: new Map([[account.id, null]])
       });
 
-      var rawSyncState = fromDb.syncStates.get(req.accountId);
-      var syncState = new AccountSyncStateHelper(ctx, rawSyncState, req.accountId);
+      var rawSyncState = fromDb.syncStates.get(account.id);
+      var syncState = new AccountSyncStateHelper(ctx, rawSyncState, account.id);
 
       var emitter = new evt.Emitter();
       var deferredFolders = [];
@@ -74,10 +73,10 @@ define(function (require) {
         }
       }
 
-      emitter.on('add', folderArgs => {
+      emitter.on('add', function (folderArgs) {
         tryAndAddFolder(folderArgs);
       });
-      emitter.on('remove', serverId => {
+      emitter.on('remove', function (serverId) {
         syncState.removedFolder(serverId);
         var folderId = syncState.serverIdToFolderId.get(serverId);
         modifiedFolders.set(folderId, null);
@@ -102,7 +101,7 @@ define(function (require) {
       return {
         newFolders,
         modifiedFolders,
-        modifiedSyncStates: new Map([[req.accountId, syncState.rawSyncState]])
+        modifiedSyncStates: new Map([[account.id, syncState.rawSyncState]])
       };
     }
   }]);

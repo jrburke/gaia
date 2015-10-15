@@ -381,6 +381,8 @@ define(function (require) {
    * resolves when a matching event has been logged.
    */
   function LogicMatcher(opts) {
+    var _this = this;
+
     this.matchedLogs = opts.prevMatcher ? opts.prevMatcher.matchedLogs : [];
     this.capturedLogs = [];
     this.ns = opts.ns;
@@ -404,21 +406,21 @@ define(function (require) {
     var prevPromise = opts.prevPromise || Promise.resolve();
 
     if (this.not) {
-      this.promise = prevPromise.then(() => {
-        this.capturedLogs.some(event => {
-          if ((!this.ns || event.namespace === this.ns) && event.matches(this.type, this.detailPredicate)) {
-            throw new MismatchError(this, event);
+      this.promise = prevPromise.then(function () {
+        _this.capturedLogs.some(function (event) {
+          if ((!_this.ns || event.namespace === _this.ns) && event.matches(_this.type, _this.detailPredicate)) {
+            throw new MismatchError(_this, event);
           }
         });
       });
     } else if (this.type) {
-      this.promise = new Promise((resolve, reject) => {
+      this.promise = new Promise(function (resolve, reject) {
         // Once any previous match has been resolved,
         // subscribe to a following match.
-        var subscribeToNextMatch = () => {
-          var timeoutId = setTimeout(() => {
-            reject(new Error('LogicMatcherTimeout: ' + this));
-          }, this.timeoutMS);
+        var subscribeToNextMatch = function () {
+          var timeoutId = setTimeout(function () {
+            reject(new Error('LogicMatcherTimeout: ' + _this));
+          }, _this.timeoutMS);
 
           // Promise chains have "dead spots" in between resolution
           // callbacks. For instance:
@@ -429,36 +431,36 @@ define(function (require) {
           // up a new listener for each LogicMatcher. Instead, since
           // every matcher has a pointer to its prevMatcher, we can
           // just grab the missing logs from there.
-          var resolveThisMatcher = event => {
-            this.resolved = true;
-            this.capturedLogs = []; // Extra events will go here.
-            if (!this.anotherMatcherNeedsMyLogs) {
-              this.removeMatchListener();
+          var resolveThisMatcher = function (event) {
+            _this.resolved = true;
+            _this.capturedLogs = []; // Extra events will go here.
+            if (!_this.anotherMatcherNeedsMyLogs) {
+              _this.removeMatchListener();
             }
           };
 
-          var matchFn = event => {
-            this.capturedLogs.push(event);
-            if (this.resolved) {
+          var matchFn = function (event) {
+            _this.capturedLogs.push(event);
+            if (_this.resolved) {
               return;
             }
 
-            if (this.ns && event.namespace !== this.ns || event.type !== this.type) {
+            if (_this.ns && event.namespace !== _this.ns || event.type !== _this.type) {
               return false; // did not match
             }
-            if (event.matches(this.type, this.detailPredicate)) {
+            if (event.matches(_this.type, _this.detailPredicate)) {
               resolveThisMatcher(event);
-              this.matchedLogs.push(event);
+              _this.matchedLogs.push(event);
               clearTimeout(timeoutId);
-              logic(this, 'match', { ns: this.ns,
-                type: this.type,
+              logic(_this, 'match', { ns: _this.ns,
+                type: _this.type,
                 event: event });
               resolve(event);
               return true;
             } else {
-              if (this.failOnMismatchedDetails) {
+              if (_this.failOnMismatchedDetails) {
                 resolveThisMatcher(event);
-                reject(new MismatchError(this, event));
+                reject(new MismatchError(_this, event));
                 return true; // matched
               } else {
                   // Ignore mismatched events; maybe we'll match later.
@@ -467,7 +469,7 @@ define(function (require) {
             return false; // not done yet, didn't find a match
           };
 
-          this.removeMatchListener = () => {
+          _this.removeMatchListener = function () {
             logic.removeListener('event', matchFn);
           };
 
@@ -480,7 +482,7 @@ define(function (require) {
             // Then, we get to start by capturing all logs that have occured in
             // the intervening time:
             if (matchIndex !== -1) {
-              this.capturedLogs = prevLogs.slice(matchIndex + 1);
+              _this.capturedLogs = prevLogs.slice(matchIndex + 1);
             }
             // Now that we're done with the previous matcher, it doesn't need to
             // listen to events any more.
@@ -489,7 +491,9 @@ define(function (require) {
         };
 
         if (prevPromise) {
-          prevPromise.then(subscribeToNextMatch, e => reject(e));
+          prevPromise.then(subscribeToNextMatch, function (e) {
+            return reject(e);
+          });
         } else {
           try {
             subscribeToNextMatch();
@@ -543,9 +547,11 @@ define(function (require) {
      * Like Promise.then(); resolves with an array of matched logs.
      */
     then(fn, catchFn) {
+      var _this2 = this;
+
       return new LogicMatcher({
-        prevPromise: this.promise.then(() => {
-          var ret = fn(this.matchedLogs.slice());
+        prevPromise: this.promise.then(function () {
+          var ret = fn(_this2.matchedLogs.slice());
           if (ret instanceof Promise) {
             ret = new LogicMatcher({
               prevPromise: ret
@@ -584,6 +590,8 @@ define(function (require) {
     },
 
     _simplify: function (x, depth, cacheSet) {
+      var _this3 = this;
+
       if (cacheSet.has(x)) {
         return '(cycle)';
       }
@@ -596,7 +604,9 @@ define(function (require) {
         return x.slice(0, this.maxArrayLength);
       } else if (Array.isArray(x)) {
         if (depth < this.maxDepth) {
-          return x.slice(0, this.maxArrayLength).map(element => this._simplify(element, depth + 1, cacheSet));
+          return x.slice(0, this.maxArrayLength).map(function (element) {
+            return _this3._simplify(element, depth + 1, cacheSet);
+          });
         } else {
           return '[Array length=' + x.length + ']';
         }
@@ -749,7 +759,7 @@ define(function (require) {
    */
   logic.startAsync = function (scope, type, details) {
     var resolve, reject;
-    var promise = logic.async(scope, type, details, (_resolve, _reject) => {
+    var promise = logic.async(scope, type, details, function (_resolve, _reject) {
       resolve = _resolve;
       reject = _reject;
     });
@@ -773,20 +783,20 @@ define(function (require) {
     scope = logic.subscope(scope, details);
 
     var startEvent;
-    var promise = new Promise((resolve, reject) => {
+    var promise = new Promise(function (resolve, reject) {
       startEvent = logic(scope, 'begin ' + type, {
         asyncStatus: 0, // 'pending', as per Promise's private 'status' property.
         asyncName: type
       });
 
-      fn(result => {
+      fn(function (result) {
         promiseToResultEventMap.set(promise, logic(scope, type, {
           asyncStatus: 1, // 'resolved'
           sourceEventIds: [startEvent.id],
           result: result
         }));
         resolve(result);
-      }, error => {
+      }, function (error) {
         promiseToResultEventMap.set(promise, logic(scope, type, {
           asyncStatus: 2, // 'rejected'
           sourceEventIds: [startEvent.id],
@@ -820,7 +830,7 @@ define(function (require) {
       awaitName: type
     });
 
-    return promise.then(result => {
+    return promise.then(function (result) {
       var resultEvent = promiseToResultEventMap.get(promise);
       logic(scope, type, {
         awaitStatus: 1, // 'resolved'
@@ -828,7 +838,7 @@ define(function (require) {
         sourceEventIds: resultEvent ? [resultEvent.id, awaitEvent.id] : [awaitEvent.id]
       });
       return result;
-    }, error => {
+    }, function (error) {
       var resultEvent = promiseToResultEventMap.get(promise);
       logic(scope, type, {
         awaitStatus: 2, // 'rejected'

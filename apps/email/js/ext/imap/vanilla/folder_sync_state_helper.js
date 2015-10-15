@@ -136,8 +136,10 @@ define(function (require) {
      * Given a list of uids, filter out the UIDs we already know about.
      */
     filterOutKnownUids: function (uids) {
-      return uids.filter(uid => {
-        return !this._uidInfo.has(uid);
+      var _this = this;
+
+      return uids.filter(function (uid) {
+        return !_this._uidInfo.has(uid);
       });
     },
 

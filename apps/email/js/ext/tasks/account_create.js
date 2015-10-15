@@ -59,8 +59,8 @@ define(function (require) {
       var configuratorId = configuratorModules.get(accountType);
       var validatorId = validatorModules.get(accountType);
 
-      var [configurator, validator] = yield new Promise(resolve => {
-        require([configuratorId, validatorId], (configuratorMod, validatorMod) => {
+      var [configurator, validator] = yield new Promise(function (resolve) {
+        require([configuratorId, validatorId], function (configuratorMod, validatorMod) {
           resolve([configuratorMod, validatorMod]);
         });
       });

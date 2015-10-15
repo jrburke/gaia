@@ -29,7 +29,9 @@ define(function (require) {
       var messages = fromDb.messagesByConversation.get(convId);
       var modifiedMessagesMap = new Map();
 
-      var draftIndex = messages.findIndex(msg => msg.id === messageId);
+      var draftIndex = messages.findIndex(function (msg) {
+        return msg.id === messageId;
+      });
       if (draftIndex === -1) {
         throw new Error('moot');
       }

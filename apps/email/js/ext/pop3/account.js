@@ -88,11 +88,13 @@ define(['logic', '../errbackoff', '../composite/incoming', '../errorutils', '../
      * TODO: address the connection life-cycle issues better.
      */
     ensureConnection: function () {
+      var _this = this;
+
       if (this._conn && this._conn.state !== 'disconnected') {
         return Promise.resolve(this._conn);
       }
-      return new Promise((resolve, reject) => {
-        this.withConnection((err, conn) => {
+      return new Promise(function (resolve, reject) {
+        _this.withConnection(function (err, conn) {
           if (err) {
             reject(err);
           } else {
@@ -134,7 +136,7 @@ define(['logic', '../errbackoff', '../composite/incoming', '../errorutils', '../
           port: this._connInfo.port,
           crypto: this._connInfo.crypto,
 
-          preferredAuthMethod: this._engineDetails.preferredAuthMethod,
+          preferredAuthMethod: this._engineData.preferredAuthMethod,
 
           username: this._credentials.username,
           password: this._credentials.password
@@ -180,8 +182,6 @@ define(['logic', '../errbackoff', '../composite/incoming', '../errorutils', '../
      * Shut down the account and close the connection.
      */
     shutdown: function (callback) {
-      CompositeIncomingAccount.prototype.shutdownFolders.call(this);
-
       this._backoffEndpoint.shutdown();
 
       if (this._conn && this._conn.close) {

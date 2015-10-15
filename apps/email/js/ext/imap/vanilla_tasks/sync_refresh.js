@@ -1,30 +1,40 @@
 define(function (require) {
   'use strict';
 
-  var co = require('co');
-  var { shallowClone } = require('../../util');
+  const co = require('co');
+  const { shallowClone } = require('../../util');
 
-  var { NOW } = require('../../date');
+  const { NOW } = require('../../date');
 
-  var TaskDefiner = require('../../task_infra/task_definer');
+  const TaskDefiner = require('../../task_infra/task_definer');
 
-  var FolderSyncStateHelper = require('../vanilla/folder_sync_state_helper');
+  const FolderSyncStateHelper = require('../vanilla/folder_sync_state_helper');
 
-  var imapchew = require('../imapchew');
-  var parseImapDateTime = imapchew.parseImapDateTime;
+  const imapchew = require('../imapchew');
+  const parseImapDateTime = imapchew.parseImapDateTime;
 
   /**
    * Steady state vanilla IMAP folder sync.
    */
-  return TaskDefiner.defineSimpleTask([{
+  return TaskDefiner.defineAtMostOnceTask([{
     name: 'sync_refresh',
-    args: ['accountId', 'folderId'],
+    binByArg: 'folderId',
+
+    helped_overlay_folders: function (folderId, marker, inProgress) {
+      if (!marker) {
+        return null;
+      } else if (inProgress) {
+        return 'active';
+      } else {
+        return 'pending';
+      }
+    },
 
     /**
      * In our planning phase we discard nonsensical requests to refresh
      * local-only folders.
      */
-    plan: co.wrap(function* (ctx, rawTask) {
+    helped_plan: co.wrap(function* (ctx, rawTask) {
       // Get the folder
       var foldersTOC = yield ctx.universe.acquireAccountFoldersTOC(ctx, ctx.accountId);
       var folderInfo = foldersTOC.foldersById.get(rawTask.folderId);
@@ -35,21 +45,29 @@ define(function (require) {
       // edge case we would expect is offline folder creation.  But in that
       // case we still wouldn't want refreshes triggered before we've created
       // the folder and populated it.)
-      var plannedTask = undefined;
       if (!folderInfo.serverPath) {
-        plannedTask = null;
-      } else {
-        plannedTask = shallowClone(rawTask);
-        plannedTask.exclusiveResources = [`sync:${ rawTask.folderId }`];
-        plannedTask.priorityTags = [`view:folder:${ rawTask.folderId }`];
+        return {
+          taskState: null
+        };
       }
 
-      yield ctx.finishTask({
-        taskState: plannedTask
-      });
+      // - Plan!
+      var plannedTask = shallowClone(rawTask);
+      plannedTask.exclusiveResources = [`sync:${ rawTask.folderId }`];
+      plannedTask.priorityTags = [`view:folder:${ rawTask.folderId }`];
+
+      return {
+        taskState: plannedTask,
+        announceUpdatedOverlayData: [['folders', rawTask.folderId]]
+      };
     }),
 
-    execute: co.wrap(function* (ctx, req) {
+    helped_execute: co.wrap(function* (ctx, req) {
+      // Our overlay logic will report us as active already, so send the update
+      // to avoid inconsistencies.  (Alternately, we could mutate the marker
+      // with non-persistent changes.)
+      ctx.announceUpdatedOverlayData('folders', req.folderId);
+
       // -- Exclusively acquire the sync state for the folder
       var fromDb = yield ctx.beginMutate({
         syncStates: new Map([[req.folderId, null]])
@@ -61,7 +79,7 @@ define(function (require) {
       // We need to do this if we don't have any sync state or if we do have
       // sync state but we don't have a high uid.
       if (!rawSyncState || !rawSyncState.lastHighUid) {
-        yield ctx.finishTask({
+        return {
           // we ourselves are done
           taskState: null,
           newData: {
@@ -71,8 +89,7 @@ define(function (require) {
               folderId: req.folderId
             }]
           }
-        });
-        return;
+        };
       }
 
       var syncState = new FolderSyncStateHelper(ctx, rawSyncState, req.accountId, req.folderId, 'refresh');
@@ -174,7 +191,7 @@ define(function (require) {
 
       syncState.lastHighUid = highestUid;
 
-      yield ctx.finishTask({
+      return {
         mutations: {
           syncStates: new Map([[req.folderId, syncState.rawSyncState]]),
           umidLocations: syncState.umidLocationWrites
@@ -188,8 +205,9 @@ define(function (require) {
             lastAttemptedSyncAt: syncDate,
             failedSyncsSinceLastSuccessfulSync: 0
           }]])
-        }
-      });
+        },
+        announceUpdatedOverlayData: [['folders', req.folderId]]
+      };
     })
   }]);
 });

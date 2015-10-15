@@ -30,7 +30,7 @@ define(function (require) {
       }
 
       var mimeBlob = composer.superBlob;
-      var progress = () => /*loaded, total*/{
+      var progress = function () /*loaded, total*/{
         composer.heartbeat('ActiveSync sendMessage');
       };
 

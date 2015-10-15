@@ -50,7 +50,9 @@ define(function (require) {
    * (using the )
    */
   function filterOutIdentity(list, identity) {
-    return list.filter(addressPair => addressPair.address !== identity.address);
+    return list.filter(function (addressPair) {
+      return addressPair.address !== identity.address;
+    });
   }
 
   // ====== Identity man

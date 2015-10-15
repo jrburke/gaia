@@ -88,6 +88,8 @@ define(function (require) {
   }
   TaskManager.prototype = evt.mix({
     __restoreFromDB: co.wrap(function* () {
+      var _this = this;
+
       var { wrappedTasks, complexTaskStates } = yield this._db.loadTasks();
       logic(this, 'restoreFromDB', { count: wrappedTasks.length });
 
@@ -96,32 +98,32 @@ define(function (require) {
         if (wrappedTask.state === null) {
           this._tasksToPlan.push(wrappedTask);
         } else {
-          this.__queueTasksOrMarkers(wrappedTask, 'restored', true);
+          this.__queueTasksOrMarkers([wrappedTask], 'restored:simple', true);
         }
       }
 
       // -- Push complex task state into complex tasks
       var pendingInitPromises = [];
       this._registry.initializeFromDatabaseState(complexTaskStates);
-      this._accountsTOC.getAllItems().forEach(accountInfo => {
-        pendingInitPromises.push(this._registry.accountExistsInitTasks(accountInfo.id, accountInfo.engine).then(markers => {
-          this.__queueTasksOrMarkers(markers, 'restored', true);
+      this._accountsTOC.getAllItems().forEach(function (accountInfo) {
+        pendingInitPromises.push(_this._registry.accountExistsInitTasks(accountInfo.id, accountInfo.engine).then(function (markers) {
+          _this.__queueTasksOrMarkers(markers, 'restored:complex', true);
         }));
       });
-      this._accountsTOC.on('add', accountInfo => {
-        this._registry.accountExistsInitTasks(accountInfo.id, accountInfo.engine).then(markers => {
-          this.__queueTasksOrMarkers(markers, 'restored', true);
+      this._accountsTOC.on('add', function (accountInfo) {
+        _this._registry.accountExistsInitTasks(accountInfo.id, accountInfo.engine).then(function (markers) {
+          _this.__queueTasksOrMarkers(markers, 'restored:complex', true);
         });
       });
-      this._accountsTOC.on('remove', accountInfo => {
-        this._registry.accountRemoved(accountInfo.id);
+      this._accountsTOC.on('remove', function (accountInfo) {
+        _this._registry.accountRemoved(accountInfo.id);
         // TODO: we need to reap the markers
       });
 
       // -- Trigger processing when all initialization has completed.
-      Promise.all(pendingInitPromises).then(() => {
-        this._activePromise = null;
-        this._maybeDoStuff();
+      Promise.all(pendingInitPromises).then(function () {
+        _this._activePromise = null;
+        _this._maybeDoStuff();
       });
     }),
 
@@ -183,14 +185,18 @@ define(function (require) {
      *   towards v3 undo support.  This may be removed.
      */
     scheduleTasks: function (rawTasks, why) {
+      var _this2 = this;
+
       this._ensureWakeLock(why);
       var wrappedTasks = this.__wrapTasks(rawTasks);
 
       logic(this, 'schedulePersistent', { why: why, tasks: wrappedTasks });
 
-      return this._db.addTasks(wrappedTasks).then(() => {
-        this.__enqueuePersistedTasksForPlanning(wrappedTasks);
-        return wrappedTasks.map(x => x.id);
+      return this._db.addTasks(wrappedTasks).then(function () {
+        _this2.__enqueuePersistedTasksForPlanning(wrappedTasks);
+        return wrappedTasks.map(function (x) {
+          return x.id;
+        });
       });
     },
 
@@ -201,9 +207,11 @@ define(function (require) {
      * if they return no result, `undefined` will be returned.
      */
     waitForTasksToBePlanned: function (taskIds) {
-      return Promise.all(taskIds.map(taskId => {
-        return new Promise(resolve => {
-          this.once('planned:' + taskId, resolve);
+      var _this3 = this;
+
+      return Promise.all(taskIds.map(function (taskId) {
+        return new Promise(function (resolve) {
+          _this3.once('planned:' + taskId, resolve);
         });
       }));
     },
@@ -215,9 +223,11 @@ define(function (require) {
      * if they return no result, `undefined` will be returned.
      */
     waitForTasksToBeExecuted: function (taskIds) {
-      return Promise.all(taskIds.map(taskId => {
-        return new Promise(resolve => {
-          this.once('executed:' + taskId, resolve);
+      var _this4 = this;
+
+      return Promise.all(taskIds.map(function (taskId) {
+        return new Promise(function (resolve) {
+          _this4.once('executed:' + taskId, resolve);
         });
       }));
     },
@@ -236,11 +246,13 @@ define(function (require) {
       var wrappedTasks = this.__wrapTasks(rawTasks);
       logic(this, 'scheduleNonPersistent', { why: why, tasks: wrappedTasks });
 
-      wrappedTasks.forEach(wrapped => {
+      wrappedTasks.forEach(function (wrapped) {
         wrapped.nonpersistent = true;
       });
       this.__enqueuePersistedTasksForPlanning(wrappedTasks);
-      return Promise.resolve(wrappedTasks.map(x => x.id));
+      return Promise.resolve(wrappedTasks.map(function (x) {
+        return x.id;
+      }));
     },
 
     /**
@@ -256,9 +268,11 @@ define(function (require) {
      * interactive.
      */
     scheduleNonPersistentTaskAndWaitForPlannedResult: function (rawTask, why) {
-      return this.scheduleNonPersistentTasks([rawTask], why).then(taskIds => {
-        return this.waitForTasksToBePlanned(taskIds);
-      }).then(results => {
+      var _this5 = this;
+
+      return this.scheduleNonPersistentTasks([rawTask], why).then(function (taskIds) {
+        return _this5.waitForTasksToBePlanned(taskIds);
+      }).then(function (results) {
         return results[0];
       });
     },
@@ -276,9 +290,11 @@ define(function (require) {
      * interactive.
      */
     scheduleNonPersistentTaskAndWaitForExecutedResult: function (rawTask, why) {
-      return this.scheduleNonPersistentTasks([rawTask], why).then(taskIds => {
-        return this.waitForTasksToBeExecuted(taskIds);
-      }).then(results => {
+      var _this6 = this;
+
+      return this.scheduleNonPersistentTasks([rawTask], why).then(function (taskIds) {
+        return _this6.waitForTasksToBeExecuted(taskIds);
+      }).then(function (results) {
         return results[0];
       });
     },
@@ -288,9 +304,11 @@ define(function (require) {
      * database.
      */
     __wrapTasks: function (rawTasks) {
-      return rawTasks.map(rawTask => {
+      var _this7 = this;
+
+      return rawTasks.map(function (rawTask) {
         return {
-          id: this._nextId++,
+          id: _this7._nextId++,
           rawTask: rawTask,
           state: null // => planned => (deleted)
         };
@@ -316,9 +334,11 @@ define(function (require) {
      * TaskPriorities.
      */
     __queueTasksOrMarkers: function (taskThings, sourceId, noTrigger) {
+      var _this8 = this;
+
       var prioritized = 0;
       for (var taskThing of taskThings) {
-        logic(this, 'queueing', { taskThing: taskThing, sourceId });
+        logic(this, 'queueing', { taskThing, sourceId });
         if (this._resources.ownOrRelayTaskThing(taskThing)) {
           prioritized++;
         }
@@ -333,8 +353,8 @@ define(function (require) {
       // nextTick-style hacks.  But right now this should be harmless but
       // wasteful.
       if (prioritized && !noTrigger && !this._activePromise) {
-        Promise.resolve().then(() => {
-          this._maybeDoStuff();
+        Promise.resolve().then(function () {
+          _this8._maybeDoStuff();
         });
       }
     },
@@ -355,6 +375,8 @@ define(function (require) {
      * time.  We *absolutely* do not want to be doing this forever.
      */
     _maybeDoStuff: function () {
+      var _this9 = this;
+
       if (this._activePromise) {
         return;
       }
@@ -381,20 +403,20 @@ define(function (require) {
         // this.  Right now we're effectively being really paranoid to make sure
         // we clear the stack.
         if (this._tasksToPlan.length || !this._priorities.hasTasksToExecute()) {
-          setTimeout(() => {
-            this._maybeDoStuff();
+          setTimeout(function () {
+            _this9._maybeDoStuff();
           }, 0);
         }
         return;
       }
 
-      this._activePromise.then(() => {
-        this._activePromise = null;
-        this._maybeDoStuff();
-      }, error => {
-        this._activePromise = null;
-        logic(this, 'taskError', { error, stack: error.stack });
-        this._maybeDoStuff();
+      this._activePromise.then(function () {
+        _this9._activePromise = null;
+        _this9._maybeDoStuff();
+      }, function (error) {
+        _this9._activePromise = null;
+        logic(_this9, 'taskError', { error, stack: error.stack });
+        _this9._maybeDoStuff();
       });
     },
 
@@ -404,14 +426,16 @@ define(function (require) {
      * happen via a call to `__queueTasksOrMarkers` via TaskContext.
      */
     _planNextTask: function () {
+      var _this10 = this;
+
       var wrappedTask = this._tasksToPlan.shift();
       logic(this, 'planning:begin', { task: wrappedTask });
       var ctx = new TaskContext(wrappedTask, this._universe);
       var planResult = this._registry.planTask(ctx, wrappedTask);
       if (planResult) {
-        planResult.then(returnedResult => {
-          logic(this, 'planning:end', { task: wrappedTask });
-          this.emit('planned:' + wrappedTask.id, returnedResult);
+        planResult.then(function (returnedResult) {
+          logic(_this10, 'planning:end', { task: wrappedTask });
+          _this10.emit('planned:' + wrappedTask.id, returnedResult);
         });
       } else {
         logic(this, 'planning:end', { moot: true, task: wrappedTask });
@@ -421,15 +445,17 @@ define(function (require) {
     },
 
     _executeNextTask: function () {
+      var _this11 = this;
+
       var taskThing = this._priorities.popNextAvailableTask();
       logic(this, 'executing:begin', { task: taskThing });
 
       var ctx = new TaskContext(taskThing, this._universe);
       var execResult = this._registry.executeTask(ctx, taskThing);
       if (execResult) {
-        execResult.then(returnedResult => {
-          logic(this, 'executing:end', { task: taskThing });
-          this.emit('executed:' + taskThing.id, returnedResult);
+        execResult.then(function (returnedResult) {
+          logic(_this11, 'executing:end', { task: taskThing });
+          _this11.emit('executed:' + taskThing.id, returnedResult);
         });
       } else {
         logic(this, 'executing:end', { moot: true, task: taskThing });

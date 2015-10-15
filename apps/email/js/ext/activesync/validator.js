@@ -13,7 +13,7 @@ define(function (require) {
   const scope = logic.scope('ActivesyncConfigurator');
 
   function getFullDetailsFromAutodiscover(userDetails, url) {
-    return new Promise(resolve => {
+    return new Promise(function (resolve) {
       logic(scope, 'autodiscover:begin', { url });
       raw_autodiscover(url, userDetails.emailAddress, userDetails.password, AUTOCONFIG_TIMEOUT_MS,
       /* redirects are okay */false, function (error, config) {
