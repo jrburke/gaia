@@ -7,7 +7,7 @@ define(function (require) {
   /**
    *
    */
-  function MailAccount(api, wireRep, acctsSlice) {
+  function MailAccount(api, wireRep, overlays, acctsSlice) {
     evt.Emitter.call(this);
 
     this._api = api;
@@ -72,6 +72,8 @@ define(function (require) {
     if (acctsSlice && acctsSlice._autoViewFolders) {
       this.folders = api.viewFolders('account', this.id);
     }
+
+    this.__updateOverlays(overlays);
   }
   MailAccount.prototype = evt.mix({
     toString: function () {
@@ -86,13 +88,13 @@ define(function (require) {
     },
 
     __update: function (wireRep) {
+      this._wireRep = wireRep;
       this.enabled = wireRep.enabled;
       this.problems = wireRep.problems;
       this.syncRange = wireRep.syncRange;
       this.syncInterval = wireRep.syncInterval;
       this.notifyOnNew = wireRep.notifyOnNew;
       this.playSoundOnSend = wireRep.playSoundOnSend;
-      this._wireRep.defaultPriority = wireRep.defaultPriority;
 
       for (var i = 0; i < wireRep.identities.length; i++) {
         if (this.identities[i]) {
@@ -101,6 +103,10 @@ define(function (require) {
           this.identities.push(new MailSenderIdentity(this._api, wireRep.identities[i]));
         }
       }
+    },
+
+    __updateOverlays: function (overlays) {
+      this.syncStatus = overlays.sync_refresh ? overlays.sync_refresh : null;
     },
 
     release: function () {

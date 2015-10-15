@@ -74,6 +74,10 @@ define(['logic', '../a64', '../accountmixins', '../allback', '../errbackoff', '.
       return '[ImapAccount: ' + this.id + ']';
     },
 
+    get capability() {
+      return this._engineData.capability;
+    },
+
     //////////////////////////////////////////////////////////////////////////////
     // Server type indicators for quirks and heuristics like sent mail
 
@@ -86,7 +90,7 @@ define(['logic', '../a64', '../accountmixins', '../allback', '../errbackoff', '.
      * https://developers.google.com/gmail/imap_extensions
      */
     get isGmail() {
-      return this.meta.capability.indexOf('X-GM-EXT-1') !== -1;
+      return this.capability.indexOf('X-GM-EXT-1') !== -1;
     },
 
     /**
@@ -96,7 +100,7 @@ define(['logic', '../a64', '../accountmixins', '../allback', '../errbackoff', '.
      * X-CM-EXT-1 capability.
      */
     get isCoreMailServer() {
-      return this.meta.capability.indexOf('X-CM-EXT-1') !== -1;
+      return this.capability.indexOf('X-CM-EXT-1') !== -1;
     },
 
     /**

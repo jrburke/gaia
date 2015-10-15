@@ -9,7 +9,7 @@ define(function(require, exports, module) {
 
 window.emailVersion = '0.0.1-conversations';
 
-console.log('=== EMAIL CONVERSATIONS BRANCH ' + window.emailVersion + ' ===');
+console.log('=== EMAIL CONVERSATIONS VERSION: ' + window.emailVersion + ' ===');
 
 var mozL10n = require('l10n!'),
     activityComposerData = require('activity_composer_data'),

@@ -17,7 +17,7 @@ define(function (require) {
   function selectMessages(messages, onlyMessages, selector) {
     var filtered = messages;
     if (onlyMessages) {
-      filtered = filtered.filter(message => {
+      filtered = filtered.filter(function (message) {
         return onlyMessages.indexOf(message.id) !== -1;
       });
     }

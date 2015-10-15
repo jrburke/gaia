@@ -50,9 +50,16 @@ define(function (require) {
     this.universe = universe;
     this.taskRegistry = taskRegistry;
 
+    /**
+     * Maps account id's to their accountDef instances from the moment we hear
+     * about the account.  Necessary since we only tell the accountsTOC about
+     * the account once things are sufficiently loaded for the rest of the system
+     * to know about the account.
+     */
+    this._immediateAccountDefsById = new Map();
     this.accountsTOC = new AccountsTOC();
 
-    // prereqify maps.
+    // prereqify maps. (See the helper function above and its usages below.)
     this._taskTypeLoads = new Map();
     this._accountFoldersTOCLoads = new Map();
     this._accountLoads = new Map();
@@ -115,9 +122,11 @@ define(function (require) {
      * some of the tasks to only be loaded when they are actually needed.
      */
     _ensureTasksLoaded: prereqify('_taskTypeLoads', function (engineId) {
-      return new Promise(resolve => {
-        require([engineTaskMappings.get(engineId)], tasks => {
-          this.taskRegistry.registerPerAccountTypeTasks(engineId, tasks);
+      var _this = this;
+
+      return new Promise(function (resolve) {
+        require([engineTaskMappings.get(engineId)], function (tasks) {
+          _this.taskRegistry.registerPerAccountTypeTasks(engineId, tasks);
           resolve(true);
         });
       });
@@ -127,10 +136,21 @@ define(function (require) {
      * Ensure the folders for the given account have been loaded from disk and the
      * FoldersTOC accordingly initialized.
      */
-    _ensureAccountFolderTOC: prereqify('_accountFoldersTOCLoads', function (accountId) {
-      return this.db.loadFoldersByAccount(accountId).then(folders => {
-        var foldersTOC = new FoldersTOC(this.db, accountId, folders);
-        this.accountFoldersTOCs.set(accountId, foldersTOC);
+    _ensureAccountFoldersTOC: prereqify('_accountFoldersTOCLoads', function (accountId) {
+      var _this2 = this;
+
+      return this.db.loadFoldersByAccount(accountId).then(function (folders) {
+        // The FoldersTOC wants this so it can mix in per-account data to the
+        // folders so they can stand alone without needing to have references and
+        // weird cascades in the front-end.
+        var accountDef = _this2.getAccountDefById(accountId);
+        var foldersTOC = new FoldersTOC({
+          db: _this2.db,
+          accountDef,
+          folders,
+          dataOverlayManager: _this2.universe.dataOverlayManager
+        });
+        _this2.accountFoldersTOCs.set(accountId, foldersTOC);
         return foldersTOC;
       });
     }),
@@ -139,18 +159,20 @@ define(function (require) {
      * Ensure the given account has been loaded.
      */
     _ensureAccount: prereqify('_accountLoads', function (accountId) {
-      return this._ensureAccountFolderTOC(accountId).then(foldersTOC => {
-        return new Promise(resolve => {
-          var accountDef = this.getAccountDefById(accountId);
-          require([accountModules.get(accountDef.type)], accountConstructor => {
-            var stashedConn = this._stashedConnectionsByAccountId.get(accountId);
-            this._stashedConnectionsByAccountId.delete(accountId);
+      var _this3 = this;
 
-            var account = new accountConstructor(this.universe, accountDef, foldersTOC, this.db, stashedConn);
-            this.accounts.set(accountId, account);
+      return this._ensureAccountFoldersTOC(accountId).then(function (foldersTOC) {
+        return new Promise(function (resolve) {
+          var accountDef = _this3.getAccountDefById(accountId);
+          require([accountModules.get(accountDef.type)], function (accountConstructor) {
+            var stashedConn = _this3._stashedConnectionsByAccountId.get(accountId);
+            _this3._stashedConnectionsByAccountId.delete(accountId);
+
+            var account = new accountConstructor(_this3.universe, accountDef, foldersTOC, _this3.db, stashedConn);
+            _this3.accounts.set(accountId, account);
             // If we're online, issue a syncFolderList task.
-            if (this.universe.online) {
-              this.universe.syncFolderList(accountId, 'loadAccount');
+            if (_this3.universe.online) {
+              _this3.universe.syncFolderList(accountId, 'loadAccount');
             }
             resolve(account);
           });
@@ -167,7 +189,7 @@ define(function (require) {
       if (account) {
         return ctx.acquire(account);
       }
-      return this._ensureAccount(accountId).then(_account => {
+      return this._ensureAccount(accountId).then(function (_account) {
         return ctx.acquire(_account);
       });
     },
@@ -177,17 +199,17 @@ define(function (require) {
       if (foldersTOC) {
         return ctx.acquire(foldersTOC);
       }
-      return this._ensureAccountFolderTOC(accountId).then(_foldersTOC => {
+      return this._ensureAccountFoldersTOC(accountId).then(function (_foldersTOC) {
         return ctx.acquire(_foldersTOC);
       });
     },
 
     /**
-     * Return the AccountDef for the given AccountId.  This is only safe to call
-     * after the universe has fully loaded.
+     * Return the AccountDef for the given AccountId.  This will return accounts
+     * we have not acknowledged the existence of to the AccountsTOC yet.
      */
     getAccountDefById: function (accountId) {
-      return this.accountsTOC.accountDefsById.get(accountId);
+      return this._immediateAccountDefsById.get(accountId);
     },
 
     /**
@@ -233,11 +255,15 @@ define(function (require) {
      *   we have announced the existence of the account via the AccountsTOC.
      */
     _accountAdded: function (accountDef) {
+      var _this4 = this;
+
       logic(this, 'accountExists', { accountId: accountDef.id });
 
-      var waitFor = [this._ensureTasksLoaded(accountDef.engine), this._ensureAccountFolderTOC(accountDef.id)];
+      this._immediateAccountDefsById.set(accountDef.id, accountDef);
 
-      return Promise.all(waitFor).then(() => {
+      var waitFor = [this._ensureTasksLoaded(accountDef.engine), this._ensureAccountFoldersTOC(accountDef.id)];
+
+      return Promise.all(waitFor).then(function () {
         // If we have a stashed connection, then immediately instantiate the
         // account so that we will also issue a syncFolderList call when an
         // account has just been created.
@@ -249,11 +275,11 @@ define(function (require) {
         // a more explicit "things to do for freshly created accounts" mechanism.
         // (Maybe a task "account_created" that's per account so the accounts can
         // hang everything they want to do off that.
-        if (this._stashedConnectionsByAccountId.has(accountDef.id)) {
-          this._ensureAccount(accountDef.id);
+        if (_this4._stashedConnectionsByAccountId.has(accountDef.id)) {
+          _this4._ensureAccount(accountDef.id);
         }
 
-        this.accountsTOC.__addAccount(accountDef);
+        _this4.accountsTOC.__addAccount(accountDef);
       });
     },
 
@@ -263,12 +289,16 @@ define(function (require) {
      * FoldersTOC instance.
      */
     _accountRemoved: function (accountId) {
+      var _this5 = this;
+
+      this._immediateAccountDefsById.delete(accountId);
+
       // - Account cleanup
       // (a helper is needed because a load could be pending)
-      var doAccountCleanup = () => {
-        var account = this.accounts.get(accountId);
-        this.accounts.delete(accountId);
-        this._accountLoads.delete(accountId);
+      var doAccountCleanup = function () {
+        var account = _this5.accounts.get(accountId);
+        _this5.accounts.delete(accountId);
+        _this5._accountLoads.delete(accountId);
         if (account) {
           account.shutdown();
         }
@@ -283,12 +313,12 @@ define(function (require) {
       }
 
       // - Folder TOCs and Account TOC cleanup
-      var doFolderCleanup = () => {
-        this.accountFoldersTOCs.delete(accountId);
-        this._accountFoldersTOCLoads.delete(accountId);
+      var doFolderCleanup = function () {
+        _this5.accountFoldersTOCs.delete(accountId);
+        _this5._accountFoldersTOCLoads.delete(accountId);
         // We don't announce the account to the TOC until the folder TOC loaded,
         // so this is the right place to nuke.
-        this.accountsTOC.__removeAccountById(accountId);
+        _this5.accountsTOC.__removeAccountById(accountId);
       };
       if (this.accountFoldersTOCs.has(accountId)) {
         doFolderCleanup();

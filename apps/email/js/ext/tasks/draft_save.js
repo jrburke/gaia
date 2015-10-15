@@ -33,7 +33,9 @@ define(function (require) {
       var messages = fromDb.messagesByConversation.get(convId);
       var modifiedMessagesMap = new Map();
 
-      var messageInfo = messages.find(msg => msg.id === messageId);
+      var messageInfo = messages.find(function (msg) {
+        return msg.id === messageId;
+      });
       if (messageInfo === null) {
         throw new Error('moot');
       }
@@ -46,7 +48,7 @@ define(function (require) {
       messageInfo.bcc = draftFields.bcc;
       messageInfo.subject = draftFields.subject;
       // - Update the body rep
-      var textRep = messageInfo.bodyReps.find(rep => {
+      var textRep = messageInfo.bodyReps.find(function (rep) {
         return rep.type === 'plain';
       });
       textRep.contentBlob = new Blob([JSON.stringify([0x1, draftFields.textBody])], { type: 'application/json' });

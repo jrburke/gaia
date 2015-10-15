@@ -77,6 +77,8 @@ define(['module', 'exports', 'logic', 'tcp-socket', 'md5', './transport', 'mimep
    *
    */
   var Pop3Client = exports.Pop3Client = function (options, cb) {
+    var _this = this;
+
     // for clarity, list the available options:
     this.options = options = options || {};
     options.host = options.host || null;
@@ -138,8 +140,8 @@ define(['module', 'exports', 'logic', 'tcp-socket', 'md5', './transport', 'mimep
       useSecureTransport: options.crypto === 'ssl' || options.crypto === true
     });
 
-    var connectTimeout = setTimeout(() => {
-      this.state = 'disconnected';
+    var connectTimeout = setTimeout(function () {
+      _this.state = 'disconnected';
       if (connectTimeout) {
         clearTimeout(connectTimeout);
         connectTimeout = null;
@@ -156,18 +158,18 @@ define(['module', 'exports', 'logic', 'tcp-socket', 'md5', './transport', 'mimep
     this.socket.ondata = this.protocol.onreceive.bind(this.protocol);
     this.protocol.onsend = this.socket.send.bind(this.socket);
 
-    this.socket.onopen = () => {
+    this.socket.onopen = function () {
       console.log('pop3:onopen');
       if (connectTimeout) {
         clearTimeout(connectTimeout);
         connectTimeout = null;
       }
-      this.state = 'greeting';
+      _this.state = 'greeting';
       // No further processing is needed here. We wait for the server
       // to send a +OK greeting before we try to authenticate.
     };
 
-    this.socket.onerror = evt => {
+    this.socket.onerror = function (evt) {
       var err = evt && evt.data || evt;
       console.log('pop3:onerror', err);
       if (connectTimeout) {
@@ -184,7 +186,7 @@ define(['module', 'exports', 'logic', 'tcp-socket', 'md5', './transport', 'mimep
       // connection and then it generates an error.  But we don't really care.
       // XXX investigate better why an error is being generated if it's just a
       // timeout?
-      if (this.state !== 'disconnected') {
+      if (_this.state !== 'disconnected') {
         console.log('pop3:ignoring-error', 'we were connected');
         return;
       }
@@ -200,12 +202,12 @@ define(['module', 'exports', 'logic', 'tcp-socket', 'md5', './transport', 'mimep
     // sync cares about listening for us closing; it has no way to be informed
     // by disaster recovery otherwise
     this.onclose = null;
-    this.socket.onclose = () => {
+    this.socket.onclose = function () {
       console.log('pop3:onclose');
-      this.protocol.onclose();
-      this.close();
-      if (this.onclose) {
-        this.onclose();
+      _this.protocol.onclose();
+      _this.close();
+      if (_this.onclose) {
+        _this.onclose();
       }
     };
 
@@ -213,7 +215,7 @@ define(['module', 'exports', 'logic', 'tcp-socket', 'md5', './transport', 'mimep
     // greeting, store an empty request here. Our request/response
     // matching logic will pair the server's greeting with this
     // request.
-    this.protocol.pendingRequests.push(new transport.Request(null, [], false, (err, rsp) => {
+    this.protocol.pendingRequests.push(new transport.Request(null, [], false, function (err, rsp) {
       if (err) {
         cb && cb({
           scope: 'connection',
@@ -226,15 +228,15 @@ define(['module', 'exports', 'logic', 'tcp-socket', 'md5', './transport', 'mimep
       }
 
       // Store the greeting line, it might be needed in authentication
-      this._greetingLine = rsp.getLineAsString(0);
+      _this._greetingLine = rsp.getLineAsString(0);
 
-      this._maybeUpgradeConnection(err => {
+      _this._maybeUpgradeConnection(function (err) {
         if (err) {
           cb && cb(err);return;
         }
-        this._thenAuthorize(err => {
+        _this._thenAuthorize(function (err) {
           if (!err) {
-            this.state = 'ready';
+            _this.state = 'ready';
           }
           cb && cb(err);
         });
@@ -428,16 +430,18 @@ define(['module', 'exports', 'logic', 'tcp-socket', 'md5', './transport', 'mimep
    * message sizes in addition to their UIDLs.
    */
   Pop3Client.prototype.loadMessageList = function () {
-    return new Promise((resolve, reject) => {
+    var _this2 = this;
+
+    return new Promise(function (resolve, reject) {
       // if we've already loaded IDs this session, we don't need to
       // compute them again, because POP3 shows a frozen state of your
       // mailbox until you disconnect.
-      if (this._messageList) {
-        resolve(this._messageList);
+      if (_this2._messageList) {
+        resolve(_this2._messageList);
         return;
       }
       // First, get UIDLs for each message.
-      this.protocol.sendRequest('UIDL', [], true, (err, rsp) => {
+      _this2.protocol.sendRequest('UIDL', [], true, function (err, rsp) {
         if (err) {
           reject({
             scope: 'mailbox',
@@ -454,15 +458,15 @@ define(['module', 'exports', 'logic', 'tcp-socket', 'md5', './transport', 'mimep
           var words = lines[i].split(' ');
           var number = words[0];
           var uidl = words[1];
-          this.idToUidl[number] = uidl;
-          this.uidlToId[uidl] = number;
+          _this2.idToUidl[number] = uidl;
+          _this2.uidlToId[uidl] = number;
         }
         // because POP3 servers process requests serially, the next LIST
         // will not run until after this completes.
       });
 
       // Then, get a list of messages so that we can track their size.
-      this.protocol.sendRequest('LIST', [], true, (err, rsp) => {
+      _this2.protocol.sendRequest('LIST', [], true, function (err, rsp) {
         if (err) {
           reject({
             scope: 'mailbox',
@@ -480,7 +484,7 @@ define(['module', 'exports', 'logic', 'tcp-socket', 'md5', './transport', 'mimep
           var words = lines[i].split(' ');
           var number = words[0];
           var size = parseInt(words[1], 10);
-          this.idToSize[number] = size;
+          _this2.idToSize[number] = size;
           // Push the message onto the front, so that the last line
           // becomes the first message in allMessages. Most POP3 servers
           // seem to return messages in ascending date order, so we want
@@ -488,13 +492,13 @@ define(['module', 'exports', 'logic', 'tcp-socket', 'md5', './transport', 'mimep
           // Gmail, and AOL.) The resulting list here contains the most
           // recent message first.
           allMessages.unshift({
-            uidl: this.idToUidl[number],
+            uidl: _this2.idToUidl[number],
             size: size,
             number: number
           });
         }
 
-        this._messageList = allMessages;
+        _this2._messageList = allMessages;
         resolve(allMessages);
       });
     });
@@ -646,8 +650,10 @@ define(['module', 'exports', 'logic', 'tcp-socket', 'md5', './transport', 'mimep
    * @param {string} uidl The message's UIDL as reported by the server.
    */
   Pop3Client.prototype.downloadMessageByUidl = function (uidl) {
-    return this.loadMessageList().then(() => {
-      return this.downloadMessageByNumber(this.uidlToId[uidl]);
+    var _this3 = this;
+
+    return this.loadMessageList().then(function () {
+      return _this3.downloadMessageByNumber(_this3.uidlToId[uidl]);
     });
   };
 
@@ -664,12 +670,14 @@ define(['module', 'exports', 'logic', 'tcp-socket', 'md5', './transport', 'mimep
   // it creates unnecessary garbage. Clean this up when we switch over
   // to jsmime.
   Pop3Client.prototype.downloadPartialMessageByNumber = function (number) {
-    return new Promise((resolve, reject) => {
+    var _this4 = this;
+
+    return new Promise(function (resolve, reject) {
       // Based on SNIPPET_SIZE_GOAL, calculate approximately how many
       // lines we'll need to fetch in order to roughly retrieve
       // SNIPPET_SIZE_GOAL bytes.
       var numLines = Math.floor(syncbase.POP3_SNIPPET_SIZE_GOAL / 80);
-      this.protocol.sendRequest('TOP', [number, numLines], true, (err, rsp) => {
+      _this4.protocol.sendRequest('TOP', [number, numLines], true, function (err, rsp) {
         if (err) {
           reject({
             scope: 'message',
@@ -681,7 +689,7 @@ define(['module', 'exports', 'logic', 'tcp-socket', 'md5', './transport', 'mimep
           return;
         }
 
-        var fullSize = this.idToSize[number];
+        var fullSize = _this4.idToSize[number];
         var data = rsp.getDataAsString();
         var isSnippet = !fullSize || data.length < fullSize;
         // If we didn't get enough data, msg.body.bodyReps may be empty.
@@ -689,7 +697,7 @@ define(['module', 'exports', 'logic', 'tcp-socket', 'md5', './transport', 'mimep
         // sufficiently large that we really shouldn't run into this
         // case in nearly all cases. We assume that the UI will
         // handle this (exceptional) case reasonably.
-        resolve(this.parseMime(data, isSnippet, number));
+        resolve(_this4.parseMime(data, isSnippet, number));
       });
     });
   };
@@ -701,8 +709,10 @@ define(['module', 'exports', 'logic', 'tcp-socket', 'md5', './transport', 'mimep
    * @param {function(err, msg)} cb
    */
   Pop3Client.prototype.downloadMessageByNumber = function (number) {
-    return new Promise((resolve, reject) => {
-      this.protocol.sendRequest('RETR', [number], true, (err, rsp) => {
+    var _this5 = this;
+
+    return new Promise(function (resolve, reject) {
+      _this5.protocol.sendRequest('RETR', [number], true, function (err, rsp) {
         if (err) {
           reject({
             scope: 'message',
@@ -713,7 +723,7 @@ define(['module', 'exports', 'logic', 'tcp-socket', 'md5', './transport', 'mimep
           });
           return;
         }
-        resolve(this.parseMime(rsp.getDataAsString(), false, number));
+        resolve(_this5.parseMime(rsp.getDataAsString(), false, number));
       });
     });
   };

@@ -107,6 +107,8 @@ define(function (require) {
      * @return {Promise<Blob>}
      */
     buildMessage: co.wrap(function* (opts) {
+      var _this = this;
+
       var messageInfo = this.messageInfo;
       var messageNode = undefined;
 
@@ -184,7 +186,7 @@ define(function (require) {
       this._blobReplacements = [];
       this._uniqueBlobBoundary = '{{blob!' + Math.random() + Date.now() + '}}';
 
-      messageInfo.attachments.forEach(attachment => {
+      messageInfo.attachments.forEach(function (attachment) {
         try {
           var attachmentNode = new MimeNode(attachment.type, {
             // This implies Content-Disposition: attachment
@@ -196,9 +198,9 @@ define(function (require) {
           // answer.  (Also, failure to base64 encode our _uniqueBlobBoundary breaks
           // the replace logic in withMessageBlob.  So base64 all the things!)
           attachmentNode.setHeader('Content-Transfer-Encoding', 'base64');
-          attachmentNode.setContent(this._uniqueBlobBoundary);
+          attachmentNode.setContent(_this._uniqueBlobBoundary);
           root.appendChild(attachmentNode);
-          this._blobReplacements.push(new Blob(attachment.file));
+          _this._blobReplacements.push(new Blob(attachment.file));
         } catch (ex) {
           console.error('Problem attaching attachment:', ex, '\n', ex.stack);
         }

@@ -27,6 +27,8 @@ define(function (require) {
    *   you wish to acquire.
    */
   function SmartWakeLock(opts) {
+    var _this = this;
+
     logic.defineScope(this, 'SmartWakeLock', { unique: Date.now() });
     this.timeoutMs = opts.timeout || SmartWakeLock.DEFAULT_TIMEOUT_MS;
     var locks = this.locks = {}; // map of lockType -> wakeLockInstance
@@ -39,19 +41,19 @@ define(function (require) {
     // the methods on this class) ensures that folks can ignore the
     // ugly asynchronous parts and not worry about when things happen
     // under the hood.
-    this._readyPromise = Promise.all(opts.locks.map(type => {
-      logic(this, 'requestLock', { type, durationMs: this.timeoutMs });
-      return new Promise(resolve => {
-        sendMessage('requestWakeLock', [type], lockId => {
-          logic(this, 'locked', { type });
+    this._readyPromise = Promise.all(opts.locks.map(function (type) {
+      logic(_this, 'requestLock', { type, durationMs: _this.timeoutMs });
+      return new Promise(function (resolve) {
+        sendMessage('requestWakeLock', [type], function (lockId) {
+          logic(_this, 'locked', { type });
           locks[type] = lockId;
           resolve();
         });
       });
-    })).then(() => {
+    })).then(function () {
       // For simplicity of implementation, we reuse the `renew` method
       // here to add the initial `opts.timeout` to the unlock clock.
-      this.renew(); // Start the initial timeout.
+      _this.renew(); // Start the initial timeout.
     });
   }
 
@@ -63,26 +65,28 @@ define(function (require) {
      * the locks longer.
      */
     renew: function ( /* optional */reason) {
+      var _this2 = this;
+
       // Wait until we've successfully acquired the wakelocks, then...
-      return this._readyPromise.then(() => {
+      return this._readyPromise.then(function () {
         // If we've already set a timeout, we'll clear that first.
         // (Otherwise, we're just loading time on for the first time,
         // and don't need to clear or log anything.)
-        if (this._timeout) {
-          clearTimeout(this._timeout);
-          logic(this, 'renew', {
+        if (_this2._timeout) {
+          clearTimeout(_this2._timeout);
+          logic(_this2, 'renew', {
             reason,
-            renewDurationMs: this.timeoutMs,
-            durationLeftMs: this.timeoutMs - (Date.now() - this._timeLastRenewed)
+            renewDurationMs: _this2.timeoutMs,
+            durationLeftMs: _this2.timeoutMs - (Date.now() - _this2._timeLastRenewed)
           });
         }
 
-        this._timeLastRenewed = Date.now(); // Solely for debugging.
+        _this2._timeLastRenewed = Date.now(); // Solely for debugging.
 
-        this._timeout = setTimeout(() => {
-          logic(this, 'timeoutUnlock');
-          this.unlock('timeout');
-        }, this.timeoutMs);
+        _this2._timeout = setTimeout(function () {
+          logic(_this2, 'timeoutUnlock');
+          _this2.unlock('timeout');
+        }, _this2.timeoutMs);
       });
     },
 
@@ -92,24 +96,26 @@ define(function (require) {
      * Promise returned from this function.
      */
     unlock: function ( /* optional */reason) {
+      var _this3 = this;
+
       // Make sure weve been locked before we try to unlock. Also,
       // return the promise, throughout the chain of calls here, so
       // that listeners can listen for completion if they need to.
-      return this._readyPromise.then(() => {
-        var locks = this.locks;
-        this.locks = {}; // Clear the locks.
-        clearTimeout(this._timeout);
-        this._timeout = null;
+      return this._readyPromise.then(function () {
+        var locks = _this3.locks;
+        _this3.locks = {}; // Clear the locks.
+        clearTimeout(_this3._timeout);
+        _this3._timeout = null;
 
         // Wait for all of them to successfully unlock.
-        return Promise.all(Object.keys(locks).map(type => {
-          return new Promise(resolve => {
-            sendMessage('unlock', [locks[type]], () => {
+        return Promise.all(Object.keys(locks).map(function (type) {
+          return new Promise(function (resolve) {
+            sendMessage('unlock', [locks[type]], function () {
               resolve(type);
             });
           });
-        })).then(type => {
-          logic(this, 'unlocked', { type, reason });
+        })).then(function (type) {
+          logic(_this3, 'unlocked', { type, reason });
         });
       });
     },

@@ -18,7 +18,7 @@ define(function (require) {
    * @return {Promise}
    */
   return function asyncFetchBlob(blob, responseType) {
-    return new Promise((resolve, reject) => {
+    return new Promise(function (resolve, reject) {
       var blobUrl = URL.createObjectURL(blob);
       var xhr = new XMLHttpRequest();
       xhr.open('GET', blobUrl, true);

@@ -105,7 +105,9 @@ define(function (require) {
           oldConvInfo = fromDb.conversations.get(convId);
           var loadedMessages = fromDb.messagesByConversation.get(convId);
 
-          var sourceMessage = loadedMessages.find(msg => msg.id === req.refMessageId);
+          var sourceMessage = loadedMessages.find(function (msg) {
+            return msg.id === req.refMessageId;
+          });
 
           messageInfo = yield* deriveQuotedReply({
             sourceMessage,

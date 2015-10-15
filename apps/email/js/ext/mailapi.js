@@ -35,11 +35,13 @@ define(function (require, exports) {
    * Given a list of MailFolders (that may just be null and not a list), map those
    * to the folder id's.
    */
-  var normalizeFoldersToIds = folders => {
+  var normalizeFoldersToIds = function (folders) {
     if (!folders) {
       return folders;
     }
-    return folders.map(folder => folder.id);
+    return folders.map(function (folder) {
+      return folder.id;
+    });
   };
 
   // For testing
@@ -187,7 +189,7 @@ define(function (require, exports) {
         console.warn('the possible has happened; unable to find account with id', accountId);
       }
       var folders = account.folders;
-      return Array.from(folderIds).map(folderId => {
+      return Array.from(folderIds).map(function (folderId) {
         return folders.getFolderById(folderId);
       });
     },
@@ -261,12 +263,14 @@ define(function (require, exports) {
      * live-updating with events until `release` is called on it.
      */
     getConversation: function (conversationId, priorityTags) {
+      var _this = this;
+
       // We need the account for the conversation in question to be loaded for
       // safety, dependency reasons.
-      return this.eventuallyGetAccountById(accountIdFromConvId(conversationId)).then(() => {
+      return this.eventuallyGetAccountById(accountIdFromConvId(conversationId)).then(function () {
         // account is ignored, we just needed to ensure it existed for
         // _mapLabels to be a friendly, happy, synchronous API.
-        return this._getItemAndTrackUpdates('conv', conversationId, MailConversation, priorityTags);
+        return _this._getItemAndTrackUpdates('conv', conversationId, MailConversation, priorityTags);
       });
     },
 
@@ -277,13 +281,15 @@ define(function (require, exports) {
      * @param {[MessageId, DateMS]} messageNamer
      */
     getMessage: function (messageNamer, priorityTags) {
+      var _this2 = this;
+
       var messageId = messageNamer[0];
       // We need the account for the conversation in question to be loaded for
       // safety, dependency reasons.
-      return this.eventuallyGetAccountById(accountIdFromMessageId(messageId)).then(() => {
+      return this.eventuallyGetAccountById(accountIdFromMessageId(messageId)).then(function () {
         // account is ignored, we just needed to ensure it existed for
         // _mapLabels to be a friendly, happy, synchronous API.
-        return this._getItemAndTrackUpdates('msg', messageNamer, MailMessage, priorityTags);
+        return _this2._getItemAndTrackUpdates('msg', messageNamer, MailMessage, priorityTags);
       });
     },
 
@@ -293,13 +299,15 @@ define(function (require, exports) {
      * (Someday it may also be rejected if we lose the back-end.)
      */
     _sendPromisedRequest: function (sendMsg) {
-      return new Promise(resolve => {
-        var handle = sendMsg.handle = this._nextHandle++;
-        this._pendingRequests[handle] = {
+      var _this3 = this;
+
+      return new Promise(function (resolve) {
+        var handle = sendMsg.handle = _this3._nextHandle++;
+        _this3._pendingRequests[handle] = {
           type: sendMsg.type,
           resolve
         };
-        this.__bridgeSend(sendMsg);
+        _this3.__bridgeSend(sendMsg);
       });
     },
 
@@ -329,27 +337,29 @@ define(function (require, exports) {
      * later call to our method.
      */
     _getItemAndTrackUpdates: function (itemType, itemId, itemConstructor, priorityTags) {
-      return new Promise((resolve, reject) => {
-        var handle = this._nextHandle++;
-        this._trackedItemHandles.set(handle, {
+      var _this4 = this;
+
+      return new Promise(function (resolve, reject) {
+        var handle = _this4._nextHandle++;
+        _this4._trackedItemHandles.set(handle, {
           type: itemType,
           id: itemId,
-          callback: msg => {
+          callback: function (msg) {
             if (msg.error || !msg.data) {
               reject(new Error('track problem, error: ' + msg.error + ' has data?: ' + !!msg.data));
               return;
             }
 
-            var obj = new itemConstructor(this, msg.data, null, handle);
+            var obj = new itemConstructor(_this4, msg.data.state, msg.data.overlays, null, handle);
             resolve(obj);
-            this._trackedItemHandles.set(handle, {
+            _this4._trackedItemHandles.set(handle, {
               type: itemType,
               id: itemId,
               obj: obj
             });
           }
         });
-        this.__bridgeSend({
+        _this4.__bridgeSend({
           type: 'getItemAndTrackUpdates',
           handle: handle,
           itemType: itemType,
@@ -377,7 +387,20 @@ define(function (require, exports) {
       });
     },
 
+    // update event for list views.  This used to be shared logic with updateItem
+    // but when overlays came into the picture the divergence got too crazy.
     _recv_update: function (msg) {
+      var details = this._trackedItemHandles.get(msg.handle);
+      if (details && details.obj) {
+        var obj = details.obj;
+
+        var data = msg.data;
+        obj.__update(data);
+      }
+    },
+
+    // update event for tracked items (rather than list views)
+    _recv_updateItem: function (msg) {
       var details = this._trackedItemHandles.get(msg.handle);
       if (details && details.obj) {
         var obj = details.obj;
@@ -390,14 +413,14 @@ define(function (require, exports) {
           obj.emit('remove', obj);
         } else {
           // - non-null means it's an update!
-          obj.__update(data);
-          // If this is a single object (and not a list view), then bump its serial
-          // and emit a change event.  In the case of list views, the list view is
-          // handling all that.
-          if (obj._handle) {
-            obj.serial++;
-            obj.emit('change', obj);
+          if (data.state) {
+            obj.__update(data.state);
           }
+          if (data.overlays) {
+            obj.__updateOverlays(data.overlays);
+          }
+          obj.serial++;
+          obj.emit('change', obj);
         }
       }
     },
@@ -674,13 +697,15 @@ define(function (require, exports) {
      * ]
      */
     tryToCreateAccount: function (userDetails, domainInfo) {
+      var _this5 = this;
+
       return this._sendPromisedRequest({
         type: 'tryToCreateAccount',
         userDetails,
         domainInfo
-      }).then(result => {
+      }).then(function (result) {
         if (result.accountId) {
-          return this.accounts.eventuallyGetAccountById(result.accountId).then(account => {
+          return _this5.accounts.eventuallyGetAccountById(result.accountId).then(function (account) {
             return {
               error: null,
               errorDetails: null,
@@ -803,7 +828,7 @@ define(function (require, exports) {
      *   }
      * ]
      */
-    viewFolders: function ma_viewFolders(mode, accountId) {
+    viewFolders: function (mode, accountId) {
       var handle = this._nextHandle++,
           view = new FoldersListView(this, handle);
 
@@ -891,7 +916,9 @@ define(function (require, exports) {
       var handle = this._nextHandle++;
 
       var undoableOp = new UndoableOperation(this, 'delete', messages.length, handle),
-          msgSuids = messages.map(x => x.id);
+          msgSuids = messages.map(function (x) {
+        return x.id;
+      });
 
       this._pendingRequests[handle] = {
         type: 'mutation',
@@ -919,7 +946,9 @@ define(function (require, exports) {
       var handle = this._nextHandle++;
 
       var undoableOp = new UndoableOperation(this, 'move', messages.length, handle),
-          msgSuids = messages.map(x => x.id);
+          msgSuids = messages.map(function (x) {
+        return x.id;
+      });
 
       this._pendingRequests[handle] = {
         type: 'mutation',
@@ -964,7 +993,7 @@ define(function (require, exports) {
     modifyConversationLabels: function (conversations, addLabels, removeLabels, messageSelector) {
       this.__bridgeSend({
         type: 'store_labels',
-        conversations: conversations.map(x => {
+        conversations: conversations.map(function (x) {
           return {
             id: x.id,
             messageSelector
@@ -988,7 +1017,9 @@ define(function (require, exports) {
         type: 'store_labels',
         conversations: [{
           id: convIdFromMessageId(messages[0].id),
-          messageIds: messages.map(x => x.id)
+          messageIds: messages.map(function (x) {
+            return x.id;
+          })
         }],
         add: normalizeFoldersToIds(addLabels),
         remove: normalizeFoldersToIds(removeLabels)
@@ -998,7 +1029,7 @@ define(function (require, exports) {
     modifyConversationTags: function (conversations, addTags, removeTags, messageSelector) {
       this.__bridgeSend({
         type: 'store_flags',
-        conversations: conversations.map(x => {
+        conversations: conversations.map(function (x) {
           return {
             id: x.id,
             messageSelector
@@ -1014,7 +1045,9 @@ define(function (require, exports) {
         type: 'store_flags',
         conversations: [{
           id: convIdFromMessageId(messages[0].id),
-          messageIds: messages.map(x => x.id)
+          messageIds: messages.map(function (x) {
+            return x.id;
+          })
         }],
         add: addTags,
         remove: removeTags
@@ -1140,6 +1173,8 @@ define(function (require, exports) {
      *   release on it when you are done.
      */
     beginMessageComposition: function (message, folder, options) {
+      var _this6 = this;
+
       if (!options) {
         options = {};
       }
@@ -1150,12 +1185,12 @@ define(function (require, exports) {
         refMessageId: message ? message.id : null,
         refMessageDate: message ? message.date.valueOf() : null,
         folderId: folder ? folder.id : null
-      }).then(data => {
+      }).then(function (data) {
         var namer = { id: data.messageId, date: data.messageDate };
         if (options.noComposer) {
           return namer;
         } else {
-          return this.resumeMessageComposition(namer);
+          return _this6.resumeMessageComposition(namer);
         }
       });
     },
@@ -1168,8 +1203,10 @@ define(function (require, exports) {
      * @param {MailMessage|MessageObjNamer} namer
      */
     resumeMessageComposition: function (namer) {
-      return this.getMessage([namer.id, namer.date.valueOf()]).then(msg => {
-        var composer = new MessageComposition(this);
+      var _this7 = this;
+
+      return this.getMessage([namer.id, namer.date.valueOf()]).then(function (msg) {
+        var composer = new MessageComposition(_this7);
         return composer.__asyncInitFromMessage(msg);
       });
     },

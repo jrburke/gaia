@@ -7,6 +7,7 @@ define(function (require) {
 
   const AccountManager = require('./universe/account_manager');
 
+  const DataOverlayManager = require('./db/data_overlay_manager');
   const FolderConversationsTOC = require('./db/folder_convs_toc');
   const ConversationTOC = require('./db/conv_toc');
 
@@ -46,7 +47,11 @@ define(function (require) {
     /** @type{Map<ConverastionId, ConversationTOC>} */
     this._conversationTOCs = new Map();
 
-    this.taskRegistry = new TaskRegistry();
+    this.dataOverlayManager = new DataOverlayManager();
+
+    this.taskRegistry = new TaskRegistry({
+      dataOverlayManager: this.dataOverlayManager
+    });
     this.taskPriorities = new TaskPriorities();
     this.taskResources = new TaskResources(this.taskPriorities);
 
@@ -142,7 +147,7 @@ define(function (require) {
      * the future.  Or we grow a separate more sophisticated mechanism.
      */
     _generateMigrationTasks: function ({ accountDefs }) {
-      return accountDefs.map(accountDef => {
+      return accountDefs.map(function (accountDef) {
         return {
           type: 'account_migrate',
           accountDef
@@ -151,13 +156,15 @@ define(function (require) {
     },
 
     init: function () {
+      var _this = this;
+
       if (this._initialized !== false) {
         throw new Error('misuse');
       }
       this._initialized = 'initializing';
-      return this.db.getConfig().then(({ config, accountDefs, carryover }) => {
+      return this.db.getConfig().then(function ({ config, accountDefs, carryover }) {
         if (config) {
-          return this._initFromConfig({ config, accountDefs });
+          return _this._initFromConfig({ config, accountDefs });
         } else {
           var freshConfig = {
             // (We store accounts and the config in the same table and we only
@@ -169,12 +176,12 @@ define(function (require) {
           };
           var migrationTasks = undefined;
           if (carryover) {
-            migrationTasks = this._generateMigrationTasks(carryover);
+            migrationTasks = _this._generateMigrationTasks(carryover);
           }
           // (it returns a Promise for consistency, but we don't care.)
-          this.db.saveConfig(freshConfig);
+          _this.db.saveConfig(freshConfig);
 
-          return this._initFromConfig({
+          return _this._initFromConfig({
             config: freshConfig,
             accountDefs: [],
             tasksToPlan: migrationTasks
@@ -190,6 +197,8 @@ define(function (require) {
      * Perform initial initialization based on our configuration.
      */
     _initFromConfig: function ({ config, accountDefs, tasksToPlan }) {
+      var _this2 = this;
+
       this._initialized = true;
       this.config = config;
       this._initLogging(config);
@@ -199,13 +208,13 @@ define(function (require) {
       // responsible for registering tasks with the task registry as needed) in
       // its entirety before we initialize the TaskManager so it can assume all
       // task-type definitions are already loaded.
-      return this.accountManager.initFromDB(accountDefs).then(() => {
-        return this.taskManager.__restoreFromDB();
-      }).then(() => {
+      return this.accountManager.initFromDB(accountDefs).then(function () {
+        return _this2.taskManager.__restoreFromDB();
+      }).then(function () {
         if (tasksToPlan) {
-          this.taskManager.scheduleTasks(tasksToPlan, 'initFromConfig');
+          _this2.taskManager.scheduleTasks(tasksToPlan, 'initFromConfig');
         }
-        return this;
+        return _this2;
       });
 
       // XXX disabled cronsync because of massive rearchitecture
@@ -318,27 +327,41 @@ define(function (require) {
     },
 
     acquireFolderConversationsTOC: function (ctx, folderId) {
+      var _this3 = this;
+
       var toc = undefined;
       if (this._folderConvsTOCs.has(folderId)) {
         toc = this._folderConvsTOCs.get(folderId);
       } else {
-        toc = new FolderConversationsTOC(this.db, folderId);
+        toc = new FolderConversationsTOC({
+          db: this.db,
+          folderId,
+          dataOverlayManager: this.dataOverlayManager,
+          onForgotten: function () {
+            _this3._folderConvsTOCs.delete(folderId);
+          }
+        });
         this._folderConvsTOCs.set(folderId, toc);
-        // TODO: have some means of the TOC to tell us to forget about it when
-        // it gets released.
       }
       return ctx.acquire(toc);
     },
 
     acquireConversationTOC: function (ctx, conversationId) {
+      var _this4 = this;
+
       var toc = undefined;
       if (this._conversationTOCs.has(conversationId)) {
         toc = this._conversationTOCs.get(conversationId);
       } else {
-        toc = new ConversationTOC(this.db, conversationId);
+        toc = new ConversationTOC({
+          db: this.db,
+          conversationId,
+          dataOverlayManager: this.dataOverlayManager,
+          onForgotten: function () {
+            _this4._conversationsTOCs.delete(conversationId);
+          }
+        });
         this._conversationTOCs.set(conversationId, toc);
-        // TODO: have some means of the TOC to tell us to forget about it when
-        // it gets released.
       }
       return ctx.acquire(toc);
     },
@@ -358,6 +381,8 @@ define(function (require) {
      * may potentially be undefined.
      */
     tryToCreateAccount: function (userDetails, domainInfo, why) {
+      var _this5 = this;
+
       if (!this.online) {
         return Promise.resolve({ error: 'offline' });
       }
@@ -375,7 +400,7 @@ define(function (require) {
         return this.taskManager.scheduleNonPersistentTaskAndWaitForExecutedResult({
           type: 'account_autoconfig',
           userDetails
-        }, why).then(result => {
+        }, why).then(function (result) {
           // - If we got anything other than a need-password result, we failed.
           // Convert the "result" to an error.
           if (result.result !== 'need-password') {
@@ -385,7 +410,7 @@ define(function (require) {
             };
           }
           // - Okay, try the account creation then.
-          return this.taskManager.scheduleNonPersistentTaskAndWaitForExecutedResult({
+          return _this5.taskManager.scheduleNonPersistentTaskAndWaitForExecutedResult({
             type: 'account_create',
             userDetails,
             domainInfo: result.configInfo
@@ -409,7 +434,7 @@ define(function (require) {
      * tasks.
      */
     saveAccountDef: function (accountDef, protoConn) {
-      var _this = this;
+      var _this6 = this;
 
       this.db.saveAccountDef(this.config, accountDef);
 
@@ -420,13 +445,13 @@ define(function (require) {
       } else {
         var _ret = (function () {
           // (this happens during intial account (re-)creation)
-          var accountWireRep = _this._accountExists(accountDef);
+          var accountWireRep = _this6._accountExists(accountDef);
           // If we were given a connection, instantiate the account so it can use
           // it.  Note that there's no potential for races at this point since no
           // one knows about this account until we return.
           if (protoConn) {
             return {
-              v: _this._loadAccount(accountDef, _this.accountFoldersTOCs.get(accountDef.id), protoConn).then(() => {
+              v: _this6._loadAccount(accountDef, _this6.accountFoldersTOCs.get(accountDef.id), protoConn).then(function () {
                 return {
                   error: null,
                   errorDetails: null,
@@ -506,7 +531,7 @@ define(function (require) {
     },
 
     fetchConversationSnippets: function (convIds, why) {
-      var tasks = convIds.map(convId => {
+      var tasks = convIds.map(function (convId) {
         return {
           type: 'sync_body',
           accountId: accountIdFromConvId(convId),

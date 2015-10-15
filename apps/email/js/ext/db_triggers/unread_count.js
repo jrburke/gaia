@@ -44,7 +44,7 @@ define(function () {
 
       var folderDeltas = new Map();
       // Helper to populate folderDeltas based on the +1/-1 decisions below.
-      var applyDelta = (folderIds, delta) => {
+      var applyDelta = function (folderIds, delta) {
         for (var folderId of folderIds) {
           // We will see a given folderId at most once so we don't have to do any
           // math ourselves.

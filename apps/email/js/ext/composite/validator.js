@@ -21,8 +21,8 @@ define(function (require) {
     // - Dynamically load the required modules.
     var receiveProbeId = isImap ? '../imap/probe' : '../pop3/probe';
 
-    var [receiveProber, sendProber] = yield new Promise(resolve => {
-      require([receiveProbeId, '../smtp/probe'], (receiveMod, sendMod) => {
+    var [receiveProber, sendProber] = yield new Promise(function (resolve) {
+      require([receiveProbeId, '../smtp/probe'], function (receiveMod, sendMod) {
         resolve([receiveMod, sendMod]);
       });
     });
@@ -46,14 +46,14 @@ define(function (require) {
       if (isImap) {
         engineFields = {
           engine: receiveResults.engine,
-          engineDetails: {
+          engineData: {
             capability: protoConn.capability
           }
         };
       } else {
         engineFields = {
           engine: 'pop3',
-          engineDetails: {
+          engineData: {
             preferredAuthMethod: protoConn.authMethod
           }
         };

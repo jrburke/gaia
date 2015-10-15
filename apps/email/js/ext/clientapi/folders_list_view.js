@@ -5,6 +5,8 @@ define(function (require) {
   var MailFolder = require('./mail_folder');
 
   function FoldersViewSlice(api, handle) {
+    var _this = this;
+
     EntireListView.call(this, api, MailFolder, handle);
 
     // enable use of latestOnce('inbox').  Note that this implementation assumes
@@ -12,11 +14,11 @@ define(function (require) {
     // is a secret implementation right now, please do consider your risk profile
     // as you read this code and uncover its dark secrets.
     this.inbox = null;
-    var inboxListener = mailFolder => {
+    var inboxListener = function (mailFolder) {
       if (mailFolder.type === 'inbox') {
-        this.inbox = mailFolder;
-        this.removeListener('add', inboxListener);
-        this.emit('inbox', mailFolder);
+        _this.inbox = mailFolder;
+        _this.removeListener('add', inboxListener);
+        _this.emit('inbox', mailFolder);
       }
     };
     this.on('add', inboxListener);
@@ -79,6 +81,7 @@ define(function (require) {
     if (!items) {
       items = this.items;
     }
+
     for (var i = 0; i < items.length; i++) {
       var folder = items[i];
       if (folder.type === type) {

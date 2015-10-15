@@ -141,7 +141,9 @@ define(function (require) {
       });
       var oldConvInfo = fromDb.conversations.get(convId);
       var messages = fromDb.messagesByConversation.get(convId);
-      var messageInfo = messages.find(msg => msg.id === messageId);
+      var messageInfo = messages.find(function (msg) {
+        return msg.id === messageId;
+      });
 
       var foldersToc = yield ctx.universe.acquireAccountFoldersTOC(ctx, ctx.accountId);
       var outboxFolder = foldersToc.getCanonicalFolderByType('outbox');
@@ -211,7 +213,9 @@ define(function (require) {
       });
       var oldConvInfo = fromDb.conversations.get(convId);
       var messages = fromDb.messagesByConversation.get(convId);
-      var messageInfo = messages.find(msg => msg.id === messageId);
+      var messageInfo = messages.find(function (msg) {
+        return msg.id === messageId;
+      });
 
       var foldersToc = yield ctx.universe.acquireAccountFoldersTOC(ctx, ctx.accountId);
       var draftsFolder = foldersToc.getCanonicalFolderByType('localdrafts');
@@ -357,7 +361,9 @@ define(function (require) {
       // Update our messageInfo reference in case there was a racing write.
       // NB: Obviously, any changes since when we acquired it could potentially
       // be bad news.  We choose to err on the side of not losing information.
-      messageInfo = messages.find(msg => msg.id === messageId);
+      messageInfo = messages.find(function (msg) {
+        return msg.id === messageId;
+      });
 
       var newTasks = [];
       var modifyMessages = new Map();

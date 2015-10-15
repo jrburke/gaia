@@ -3,11 +3,12 @@ define(function (require) {
 
   var evt = require('evt');
 
-  function MailFolder(api, wireRep, slice) {
+  function MailFolder(api, wireRep, overlays, slice) {
     evt.Emitter.call(this);
     this._api = api;
 
     this.__update(wireRep);
+    this.__updateOverlays(overlays);
   }
   MailFolder.prototype = evt.mix({
     toString: function () {
@@ -31,7 +32,9 @@ define(function (require) {
 
       this.localUnreadConversations = wireRep.localUnreadConversations;
 
-      var datify = maybeDate => maybeDate ? new Date(maybeDate) : null;
+      var datify = function (maybeDate) {
+        return maybeDate ? new Date(maybeDate) : null;
+      };
 
       this.lastSuccessfulSyncAt = datify(wireRep.lastSuccessfulSyncAt);
       this.lastAttemptedSyncAt = datify(wireRep.lastAttemptedSyncAt);
@@ -103,6 +106,19 @@ define(function (require) {
         default:
           this.isValidMoveTarget = true;
       }
+
+      // -- Things mixed-in by the folders_toc from engine meta
+      this.syncGranularity = wireRep.syncGranularity;
+    },
+
+    __updateOverlays: function (overlays) {
+      /**
+       * syncStatus is defined to be one of: null/'pending'/'active'.
+       * Eventually, sync_refresh will also provide syncBlocked which will be
+       * one of: null/'offline/'bad-auth'/'unknown'.  This is per discussion
+       * with :jrburke on IRC.
+       */
+      this.syncStatus = overlays.sync_refresh ? overlays.sync_refresh : null;
     },
 
     release: function () {

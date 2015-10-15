@@ -1,8 +1,10 @@
 define(function (require) {
   'use strict';
 
-  var evt = require('evt');
-  var logic = require('logic');
+  const evt = require('evt');
+  const logic = require('logic');
+
+  const { engineFrontEndAccountMeta } = require('../engine_glue');
 
   const { bsearchForInsert } = require('../util');
 
@@ -35,11 +37,12 @@ define(function (require) {
     evt.Emitter.call(this);
     logic.defineScope(this, 'AccountsTOC');
 
-    this.accountDefs = [];
-    this.accountDefsById = new Map();
+    this.accountDefs = this.items = [];
+    this.accountDefsById = this.itemsById = new Map();
   }
   AccountsTOC.prototype = evt.mix({
     type: 'AccountsTOC',
+    overlayNamespace: 'accounts',
 
     // We don't care about who references us because we have the lifetime of the
     // universe.
@@ -96,7 +99,10 @@ define(function (require) {
     },
 
     accountDefToWireRep: function (accountDef) {
-      return {
+      return Object.assign(
+      // NB: This structure is basically verbatim from v1.x to avoid
+      // gratuitous change, but it could make sense to make varying changes.
+      {
         id: accountDef.id,
         name: accountDef.name,
         type: accountDef.type,
@@ -130,11 +136,14 @@ define(function (require) {
           type: accountDef.sendType,
           connInfo: accountDef.sendConnInfo,
           activeConns: 0 }]
-      };
+      }, // XXX overlay info but we have never used this
+
+      // Information about the engine is exposed from here.  This is what gives
+      // us: engineFacts
+      engineFrontEndAccountMeta.get(accountDef.engine));
     }
 
   });
 
-  // XXX overlay info but we have never used this
   return AccountsTOC;
 });

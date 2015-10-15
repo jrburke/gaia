@@ -120,12 +120,14 @@ define(['logic', '../a64', '../accountmixins', '../searchfilter',
      * info.  (And being bounced the right endpoint for future requests.)
      */
     ensureConnection: function () {
+      var _this = this;
+
       if (this.conn && this.conn.connected) {
         return Promise.resolve(this.conn);
       }
-      return new Promise((resolve, reject) => {
-        this.withConnection(reject, () => {
-          resolve(this.conn);
+      return new Promise(function (resolve, reject) {
+        _this.withConnection(reject, function () {
+          resolve(_this.conn);
         });
       });
     },

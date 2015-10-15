@@ -78,7 +78,7 @@ define(function (require) {
 
     var RESIZE_POLL_RATE = 200;
 
-    var loadedPromise = new Promise((resolve, reject) => {
+    var loadedPromise = new Promise(function (resolve, reject) {
       var pollCount = 0;
       var pendingResize = null;
 
@@ -87,7 +87,7 @@ define(function (require) {
       // external images, so that aspect isn't quite dealt with, but will need
       // this.
       // XXX implement external/embedded image disply
-      var resizeIframe = () => {
+      var resizeIframe = function () {
         // if the iframe has been destroyed, stop trying to resize it
         if (!iframe.parentNode || !iframe.contentDocument) {
           return;
@@ -119,14 +119,14 @@ define(function (require) {
         }
       };
       iframe.resizeIframe = resizeIframe;
-      var pollForResize = pollAtLeast => {
+      var pollForResize = function (pollAtLeast) {
         pollCount = Math.max(pollCount, pollAtLeast);
         if (!pendingResize) {
           resizeIframe();
         }
       };
 
-      var loadHandler = evt => {
+      var loadHandler = function (evt) {
         console.log('loadend!');
         iframe.removeEventListener('load', loadHandler);
         ownerDoc.defaultView.URL.revokeObjectURL(superBlobUrl);

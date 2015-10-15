@@ -19,7 +19,7 @@ define(function (require) {
    * For convoy this gets bumped willy-nilly as I make minor changes to things.
    * We probably want to drop this way back down before merging anywhere official.
    */
-  const CUR_VERSION = 106;
+  const CUR_VERSION = 108;
 
   /**
    * What is the lowest database version that we are capable of performing a
@@ -287,7 +287,9 @@ define(function (require) {
     }
   }
 
-  var eventForFolderId = folderId => 'fldr!' + folderId + '!convs!tocChange';
+  var eventForFolderId = function (folderId) {
+    return 'fldr!' + folderId + '!convs!tocChange';
+  };
 
   /**
    * Wrap a (read) request into a
@@ -330,7 +332,7 @@ define(function (require) {
       var key = unlatchedKey;
       dbReqCount++;
       var req = store.get(key);
-      var handler = event => {
+      var handler = function (event) {
         var value = undefined;
         if (req.error) {
           value = null;
@@ -377,7 +379,7 @@ define(function (require) {
       // otherwise we need to ask the database
       dbReqCount++;
       var req = store.get(key);
-      var handler = event => {
+      var handler = function (event) {
         if (req.error) {
           analyzeAndLogErrorEvent(event);
         } else {
@@ -429,6 +431,8 @@ define(function (require) {
    * ]
    */
   function MailDB({ universe, testOptions }) {
+    var _this = this;
+
     evt.Emitter.call(this);
     logic.defineScope(this, 'MailDB');
 
@@ -468,22 +472,22 @@ define(function (require) {
      * created/upgraded/opened.  If there is any _lazyConfigCarryover, it will
      * have been set by the time the promise is resolved.
      */
-    this._dbPromise = new Promise((resolve, reject) => {
+    this._dbPromise = new Promise(function (resolve, reject) {
       var openRequest = indexedDB.open('b2g-email', dbVersion);
-      openRequest.onsuccess = () => {
-        this._db = openRequest.result;
+      openRequest.onsuccess = function () {
+        _this._db = openRequest.result;
 
         resolve();
       };
-      openRequest.onupgradeneeded = event => {
+      openRequest.onupgradeneeded = function (event) {
         console.log('MailDB in onupgradeneeded');
-        logic(this, 'upgradeNeeded', { oldVersion: event.oldVersion,
+        logic(_this, 'upgradeNeeded', { oldVersion: event.oldVersion,
           curVersion: dbVersion });
         var db = openRequest.result;
 
         // - reset to clean slate
         if (event.oldVersion < FRIENDLY_LAZY_DB_UPGRADE_VERSION || testOptions && testOptions.nukeDb) {
-          this._nukeDB(db);
+          _this._nukeDB(db);
         }
         // - friendly, lazy upgrade
         // Load the current config, save it off so getConfig can use it, then
@@ -498,21 +502,21 @@ define(function (require) {
               // Note that there is no data-dependency between the read and the
               // nuking.  The nice thing about this is that it allows us to have
               // _getConfig be a promise-wrapped implementation.
-              this._getConfig(trans).then(carryover => {
+              _this._getConfig(trans).then(function (carryover) {
                 if (carryover) {
                   carryover.oldVersion = event.oldVersion;
-                  this._lazyConfigCarryover = carryover;
+                  _this._lazyConfigCarryover = carryover;
                 }
               });
-              this._nukeDB(db);
+              _this._nukeDB(db);
             }
             // ...so just get nuking.  We call this a failsafe not because we're
             // expecting IndexedDB betrayal, but instead that when I was between
             // linters I made a lot of dumb typo bugs and it's a hassle to manually
             // delete the databases from the profile.
             else {
-                logic(this, 'failsafeNuke', { objectStores: objectStores });
-                this._nukeDB(db);
+                logic(_this, 'failsafeNuke', { objectStores: objectStores });
+                _this._nukeDB(db);
               }
           }
       };
@@ -552,14 +556,16 @@ define(function (require) {
     },
 
     getConfig: function () {
-      return this._dbPromise.then(() => {
+      var _this2 = this;
+
+      return this._dbPromise.then(function () {
         // At this point, if there is any carryover, it's in this property here.
-        if (this._lazyConfigCarryover) {
-          var carryover = this._lazyConfigCarryover;
-          this._lazyConfigCarryover = null;
+        if (_this2._lazyConfigCarryover) {
+          var carryover = _this2._lazyConfigCarryover;
+          _this2._lazyConfigCarryover = null;
           return { config: null, accountDefs: null, carryover };
         }
-        return this._getConfig();
+        return _this2._getConfig();
       });
     },
 
@@ -579,7 +585,7 @@ define(function (require) {
       var transaction = trans || this._db.transaction([TBL_CONFIG], 'readonly');
       var configStore = transaction.objectStore(TBL_CONFIG);
 
-      return wrapReq(configStore.mozGetAll()).then(configRows => {
+      return wrapReq(configStore.mozGetAll()).then(function (configRows) {
         var config = null;
         var accountDefs = [];
 
@@ -649,6 +655,8 @@ define(function (require) {
      *   this would be for debugging, and maybe should just be removed.
      */
     _considerCachePressure: function () /*why, ctx*/{
+      var _this3 = this;
+
       // XXX memory-backed Blobs are being a real pain.  So let's start
       // aggressively dropping the cache.  But because of how promises work and
       // when we trigger this, we really want to use a setTimeout with a fixed
@@ -664,9 +672,9 @@ define(function (require) {
       if (this._emptyingCache) {
         return;
       }
-      this._emptyingCache = window.setTimeout(() => {
-        this._emptyingCache = null;
-        this.emptyCache();
+      this._emptyingCache = window.setTimeout(function () {
+        _this3._emptyingCache = null;
+        _this3.emptyCache();
       },
       // This need not actually be 100. But just doing Promise.resolve().then
       // here would not be sufficient for correctness.  setTimeout(0) would
@@ -703,12 +711,14 @@ define(function (require) {
      * free to mutate to use as the basis for your own return value.
      */
     _bufferChangeEventsIdiom: function (eventId) {
+      var _this4 = this;
+
       var bufferedEvents = [];
-      var bufferFunc = change => {
+      var bufferFunc = function (change) {
         bufferedEvents.push(change);
       };
-      var drainEvents = changeHandler => {
-        this.removeListener(eventId, bufferFunc);
+      var drainEvents = function (changeHandler) {
+        _this4.removeListener(eventId, bufferFunc);
         for (var change of bufferedEvents) {
           changeHandler(change);
         }
@@ -754,28 +764,28 @@ define(function (require) {
      *   could enhance this by just generating change notifications on the read.
      */
     read: function (ctx, requests) {
-      return new Promise(resolve => {
-        var _this = this;
+      var _this5 = this;
 
-        logic(this, 'read:begin', { ctxId: ctx.id });
-        var trans = this._db.transaction(TASK_MUTATION_STORES, 'readonly');
+      return new Promise(function (resolve) {
+        logic(_this5, 'read:begin', { ctxId: ctx.id });
+        var trans = _this5._db.transaction(TASK_MUTATION_STORES, 'readonly');
 
         var dbReqCount = 0;
 
         // -- In-memory lookups
         if (requests.config) {
-          requests.config = this.universe.config;
+          requests.config = _this5.universe.config;
         }
         if (requests.accounts) {
           var accountReqs = requests.accounts;
           for (var accountId of accountReqs.keys()) {
-            accountReqs.set(accountId, this.accountManager.getAccountDefById(accountId));
+            accountReqs.set(accountId, _this5.accountManager.getAccountDefById(accountId));
           }
         }
         if (requests.folders) {
           var folderReqs = requests.folders;
           for (var folderId of folderReqs.keys()) {
-            folderReqs.set(folderId, this.accountManager.getFolderById(folderId));
+            folderReqs.set(folderId, _this5.accountManager.getFolderById(folderId));
           }
         }
 
@@ -799,13 +809,13 @@ define(function (require) {
 
         // -- Cached lookups
         if (requests.conversations) {
-          dbReqCount += genericCachedLookups(trans.objectStore(TBL_CONV_INFO), requests.conversations, this.convCache);
+          dbReqCount += genericCachedLookups(trans.objectStore(TBL_CONV_INFO), requests.conversations, _this5.convCache);
         }
         // messagesByConversation requires special logic and can't use the helpers
         if (requests.messagesByConversation) {
           (function () {
             var messageStore = trans.objectStore(TBL_MESSAGES);
-            var messageCache = _this.messageCache;
+            var messageCache = _this5.messageCache;
             var requestsMap = requests.messagesByConversation;
 
             var _loop3 = function (unlatchedConvId) {
@@ -813,7 +823,7 @@ define(function (require) {
               var messageRange = IDBKeyRange.bound([convId], [convId, []], true, true);
               dbReqCount++;
               var req = messageStore.mozGetAll(messageRange);
-              var handler = event => {
+              var handler = function (event) {
                 if (req.error) {
                   analyzeAndLogErrorEvent(event);
                 } else {
@@ -845,7 +855,7 @@ define(function (require) {
         if (requests.messages) {
           (function () {
             var messageStore = trans.objectStore(TBL_MESSAGES);
-            var messageCache = _this.messageCache;
+            var messageCache = _this5.messageCache;
             // The requests have keys for the form [messageId, date], but we want
             // the results to be more sane, keyed by just the messageId and without
             // the awkward tuples.
@@ -865,7 +875,7 @@ define(function (require) {
               var key = [convIdFromMessageId(messageId), date, messageSpecificIdFromMessageId(messageId)];
               dbReqCount++;
               var req = messageStore.get(key);
-              var handler = event => {
+              var handler = function (event) {
                 if (req.error) {
                   analyzeAndLogErrorEvent(event);
                 } else {
@@ -902,10 +912,10 @@ define(function (require) {
           resolve(requests);
           // it would be nice if we could have avoided creating the transaction...
         } else {
-            trans.oncomplete = () => {
-              logic(this, 'read:end', { ctxId: ctx.id, dbReqCount });
+            trans.oncomplete = function () {
+              logic(_this5, 'read:end', { ctxId: ctx.id, dbReqCount });
               resolve(requests);
-              this._considerCachePressure('read', ctx);
+              _this5._considerCachePressure('read', ctx);
             };
           }
       });
@@ -931,7 +941,7 @@ define(function (require) {
       }
       */
 
-      return this.read(ctx, mutateRequests, options).then(() => {
+      return this.read(ctx, mutateRequests, options).then(function () {
         // XXX the _preMutateStates || {} is because we're allowing multiple
         // calls.
         var preMutateStates = ctx._preMutateStates = ctx._preMutateStates || {};
@@ -992,7 +1002,7 @@ define(function (require) {
       var trans = this._db.transaction([TBL_TASKS, TBL_COMPLEX_TASKS], 'readonly');
       var taskStore = trans.objectStore(TBL_TASKS);
       var complexTaskStore = trans.objectStore([TBL_COMPLEX_TASKS]);
-      return Promise.all([wrapReq(taskStore.mozGetAll()), wrapReq(complexTaskStore.mozGetAll())]).then(([wrappedTasks, complexTaskStates]) => {
+      return Promise.all([wrapReq(taskStore.mozGetAll()), wrapReq(complexTaskStore.mozGetAll())]).then(function ([wrappedTasks, complexTaskStates]) {
         return { wrappedTasks, complexTaskStates };
       });
     },
@@ -1375,7 +1385,7 @@ define(function (require) {
 
     _addRawTasks: function (trans, wrappedTasks) {
       var store = trans.objectStore(TBL_TASKS);
-      wrappedTasks.forEach(wrappedTask => {
+      wrappedTasks.forEach(function (wrappedTask) {
         store.add(wrappedTask, wrappedTask.id);
       });
     },
@@ -1404,6 +1414,8 @@ define(function (require) {
      * methods as a sort-of experiment as we iterate.
      */
     dangerousIncrementalWrite: function (ctx, mutations) {
+      var _this6 = this;
+
       logic(this, 'dangerousIncrementalWrite:begin', { ctxId: ctx.id });
       var trans = this._db.transaction(TASK_MUTATION_STORES, 'readwrite');
 
@@ -1411,12 +1423,14 @@ define(function (require) {
         this._processMessageMutations(trans, ctx._preMutateStates.messages, mutations.messages);
       }
 
-      return wrapTrans(trans).then(() => {
-        logic(this, 'dangerousIncrementalWrite:end', { ctxId: ctx.id });
+      return wrapTrans(trans).then(function () {
+        logic(_this6, 'dangerousIncrementalWrite:end', { ctxId: ctx.id });
       });
     },
 
     finishMutate: function (ctx, data, taskData) {
+      var _this7 = this;
+
       logic(this, 'finishMutate:begin', { ctxId: ctx.id });
       var trans = this._db.transaction(TASK_MUTATION_STORES, 'readwrite');
 
@@ -1500,6 +1514,7 @@ define(function (require) {
             } else {
               store.delete(folderId);
             }
+            this.emit(`fldr!${ folderId }!change`, folderId, folderInfo);
             this.emit(`acct!${ accountId }!folders!tocChange`, folderId, folderInfo, false);
           }
         }
@@ -1517,6 +1532,7 @@ define(function (require) {
               this._processAccountDeletion(trans, accountId);
             }
 
+            this.emit(`acct!${ accountId }!change`, accountId, accountDef);
             this.emit('accounts!tocChange', accountId, accountDef, false);
           }
         }
@@ -1546,9 +1562,9 @@ define(function (require) {
         }
       }
 
-      return wrapTrans(trans).then(() => {
-        logic(this, 'finishMutate:end', { ctxId: ctx.id });
-        this._considerCachePressure('mutate', ctx);
+      return wrapTrans(trans).then(function () {
+        logic(_this7, 'finishMutate:end', { ctxId: ctx.id });
+        _this7._considerCachePressure('mutate', ctx);
       });
     }
   });

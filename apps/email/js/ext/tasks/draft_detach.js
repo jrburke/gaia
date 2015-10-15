@@ -26,13 +26,17 @@ define(function (require) {
       var messages = fromDb.messagesByConversation.get(convId);
       var modifiedMessagesMap = new Map();
 
-      var messageInfo = messages.find(msg => msg.id === messageId);
+      var messageInfo = messages.find(function (msg) {
+        return msg.id === messageId;
+      });
       if (messageInfo === null) {
         throw new Error('moot');
       }
 
       // -- Update the message.
-      var attachmentIndex = messageInfo.attachments.findIndex(att => att.relId === req.attachmentRelId);
+      var attachmentIndex = messageInfo.attachments.findIndex(function (att) {
+        return att.relId === req.attachmentRelId;
+      });
       if (attachmentIndex === -1) {
         throw new Error('moot');
       }

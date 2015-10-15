@@ -84,7 +84,7 @@ define(function (require) {
    * continues to have its original value.  If you want to consult that value with
    * its new state then you should wait for our 'update' event to be emitted.
    */
-  function MailMessage(api, wireRep, slice) {
+  function MailMessage(api, wireRep, overlays, slice) {
     evt.Emitter.call(this);
     this._api = api;
     this._slice = slice;
@@ -111,6 +111,7 @@ define(function (require) {
     // actual attachments population occurs in __update
     this.attachments = [];
     this.__update(wireRep);
+    this.__updateOverlays(overlays);
     this.hasAttachments = wireRep.hasAttachments;
 
     this.subject = wireRep.subject;
@@ -127,7 +128,7 @@ define(function (require) {
       };
     },
 
-    __update: function (wireRep, detail) {
+    __update: function (wireRep) {
       this._wireRep = wireRep;
       if (wireRep.snippet !== null) {
         this.snippet = wireRep.snippet;
@@ -172,6 +173,8 @@ define(function (require) {
       });
     },
 
+    __updateOverlays: function (overlays) {},
+
     /**
      * Release subscriptions associated with the header; currently this just means
      * tell the ContactCache we no longer care about the `MailPeep` instances.
@@ -189,7 +192,9 @@ define(function (require) {
       // Filter things down to only inbox folders.  (This lets us avoid an inbox
       // lookup and a potentially redundant/spurious remove in one swoop.  Not
       // that the back-end really cares.  It's SMRT.)
-      var curInboxFolders = this.labels.filter(folder => folder.type === 'inbox');
+      var curInboxFolders = this.labels.filter(function (folder) {
+        return folder.type === 'inbox';
+      });
       if (curInboxFolders.length) {
         this.modifyLabels(null, curInboxFolders);
       }
