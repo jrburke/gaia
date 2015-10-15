@@ -11,8 +11,16 @@ define(function (require) {
     // ourselves "Task".
     logic.defineScope(this, 'Task', { id: taskThing.id });
     this.id = taskThing.id;
-    this.isTask = !taskThing.type; // it's a TaskMarker if the type is on the root
     this._taskThing = taskThing;
+    // It's a TaskMarker if the type is on the root.  We care just because it
+    // determines where the task metadata is.  This does not have any other
+    // significance.
+    //
+    // Specifically, simple task types and complex task types both receive
+    // non-markers as input to their planning phase.
+    this.isMarker = !!taskThing.type;
+    // If it's a marker, we're executing, otherwise it depends on the state.
+    this.isPlanning = this.isMarker ? false : taskThing.state === null;
     this.universe = universe;
 
     this._stuffToRelease = [];
@@ -25,33 +33,25 @@ define(function (require) {
   }
   TaskContext.prototype = {
     get taskMode() {
-      if (!this.isTask) {
-        return 'executing'; // task marker => we're executing
-      } else if (this._wrappedTask.state === null) {
-          return 'planning';
-        } else {
-          return 'executing';
-        }
+      if (this.isPlannning) {
+        return 'planning';
+      } else {
+        return 'executing';
+      }
     },
 
     /**
      * Return the type of the task.
      */
     get taskType() {
-      if (this.isTask) {
-        // (the task is being planned)
-        if (this._taskThing.state === null) {
-          return this._taskThing.rawTask.type;
-        }
-        // (the task is being executed)
-        else {
-            return this._taskThing.plannedTask.type;
-          }
+      if (this.isMarker) {
+        return this._taskThing.type;
       }
-      // It's a task marker
-      else {
-          return this._taskThing.type;
-        }
+      if (this.isPlanning) {
+        return this._taskThing.rawTask.type;
+      } else {
+        return this._taskThing.plannedTask.type;
+      }
     },
 
     /**
@@ -59,20 +59,14 @@ define(function (require) {
      * to be null for global tasks.
      */
     get accountId() {
-      if (this.isTask) {
-        // (the task is being planned)
-        if (this._taskThing.state === null) {
-          return this._taskThing.rawTask.accountId || null;
-        }
-        // (the task is being executed)
-        else {
-            return this._taskThing.plannedTask.accountId || null;
-          }
+      if (this.isMarker) {
+        return this._taskThing.accountId || null;
       }
-      // It's a task marker
-      else {
-          return this._taskThing.accountId || null;
-        }
+      if (this.isPlanning) {
+        return this._taskThing.rawTask.accountId || null;
+      } else {
+        return this._taskThing.plannedTask.accountId || null;
+      }
     },
 
     // Convenience helpers to help us get at these without redundantly storing.
@@ -180,6 +174,10 @@ define(function (require) {
       this._taskManager.__renewWakeLock();
     },
 
+    announceUpdatedOverlayData: function (namespace, id) {
+      this.universe.dataOverlayManager.announceUpdatedOverlayData(namespace, id);
+    },
+
     read: function (what) {
       return this.universe.db.read(this, what);
     },
@@ -250,13 +248,17 @@ define(function (require) {
      *   `newData.tasks` because these are not directly pesisted.
      */
     finishTask: function (finishData) {
+      var _this = this;
+
       if (this.state === 'finishing') {
         throw new Error('already finishing! did you put finishTask in a loop?');
       }
       this.state = 'finishing';
 
       var revisedTaskInfo = undefined;
-      if (this.isTask) {
+      // If this isn't a marker, then there is a task state that needs to either
+      // be revised or nuked.
+      if (!this.isMarker) {
         if (finishData.taskState) {
           // (Either this was the planning stage or an execution stage that didn't
           // actually complete; we're still planned either way.)
@@ -315,13 +317,13 @@ define(function (require) {
       return this.universe.db.finishMutate(this, finishData, {
         revisedTaskInfo: revisedTaskInfo,
         wrappedTasks: wrappedTasks
-      }).then(() => {
+      }).then(function () {
         if (wrappedTasks) {
           // (Even though we currently know the task id prior to this transaction
           // running, the idea is that IndexedDB should really be assigning the
           // id's as part of the transaction, so we will only have assigned id's
           // at this point.  See the __wrapTasks documentation for more context.)
-          this.universe.taskManager.__enqueuePersistedTasksForPlanning(wrappedTasks);
+          _this.universe.taskManager.__enqueuePersistedTasksForPlanning(wrappedTasks);
         }
       });
     }

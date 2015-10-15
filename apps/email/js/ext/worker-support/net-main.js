@@ -1,5 +1,5 @@
 /**
- * The main-thread counterpart to our node-net.js wrapper.
+ * The main-thread counterpart to our tcp-socket.js wrapper.
  *
  * Provides the smarts for streaming the content of blobs.  An alternate
  * implementation would be to provide a decorating proxy to implement this
@@ -150,7 +150,7 @@ define(function (require) {
     var blobSlice = sockInfo.activeBlob.slice(sockInfo.blobOffset, nextOffset);
     sockInfo.blobOffset = nextOffset;
 
-    var gotChunk = arraybuffer => {
+    var gotChunk = function (arraybuffer) {
       console.log('net-main(' + sockInfo.uid + '): Retrieved chunk');
 
       // If the socket has already drained its buffer, then just send the data
@@ -164,7 +164,7 @@ define(function (require) {
 
       sockInfo.queuedData = arraybuffer;
     };
-    asyncFetchBlob(blobSlice, 'arraybuffer').then(gotChunk, err => {
+    asyncFetchBlob(blobSlice, 'arraybuffer').then(gotChunk, function (err) {
       // I/O errors are fatal to the connection; our abstraction does not let us
       // bubble the error.  The good news is that errors are highly unlikely.
       sockInfo.sock.close();

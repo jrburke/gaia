@@ -68,8 +68,10 @@ define(function (require) {
      * @return {Promise<({err, badAddresses}>}
      */
     sendMessage: function (composer) {
-      return new Promise(resolve => {
-        this.establishConnection({
+      var _this = this;
+
+      return new Promise(function (resolve) {
+        _this.establishConnection({
           /**
            * Send the envelope.
            * @param conn
@@ -146,8 +148,10 @@ define(function (require) {
      * @return {Promise<ErrorString>}
      */
     checkAccount: function () {
-      return new Promise(resolve => {
-        this.establishConnection({
+      var _this2 = this;
+
+      return new Promise(function (resolve) {
+        _this2.establishConnection({
           sendEnvelope: function (conn, bail) {
             // If we get here, we've successfully connected. Sorry, SMTP
             // server friend, we aren't actually going to send a message
@@ -174,7 +178,7 @@ define(function (require) {
               this.universe.__reportAccountProblem(this.compositeAccount, err, 'outgoing');
             }
             resolve(err);
-          }).bind(this)
+          }).bind(_this2)
         });
       });
     },

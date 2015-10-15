@@ -9,6 +9,8 @@ define(function (require) {
   const { encodeInt: encodeA64Int } = require('../a64');
   const { decodeSpecificFolderIdFromFolderId } = require('../id_conversions');
 
+  const { engineFrontEndFolderMeta } = require('../engine_glue');
+
   var FOLDER_TYPE_TO_SORT_PRIORITY = {
     account: 'a',
     inbox: 'c',
@@ -48,16 +50,20 @@ define(function (require) {
    * ordered things by our crazy sort priority.  Now we use the sort priority here
    * in the back-end and expose that to the front-end too.
    */
-  function FoldersTOC(db, accountId, folders) {
+  function FoldersTOC({ db, accountDef, folders, dataOverlayManager }) {
     evt.Emitter.call(this);
     logic.defineScope(this, 'FoldersTOC');
 
-    this.accountId = accountId;
+    this.accountDef = accountDef;
+    this.engineFolderMeta = engineFrontEndFolderMeta.get(accountDef.engine);
+    this.accountId = accountDef.id;
+    this._dataOverlayManager = dataOverlayManager;
+
     /**
      * Canonical folder state representation.  This is what goes in the database.
      * @type {Map<FolderId, FolderInfo>}
      */
-    this.foldersById = new Map();
+    this.foldersById = this.itemsById = new Map();
 
     /**
      * Ordered list of the folders.
@@ -83,13 +89,17 @@ define(function (require) {
     // See `issueFolderId` for the sordid details.
     this._nextFolderNum = nextFolderNum;
 
-    // TODO: on account deletion we should be removing this listener, but this
+    // TODO: on account deletion we should be removing these listeners, but this
     // is a relatively harmless leak given that account creation and deletion is
     // a relatively rare operation.
-    db.on(`acct!${ accountId }!folders!tocChange`, this._onTOCChange.bind(this));
+    db.on(`acct!${ accountDef.id }!change`, this._onAccountChange.bind(this));
+    db.on(`acct!${ accountDef.id }!folders!tocChange`, this._onTOCChange.bind(this));
+
+    dataOverlayManager.on('accountCascadeToFolders', this._onAccountOverlayCascade.bind(this));
   }
   FoldersTOC.prototype = evt.mix({
     type: 'FoldersTOC',
+    overlayNamespace: 'folders',
 
     // We don't care about who references us because we have the lifetime of the
     // universe.  (At least, unless our owning account gets deleted.)
@@ -173,6 +183,46 @@ define(function (require) {
       return this._makeFolderSortString(parentFolderInfo) + '!' + FOLDER_TYPE_TO_SORT_PRIORITY[folderInfo.type] + '!' + folderInfo.name.toLocaleLowerCase();
     },
 
+    /**
+     * Some complex tasks may do things at an account granularity but which should
+     * (potentially) be reported in the overlays of all folders.  In the interest
+     * of simplifying the lives of those tasks
+     */
+    _onAccountOverlayCascade: function (accountId) {
+      // This event is an unfiltered firehose; we have to filter down to our id.
+      if (accountId === this.accountId) {
+        for (var i = 0; i < this.items.length; i++) {
+          var folder = this.items[i];
+          this._dataOverlayManager.announceUpdatedOverlayData(this.overlayNamespace, folder.id);
+        }
+      }
+    },
+
+    /**
+     * Keep up-to-date with account changes.  Note that while the accountDef
+     * reference itself should never change (accountDefs are defined to be always
+     * in-memory, etc.), we do need to be alerted when values change since we
+     * propagate data to the folders.
+     */
+    _onAccountChange: function () /* accountId, accountDef */{
+      // We are also assuming the engine and engineFolderMeta can't change at
+      // runtime without retracting and re-adding the account.  This is an
+      // invariant, though.
+      this._fakeFolderDataChanges();
+    },
+
+    /**
+     * Pretend the selected folders changed (data-wise, not overlay-wise).
+     */
+    _fakeFolderDataChanges: function (filterFunc) {
+      for (var i = 0; i < this.items.length; i++) {
+        var folder = this.items[i];
+        if (!filterFunc || filterFunc(folder)) {
+          this.emit('change', this.folderInfoToWireRep(folder), i);
+        }
+      }
+    },
+
     _onTOCChange: function (folderId, folderInfo, isNew) {
       if (isNew) {
         // - add
@@ -180,7 +230,7 @@ define(function (require) {
       } else if (folderInfo) {
         // - change
         // object identity ensures folderInfo is already present.
-        this.emit('change', folderInfo, this.items.indexOf(folderInfo));
+        this.emit('change', this.folderInfoToWireRep(folderInfo), this.items.indexOf(folderInfo));
       } else {
         // - remove
         this._removeFolderById(folderId);
@@ -195,7 +245,7 @@ define(function (require) {
       this.folderSortStrings.splice(idx, 0, sortString);
       this.foldersById.set(folderInfo.id, folderInfo);
 
-      this.emit('add', folderInfo, idx);
+      this.emit('add', this.folderInfoToWireRep(folderInfo), idx);
     },
 
     _removeFolderById: function (id) {
@@ -219,11 +269,33 @@ define(function (require) {
      * TODO: Actually have our logic not be the same as getFirstFolderWithType.
      */
     getCanonicalFolderByType: function (type) {
-      return this.items.find(folder => folder.type === type) || null;
+      return this.items.find(function (folder) {
+        return folder.type === type;
+      }) || null;
     },
 
     generatePersistenceInfo: function () {
       return this._foldersDbState;
+    },
+
+    /**
+     * Generate the wire rep for a folder *belonging to this account*, mixing in
+     * account engine details, and in the future, maybe other details too.
+     */
+    folderInfoToWireRep: function (folder) {
+      var mixFromAccount = undefined;
+      // If this account syncs on a per-account basis, spread the sync information
+      // that sync_refresh stashed on the account.
+      if (this.engineFolderMeta.syncGranularity === 'account' && this.accountDef.syncInfo) {
+        var syncInfo = this.accountDef.syncInfo;
+        mixFromAccount = {
+          lastSuccessfulSyncAt: syncInfo.lastSuccessfulSyncAt,
+          lastAttemptedSyncAt: syncInfo.lastAttemptedSyncAt,
+          failedSyncsSinceLastSuccessfulSync: syncInfo.failedSyncsSinceLastSuccessfulSync
+        };
+      }
+
+      return Object.assign({}, folder, this.engineFolderMeta, mixFromAccount);
     }
   });
 

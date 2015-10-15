@@ -56,7 +56,9 @@ define(function (require) {
       var messages = fromDb.messagesByConversation.get(convId);
       var modifiedMessagesMap = new Map();
 
-      var messageInfo = messages.find(msg => msg.id === messageId);
+      var messageInfo = messages.find(function (msg) {
+        return msg.id === messageId;
+      });
       if (messageInfo === null) {
         throw new Error('moot');
       }

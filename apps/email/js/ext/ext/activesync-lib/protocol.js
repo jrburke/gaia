@@ -532,14 +532,16 @@
      *   XHR upload instance.
      */
     postData: function (aCommand, aContentType, aData, aOpts) {
+      var _this = this;
+
       var parentArgs = arguments;
-      return new Promise((resolve, reject) => {
+      return new Promise(function (resolve, reject) {
         // Make sure our command name is a string.
         if (typeof aCommand === 'number') {
           aCommand = ASCP.__tagnames__[aCommand];
         }
 
-        if (!this.supportsCommand(aCommand)) {
+        if (!_this.supportsCommand(aCommand)) {
           var error = new Error("This server doesn't support the command " + aCommand);
           console.error(error);
           reject(error);
@@ -547,7 +549,7 @@
         }
 
         // Build the URL parameters.
-        var params = [['Cmd', aCommand], ['User', this._username], ['DeviceId', this._deviceId], ['DeviceType', this._deviceType]];
+        var params = [['Cmd', aCommand], ['User', _this._username], ['DeviceId', _this._deviceId], ['DeviceType', _this._deviceType]];
         if (aOpts && aOpts.extraParams) {
           for (var [paramName] of params) {
             if (paramName in aOpts.extraParams) {
@@ -564,9 +566,9 @@
 
         // Now it's time to make our request!
         var xhr = new XMLHttpRequest({ mozSystem: true, mozAnon: true });
-        xhr.open('POST', this.baseUrl + '?' + paramsStr, true);
-        setAuthHeader(xhr, this._username, this._password);
-        xhr.setRequestHeader('MS-ASProtocolVersion', this.currentVersion);
+        xhr.open('POST', _this.baseUrl + '?' + paramsStr, true);
+        setAuthHeader(xhr, _this._username, _this._password);
+        xhr.setRequestHeader('MS-ASProtocolVersion', _this.currentVersion);
         xhr.setRequestHeader('Content-Type', aContentType);
         xhr.setRequestHeader('User-Agent', USER_AGENT);
 
@@ -578,7 +580,7 @@
           }
         }
 
-        xhr.timeout = this.timeout;
+        xhr.timeout = _this.timeout;
 
         var downloadProgress = aOpts && aOpts.downloadProgress;
         var uploadProgress = aOpts && aOpts.uploadProgerss;
@@ -598,7 +600,7 @@
           }
         };
 
-        var conn = this;
+        var conn = _this;
 
         xhr.onload = function () {
           // This status code is a proprietary Microsoft extension used to
@@ -640,7 +642,7 @@
             conn.onmessage(aCommand, evt.type, xhr, params, aOpts && aOpts.extraHeaders, aData, null);
           }
           reject(errObj);
-        }).bind(this);
+        }).bind(_this);
 
         xhr.responseType = 'arraybuffer';
         xhr.send(aData);

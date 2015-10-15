@@ -20,7 +20,7 @@ define(function (require) {
    * TODO: generalize to have message-centric sync_body-style logic
    */
   MessagesListView.prototype.ensureSnippets = function () {
-    var snippetsNeeded = this.items.some(message => {
+    var snippetsNeeded = this.items.some(function (message) {
       return message && message.snippet === null;
     });
 

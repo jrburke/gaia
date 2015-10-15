@@ -192,6 +192,7 @@ console.log('MSG_VSCROLL SETLISTCURSOR: ' + listCursor);
     },
 
 //todo: what to do here?
+//listen now on folder.change for syncStatus as in message_list?
     // The funny name because it is auto-bound as a listener for
     // list events in listCursor using a naming convention.
     messages_status: function(newStatus) {
@@ -215,7 +216,7 @@ console.log('MSG_VSCROLL SETLISTCURSOR: ' + listCursor);
         }
         this.syncingNode.classList.add('collapsed');
       }
-      this.emit('syncInProgress', syncInProgress);
+      //todo: commented out this.emit('syncInProgress', syncInProgress);
     },
 
     // A listener for list 'seek' events in the list cursor.

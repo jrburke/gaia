@@ -130,6 +130,8 @@ define(function (require) {
     },
 
     __asyncInitFromMessage: function (message) {
+      var _this = this;
+
       this._message = message;
       message.on('change', this._onMessageChange.bind(this));
       message.on('remove', this._onMessageRemove.bind(this));
@@ -153,13 +155,13 @@ define(function (require) {
         this.htmlBlob = null;
       }
 
-      return asyncFetchBlob(wireRep.bodyReps[0].contentBlob, 'json').then(textRep => {
+      return asyncFetchBlob(wireRep.bodyReps[0].contentBlob, 'json').then(function (textRep) {
         if (Array.isArray(textRep) && textRep.length === 2 && textRep[0] === 0x1) {
-          this.textBody = textRep[1];
+          _this.textBody = textRep[1];
         } else {
-          this.textBody = '';
+          _this.textBody = '';
         }
-        return this;
+        return _this;
       });
     },
 

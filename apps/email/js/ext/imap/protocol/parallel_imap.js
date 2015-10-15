@@ -10,11 +10,13 @@ define(function (require) {
    */
   function simpleWithConn(methodName) {
     return function () {
+      var _this = this;
+
       var calledArgs = arguments;
-      return this._gimmeConnection().then(conn => {
-        logic(this, methodName + ':begin', {});
-        return conn[methodName].apply(conn, calledArgs).then(value => {
-          logic(this, methodName + ':end', { _result: value });
+      return this._gimmeConnection().then(function (conn) {
+        logic(_this, methodName + ':begin', {});
+        return conn[methodName].apply(conn, calledArgs).then(function (value) {
+          logic(_this, methodName + ':end', { _result: value });
           // NB: if we were going to return the connection, this is where we would
           // do it.
           return value;
@@ -34,8 +36,10 @@ define(function (require) {
    */
   function inFolderWithConn(methodName, optsArgIndexPerCaller) {
     return function (folderInfo) {
+      var _this2 = this;
+
       var calledArgs = arguments;
-      return this._gimmeConnection().then(conn => {
+      return this._gimmeConnection().then(function (conn) {
         var opts = calledArgs[optsArgIndexPerCaller];
         if (!opts) {
           throw new Error('provide the options dictionary so we can mutate it.');
@@ -48,9 +52,9 @@ define(function (require) {
             next();
           }
         };
-        logic(this, methodName + ':begin', { folderId: folderInfo.id });
-        return conn[methodName].apply(conn, Array.prototype.slice.call(calledArgs, 1)).then(value => {
-          logic(this, methodName + ':end', { _result: value });
+        logic(_this2, methodName + ':begin', { folderId: folderInfo.id });
+        return conn[methodName].apply(conn, Array.prototype.slice.call(calledArgs, 1)).then(function (value) {
+          logic(_this2, methodName + ':end', { _result: value });
           // NB: if we were going to return the connection, this is where we would
           // do it.
           return {
@@ -71,9 +75,11 @@ define(function (require) {
    */
   function customFuncInFolderWithConn(implFunc) {
     return function (folderInfo) {
+      var _this3 = this;
+
       var calledArgs = arguments;
       var methodName = implFunc.name;
-      return this._gimmeConnection().then(conn => {
+      return this._gimmeConnection().then(function (conn) {
         var precheck = function (ctx, next) {
           // Only select the folder if we're not already inside it.
           if (folderInfo.path !== conn.selectedMailboxPath) {
@@ -82,9 +88,9 @@ define(function (require) {
             next();
           }
         };
-        logic(this, methodName + ':begin', { folderId: folderInfo.id });
-        return implFunc.apply(this, [conn, precheck].concat(Array.prototype.slice.call(calledArgs, 1))).then(value => {
-          logic(this, methodName + ':end', { _result: value });
+        logic(_this3, methodName + ':begin', { folderId: folderInfo.id });
+        return implFunc.apply(_this3, [conn, precheck].concat(Array.prototype.slice.call(calledArgs, 1))).then(function (value) {
+          logic(_this3, methodName + ':end', { _result: value });
           return {
             mailboxInfo: conn.selectedMailboxInfo,
             result: value
@@ -135,6 +141,8 @@ define(function (require) {
   ParallelIMAP.prototype = {
     // XXX the interaction of this and simpleWithConn are pretty ugly.
     _gimmeConnection: function () {
+      var _this4 = this;
+
       if (this._conn) {
         // (keeping the promise around forever can make devtools sad and result in
         // effective memory leaks, at least allegedly per co.  makes sense, tho.)
@@ -145,16 +153,16 @@ define(function (require) {
       }
 
       logic(this, 'demandConnection');
-      this._connPromise = new Promise((resolve, reject) => {
-        this._imapAccount.__folderDemandsConnection(null, 'pimap', conn => {
-          logic(this, 'gotConnection');
-          this._conn = conn;
-          this._connPromise = null;
+      this._connPromise = new Promise(function (resolve, reject) {
+        _this4._imapAccount.__folderDemandsConnection(null, 'pimap', function (conn) {
+          logic(_this4, 'gotConnection');
+          _this4._conn = conn;
+          _this4._connPromise = null;
           resolve(conn);
-        }, () => {
-          logic(this, 'deadConnection');
-          this._conn = null;
-          this._connPromise = null;
+        }, function () {
+          logic(_this4, 'deadConnection');
+          _this4._conn = null;
+          _this4._connPromise = null;
           reject();
         });
       });

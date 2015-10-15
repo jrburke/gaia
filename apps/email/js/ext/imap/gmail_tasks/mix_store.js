@@ -227,14 +227,18 @@ define(function (require) {
       var s = '';
       if (add && add.length) {
         add.sort();
-        s += add.map(x => '+' + JSON.stringify(x)).join(' ');
+        s += add.map(function (x) {
+          return '+' + JSON.stringify(x);
+        }).join(' ');
       }
       if (remove && remove.length) {
         // add delimiting whitespace for sanity if we have both types
         if (add && add.length) {
           s += ' ';
         }
-        s += remove.map(x => 'x' + JSON.stringify(x)).join(' ');
+        s += remove.map(function (x) {
+          return 'x' + JSON.stringify(x);
+        }).join(' ');
       }
       return s;
     },

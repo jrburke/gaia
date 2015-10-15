@@ -157,12 +157,14 @@ define(function (require) {
      *        info, formatted as JSON
      */
     _getXmlConfig: function getXmlConfig(url) {
-      return new Promise((resolve, reject) => {
-        var scope = logic.subscope(this, { method: 'GET', url: url });
+      var _this = this;
+
+      return new Promise(function (resolve, reject) {
+        var scope = logic.subscope(_this, { method: 'GET', url: url });
         logic(scope, 'xhr:start');
         var xhr = new XMLHttpRequest({ mozSystem: true });
         xhr.open('GET', url, true);
-        xhr.timeout = this.timeout;
+        xhr.timeout = _this.timeout;
 
         xhr.onload = function () {
           logic(scope, 'xhr:end', { status: xhr.status });
@@ -237,14 +239,16 @@ define(function (require) {
      * For maximum realism we perform a POST.
      */
     _checkAutodiscoverUrl: function (url) {
-      return new Promise((resolve, reject) => {
-        var scope = logic.subscope(this, { method: 'POST', url: url });
+      var _this2 = this;
+
+      return new Promise(function (resolve, reject) {
+        var scope = logic.subscope(_this2, { method: 'POST', url: url });
         logic(scope, 'autodiscoverProbe:start');
         var xhr = new XMLHttpRequest({ mozSystem: true });
         xhr.open('POST', url, true);
-        xhr.timeout = this.timeout;
+        xhr.timeout = _this2.timeout;
 
-        var victory = () => {
+        var victory = function () {
           resolve({
             type: 'activesync',
             incoming: {
@@ -294,7 +298,7 @@ define(function (require) {
       return latchedWithRejections({
         subdir: this._checkAutodiscoverUrl(subdirUrl),
         domain: this._checkAutodiscoverUrl(domainUrl)
-      }).then(results => {
+      }).then(function (results) {
         // Favor the subdirectory discovery point.
         if (results.subdir.resolved && results.subdir.value) {
           return results.subdir.value;
@@ -330,12 +334,14 @@ define(function (require) {
      *   the promise.
      */
     _getMX: function getMX(domain) {
-      return new Promise((resolve, reject) => {
-        var scope = logic.subscope(this, { domain: domain });
+      var _this3 = this;
+
+      return new Promise(function (resolve, reject) {
+        var scope = logic.subscope(_this3, { domain: domain });
         logic(scope, 'mxLookup:begin');
         var xhr = new XMLHttpRequest({ mozSystem: true });
         xhr.open('GET', 'https://live.mozillamessaging.com/dns/mx/' + encodeURIComponent(domain), true);
-        xhr.timeout = this.timeout;
+        xhr.timeout = _this3.timeout;
 
         xhr.onload = function () {
           var reportDomain = null;
@@ -382,7 +388,7 @@ define(function (require) {
         autoconfigWellKnown: this._getXmlConfig(wellKnownAutoconfigUrl),
         ispdb: this._getConfigFromISPDB(domain),
         mxDomain: this._getMX(domain)
-      }).then(results => {
+      }).then(function (results) {
         // Favor the autoconfig subdomain for historical reasons
         if (results.autoconfigSubdomain.resolved && results.autoconfigSubdomain.value) {
           return { type: 'config', source: 'autoconfig-subdomain',
@@ -414,7 +420,9 @@ define(function (require) {
      *        info, formatted as JSON
      */
     _getConfigFromMX: function getConfigFromMX(domain, callback) {
-      this._getMX(domain, (mxError, mxDomain, mxErrorDetails) => {
+      var _this4 = this;
+
+      this._getMX(domain, function (mxError, mxDomain, mxErrorDetails) {
         if (mxError) {
           return callback(mxError, null, mxErrorDetails);
         }
@@ -429,7 +437,7 @@ define(function (require) {
         // local file store (mostly to support Google Apps domains) and, if that
         // doesn't work, the Mozilla ISPDB.
         console.log('  Looking in local file store');
-        this._getConfigFromLocalFile(mxDomain, (error, config, errorDetails) => {
+        _this4._getConfigFromLocalFile(mxDomain, function (error, config, errorDetails) {
           // (Local XML lookup should not have any fatal errors)
           if (!error) {
             callback(error, config, errorDetails);
@@ -437,7 +445,7 @@ define(function (require) {
           }
 
           console.log('  Looking in the Mozilla ISPDB');
-          this._getConfigFromDB(mxDomain, callback);
+          _this4._getConfigFromDB(mxDomain, callback);
         });
       });
     },
@@ -468,19 +476,21 @@ define(function (require) {
      *   .
      */
     learnAboutAccount: function (details) {
-      return new Promise(resolve => {
+      var _this5 = this;
+
+      return new Promise(function (resolve) {
         var emailAddress = details.emailAddress;
         var emailParts = emailAddress.split('@');
         var emailDomainPart = emailParts[1];
         var domain = emailDomainPart.toLowerCase();
-        var scope = logic.subscope(this, { domain: domain });
+        var scope = logic.subscope(_this5, { domain: domain });
         logic(scope, 'autoconfig:begin');
 
         var selfHostedAndISPDBHandler, mxLocalHandler, autodiscoverHandler, mxISPDBHandler;
 
         // Call this when we find a usable config setting to perform appropriate
         // normalization, logging, and promise resolution.
-        var victory = (sourceConfigInfo, source) => {
+        var victory = function (sourceConfigInfo, source) {
           var configInfo = null,
               result;
           if (sourceConfigInfo) {
@@ -501,8 +511,8 @@ define(function (require) {
           resolve({ result: result, source: source, configInfo: configInfo });
         };
         // Call this if we can't find a configuration.
-        var failsafeFailure = error => {
-          logic(this, 'autoconfig:end', { error: {
+        var failsafeFailure = function (error) {
+          logic(_this5, 'autoconfig:end', { error: {
               message: error && error.message,
               stack: error && error.stack
             } });
@@ -510,14 +520,14 @@ define(function (require) {
         };
 
         // Helper that turns a rejection into a null and outputs a log entry.
-        var coerceRejectionToNull = error => {
+        var coerceRejectionToNull = function (error) {
           logic(scope, 'autoconfig:coerceRejection', { error });
           return null;
         };
 
         // -- Synchronous logic
         // - Group 0: hardcoded in GELAM (testing only)
-        var hardcodedConfig = this._checkGelamConfig(domain);
+        var hardcodedConfig = _this5._checkGelamConfig(domain);
         if (hardcodedConfig) {
           victory(hardcodedConfig, 'hardcoded');
           return;
@@ -530,19 +540,19 @@ define(function (require) {
         // future.
 
         // - Group 1: local config
-        var localConfigHandler = info => {
+        var localConfigHandler = function (info) {
           if (info) {
             victory(info, 'local');
             return null;
           }
 
           // We don't need to coerce because there will be no rejections.
-          return this._getHostedAndISPDBConfigs(domain, emailAddress).then(selfHostedAndISPDBHandler);
+          return _this5._getHostedAndISPDBConfigs(domain, emailAddress).then(selfHostedAndISPDBHandler);
         };
 
         // - Group 2: self-hosted autoconfig, ISPDB first checks
         var mxDomain;
-        selfHostedAndISPDBHandler = typedResult => {
+        selfHostedAndISPDBHandler = function (typedResult) {
           if (typedResult.type === 'config') {
             victory(typedResult.config, typedResult.source);
             return null;
@@ -550,40 +560,40 @@ define(function (require) {
           // Did we get a different MX result?
           if (typedResult.type === 'mx') {
             mxDomain = typedResult.domain;
-            return this._getConfigFromLocalFile(mxDomain).catch(coerceRejectionToNull).then(mxLocalHandler);
+            return _this5._getConfigFromLocalFile(mxDomain).catch(coerceRejectionToNull).then(mxLocalHandler);
           }
           // No MX result, probe autodiscover.
-          return this._probeForAutodiscover(domain).then(autodiscoverHandler);
+          return _this5._probeForAutodiscover(domain).then(autodiscoverHandler);
         };
 
         // - Group 3: MX-derived lookups
-        mxLocalHandler = info => {
+        mxLocalHandler = function (info) {
           if (info) {
             victory(info, 'mx local');
             return null;
           }
           // We didn't know about it locally, ask the ISPDB
-          return this._getConfigFromISPDB(mxDomain).catch(coerceRejectionToNull).then(mxISPDBHandler);
+          return _this5._getConfigFromISPDB(mxDomain).catch(coerceRejectionToNull).then(mxISPDBHandler);
         };
 
-        mxISPDBHandler = info => {
+        mxISPDBHandler = function (info) {
           if (info) {
             victory(info, 'mx ispdb');
             return null;
           }
           // The ISPDB didn't know, probe for autodiscovery.  No coercion needed.
-          return this._probeForAutodiscover(domain).then(autodiscoverHandler);
+          return _this5._probeForAutodiscover(domain).then(autodiscoverHandler);
         };
 
         // - Group 4: Autodiscover probing
-        autodiscoverHandler = info => {
+        autodiscoverHandler = function (info) {
           // This is either success or we're simply done.
           victory(info, info ? 'autodiscover' : null);
           return null;
         };
 
         // -- Kick it off.
-        this._getConfigFromLocalFile(domain)
+        _this5._getConfigFromLocalFile(domain)
         // Coerce the rejection for our then handler's purpose.
         .catch(coerceRejectionToNull).then(localConfigHandler)
         // Register a catch-handler against localConfigHandler and all of the

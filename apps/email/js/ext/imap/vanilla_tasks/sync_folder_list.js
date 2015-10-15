@@ -36,8 +36,8 @@ define(function (require) {
       }
 
       // - walk the boxes
-      var walkBoxes = (boxLevel, pathDepth, parentId) => {
-        boxLevel.forEach(box => {
+      var walkBoxes = function (boxLevel, pathDepth, parentId) {
+        boxLevel.forEach(function (box) {
           var delim = box.delimiter || '/';
 
           if (box.path.indexOf(delim) === 0) {

@@ -112,8 +112,10 @@ define(function (require) {
      * @return {String[]}
      */
     folderIdsToLabels: function (folderIds) {
-      return folderIds.map(folderId => {
-        return this._folderIdToLabel.get(folderId);
+      var _this = this;
+
+      return folderIds.map(function (folderId) {
+        return _this._folderIdToLabel.get(folderId);
       });
     }
   };

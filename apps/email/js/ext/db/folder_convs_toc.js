@@ -31,9 +31,9 @@ define(function (require) {
    * Our composite key is { date, id }, ordered thusly.  From a seek/persistence
    * perspective, if a conversation gets updated, it is no longer the same and
    * we instead treat the position where the { date, id } would be inserted now.
-   * However, for
    */
-  function FolderConversationsTOC(db, folderId) {
+  function FolderConversationsTOC({ db, folderId, dataOverlayManager,
+    onForgotten }) {
     RefedResource.call(this);
     evt.Emitter.call(this);
 
@@ -41,7 +41,13 @@ define(function (require) {
 
     this._db = db;
     this.folderId = folderId;
+    this._onForgotten = onForgotten;
     this._eventId = '';
+
+    // We share responsibility for providing overlay data with the list proxy.
+    // Our getDataForSliceRange performs the resolving, but we depend on the proxy
+    // to be listening for overlay updates and to perform appropriate dirtying.
+    this._overlayResolver = dataOverlayManager.makeBoundResolver(this.overlayNamespace, null);
 
     this._bound_onTOCChange = this.onTOCChange.bind(this);
 
@@ -49,6 +55,7 @@ define(function (require) {
   }
   FolderConversationsTOC.prototype = evt.mix(RefedResource.mix({
     type: 'FolderConversationsTOC',
+    overlayNamespace: 'conversations',
     heightAware: true,
 
     __activate: co.wrap(function* () {
@@ -72,6 +79,10 @@ define(function (require) {
       this.totalHeight = 0;
       if (!firstTime) {
         this._db.removeListener(this._eventId, this._bound_onTOCChange);
+        if (this._onForgotten) {
+          this._onForgotten(this, this.convId);
+        }
+        this._onForgotten = null;
       }
     },
 
@@ -298,21 +309,26 @@ define(function (require) {
       return rval;
     },
 
-    getDataForSliceRange: function (beginInclusive, endExclusive, alreadyKnown) {
+    getDataForSliceRange: function (beginInclusive, endExclusive, alreadyKnownData, alreadyKnownOverlays) {
       beginInclusive = Math.max(0, beginInclusive);
       endExclusive = Math.min(endExclusive, this.idsWithDates.length);
 
-      // Things we were able to directly extract from the cache
-      var haveData = new Map();
+      var overlayResolver = this._overlayResolver;
+
+      // State and overlay data to be sent to our front-end view counterpart.
+      // This is (needed) state information we have synchronously available from
+      // the db cache and (needed) overlay information (which can always be
+      // synchronously derived.)
+      var sendState = new Map();
       // Things we need to request from the database.  (Although MailDB.read will
       // immediately populate the things we need, WindowedListProxy's current
       // wire protocol calls for omitting things we don't have the state for yet.
       // And it's arguably nice to avoid involving going async here with flushes
       // and all that if we can avoid it.
       var needData = new Map();
-      // The new known set which is the stuff from alreadyKnown we reused plus the
-      // data we were able to provide synchronously.  (And the stuff we have to
-      // read from the DB does NOT go in here.)
+      // The new known set which is the stuff from alreadyKnownData we reused plus
+      // the data we were able to provide synchronously.  (And the stuff we have
+      // to read from the DB does NOT go in here.)
       var newKnownSet = new Set();
 
       var idsWithDates = this.idsWithDates;
@@ -321,13 +337,19 @@ define(function (require) {
       for (var i = beginInclusive; i < endExclusive; i++) {
         var id = idsWithDates[i].id;
         ids.push(id);
-        if (alreadyKnown.has(id)) {
+        var haveData = alreadyKnownData.has(id);
+        var haveOverlays = alreadyKnownOverlays.has(id);
+        if (haveData && haveOverlays) {
           newKnownSet.add(id);
           continue;
         }
-        if (convCache.has(id)) {
+
+        if (haveData) {
+          // only need overlays
+          sendState.set(id, [null, overlayResolver(id)]);
+        } else if (convCache.has(id)) {
           newKnownSet.add(id);
-          haveData.set(id, convCache.get(id));
+          sendState.set(id, [convCache.get(id), overlayResolver(id)]);
         } else {
           needData.set(id, null);
         }
@@ -344,10 +366,10 @@ define(function (require) {
 
       return {
         ids: ids,
-        state: haveData,
+        state: sendState,
         pendingReads: needData,
-        readPromise: readPromise,
-        newKnownSet: newKnownSet
+        readPromise,
+        newValidDataSet: newKnownSet
       };
     }
   }));

@@ -25,7 +25,11 @@ define(function (require) {
     this.db = db;
 
     this.batchManager = new BatchManager(db);
-    this.bridgeContext = new BridgeContext(this, this.batchManager);
+    this.bridgeContext = new BridgeContext({
+      bridge: this,
+      batchManager: this.batchManager,
+      dataOverlayManager: this.universe.dataOverlayManager
+    });
     this._pendingMessagesByHandle;
 
     // outstanding persistent objects that aren't slices. covers: composition
@@ -81,8 +85,10 @@ define(function (require) {
     },
 
     _trackCommandForNamedContext: function (namedContext, promise) {
-      var runNext = () => {
-        this._commandCompletedProcessNextCommandInQueue(namedContext);
+      var _this = this;
+
+      var runNext = function () {
+        _this._commandCompletedProcessNextCommandInQueue(namedContext);
       };
       promise.then(runNext, runNext);
     },
@@ -91,12 +97,14 @@ define(function (require) {
      * Whenever
      */
     _commandCompletedProcessNextCommandInQueue: function (namedContext) {
+      var _this2 = this;
+
       if (namedContext.commandQueue.length) {
         console.warn('processing deferred command');
         var promise = namedContext.pendingCommand = this._processCommand(namedContext.commandQueue.shift());
         if (promise) {
-          var runNext = () => {
-            this._commandCompletedProcessNextCommandInQueue(namedContext);
+          var runNext = function () {
+            _this2._commandCompletedProcessNextCommandInQueue(namedContext);
           };
           promise.then(runNext, runNext);
         }
@@ -136,14 +144,14 @@ define(function (require) {
       return null;
     },
 
-    _cmd_ping: function mb__cmd_ping(msg) {
+    _cmd_ping: function (msg) {
       this.__sendMessage({
         type: 'pong',
         handle: msg.handle
       });
     },
 
-    _cmd_modifyConfig: function mb__cmd_modifyConfig(msg) {
+    _cmd_modifyConfig: function (msg) {
       this.universe.modifyConfig(msg.mods);
     },
 
@@ -154,7 +162,7 @@ define(function (require) {
       });
     },
 
-    _cmd_debugSupport: function mb__cmd_debugSupport(msg) {
+    _cmd_debugSupport: function (msg) {
       switch (msg.cmd) {
         case 'setLogging':
           this.universe.modifyConfig({ debugLogging: msg.arg });
@@ -184,14 +192,16 @@ define(function (require) {
     },
 
     _cmd_learnAboutAccount: function (msg) {
-      this.universe.learnAboutAccount(msg.details).then(info => {
-        this.__sendMessage({
+      var _this3 = this;
+
+      this.universe.learnAboutAccount(msg.details).then(function (info) {
+        _this3.__sendMessage({
           type: 'promisedResult',
           handle: msg.handle,
           data: info
         });
-      }, () => /*err*/{
-        this.__sendMessage({
+      }, function () /*err*/{
+        _this3.__sendMessage({
           type: 'promisedResult',
           handle: msg.handle,
           data: { result: 'no-config-info', configInfo: null }
@@ -200,8 +210,10 @@ define(function (require) {
     },
 
     _cmd_tryToCreateAccount: function (msg) {
-      this.universe.tryToCreateAccount(msg.userDetails, msg.domainInfo).then(result => {
-        this.__sendMessage({
+      var _this4 = this;
+
+      this.universe.tryToCreateAccount(msg.userDetails, msg.domainInfo).then(function (result) {
+        _this4.__sendMessage({
           type: 'promisedResult',
           handle: msg.handle,
           data: {
@@ -352,6 +364,8 @@ define(function (require) {
     },
 
     _cmd_getItemAndTrackUpdates: co.wrap(function* (msg) {
+      var _this5 = this;
+
       // XXX implement priority tags support
 
       // - Fetch the raw data from disk
@@ -377,10 +391,12 @@ define(function (require) {
           requests.conversations = idRequestMap;
           readKey = 'conversations';
           // no transformation is performed on conversation reps
-          rawToWireRep = x => x;
+          rawToWireRep = function (x) {
+            return x;
+          };
           // The change idiom is currently somewhat one-off; we may be able to
           // just fold this into the eventHandler once things stabilize.
-          eventArgsToRaw = (id, convInfo) => {
+          eventArgsToRaw = function (id, convInfo) {
             return convInfo;
           };
           break;
@@ -388,8 +404,10 @@ define(function (require) {
           normId = msg.itemId[0];
           requests.messages = idRequestMap;
           readKey = 'messages';
-          rawToWireRep = x => x;
-          eventArgsToRaw = (id, messageInfo) => {
+          rawToWireRep = function (x) {
+            return x;
+          };
+          eventArgsToRaw = function (id, messageInfo) {
             return messageInfo;
           };
           break;
@@ -404,24 +422,53 @@ define(function (require) {
       // Normalize to wire rep form
       var dbWireRep = rawToWireRep(fromDb[readKey].get(normId));
 
+      const dataOverlayManager = this.universe.dataOverlayManager;
+      var boundOverlayResolver = dataOverlayManager.makeBoundResolver(readKey);
+
       // - Register an event listener that will be removed at context cleanup
       // (We only do this after we have loaded the up-to-date rep.  Note that
       // under the current DB implementation there is a potential short-lived
       // race here that will be addressed to support this idiom correctly.)
-      var eventHandler = (arg1, arg2) => {
+      var dataEventHandler = function (arg1, arg2) {
         var rep = eventArgsToRaw(arg1, arg2);
         if (rep) {
+          // an update!
           rep = rawToWireRep(rep);
+          ctx.sendMessage('updateItem', {
+            state: rep,
+            // (the overlay will trigger independently)
+            overlays: null
+          });
+        } else {
+          // a deletion!
+          ctx.sendMessage('updateItem', null);
         }
-        ctx.sendMessage('update', rep);
       };
-      this.db.on(eventId, eventHandler);
-      ctx.runAtCleanup(() => {
-        this.db.removeListener(eventId, eventHandler);
+      var overlayEventHandler = function (modId) {
+        // (this is an unfiltered firehose event, it might make sense to have the
+        // DataOverlayManager have an id-specific setup too.)
+        if (modId === normId) {
+          // if it's just the overlays changing, we can send that update without
+          // re-sending (or re-reading) the data.  We convey this by
+          ctx.sendMessage('updateItem', {
+            state: null,
+            overlays: boundOverlayResolver(normId)
+          });
+        }
+      };
+      this.db.on(eventId, dataEventHandler);
+      dataOverlayManager.on(readKey, overlayEventHandler);
+      this.universe.dataOverlayManager.on(readKey);
+      ctx.runAtCleanup(function () {
+        _this5.db.removeListener(eventId, dataEventHandler);
+        dataOverlayManager.removeListener(readKey, overlayEventHandler);
       });
 
       // - Send the wire rep
-      ctx.sendMessage('gotItemNowTrackingUpdates', dbWireRep);
+      ctx.sendMessage('gotItemNowTrackingUpdates', {
+        state: dbWireRep,
+        overlays: boundOverlayResolver(normId)
+      });
     }),
 
     _cmd_updateTrackedItemPriorityTags: function (msg) {
@@ -477,8 +524,10 @@ define(function (require) {
     },
 
     _cmd_outboxSetPaused: function (msg) {
-      this.universe.outboxSetPaused(msg.accountId, msg.bePaused).then(() => {
-        this.__sendMessage({
+      var _this6 = this;
+
+      this.universe.outboxSetPaused(msg.accountId, msg.bePaused).then(function () {
+        _this6.__sendMessage({
           type: 'promisedResult',
           handle: msg.handle,
           data: null
@@ -495,14 +544,16 @@ define(function (require) {
     // Composition
 
     _cmd_createDraft: function (msg) {
+      var _this7 = this;
+
       this.universe.createDraft({
         draftType: msg.draftType,
         mode: msg.mode,
         refMessageId: msg.refMessageId,
         refMessageDate: msg.refMessageDate,
         folderId: msg.folderId
-      }).then(({ messageId, messageDate }) => {
-        this.__sendMessage({
+      }).then(function ({ messageId, messageDate }) {
+        _this7.__sendMessage({
           type: 'promisedResult',
           handle: msg.handle,
           data: {

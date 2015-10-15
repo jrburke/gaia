@@ -131,7 +131,7 @@ define(function (require) {
       }
 
       // -- Phase 1: accumulate deltas (and update sums)
-      var applyDelta = (priorityTag, delta) => {
+      var applyDelta = function (priorityTag, delta) {
         // - update sum
         var newSum = (summedPriorityTags.get(priorityTag) || 0) + delta;
         if (newSum) {
@@ -200,9 +200,9 @@ define(function (require) {
     prioritizeTaskThing: function (taskThing /*, sourceId */) {
       // WrappedTasks store the type on the plannedTask; TaskMarkers store it on
       // the root (they're simple/flat).
-      var isTask = !taskThing.type;
-      var priorityTags = isTask ? taskThing.plannedTask.priorityTags : taskThing.priorityTags;
-      var relPriority = (isTask ? taskThing.plannedTask.relPriority : taskThing.relPriority) || 0;
+      var isMarker = !!taskThing.type;
+      var priorityTags = isMarker ? taskThing.priorityTags : taskThing.plannedTask.priorityTags;
+      var relPriority = (isMarker ? taskThing.relPriority : taskThing.plannedTask.relPriority) || 0;
       var priority = relPriority + this._computePriorityForTags(priorityTags);
       // it's a minheap, we negate keys
       var nodeKey = -priority;

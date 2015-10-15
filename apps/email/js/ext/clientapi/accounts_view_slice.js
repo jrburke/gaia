@@ -32,20 +32,22 @@ define(function (require) {
    * XXX generate unambiguous/correct rejections
    */
   AccountsViewSlice.prototype.eventuallyGetAccountById = function (id) {
-    return new Promise((resolve, reject) => {
-      var account = this.getAccountById(id);
+    var _this = this;
+
+    return new Promise(function (resolve, reject) {
+      var account = _this.getAccountById(id);
       if (account) {
         resolve(account);
         return;
       }
 
-      var addListener = account => {
+      var addListener = function (account) {
         if (account.id === id) {
-          this.removeListener('add', addListener);
+          _this.removeListener('add', addListener);
           resolve(account);
         }
       };
-      this.on('add', addListener);
+      _this.on('add', addListener);
     });
   };
 

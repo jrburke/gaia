@@ -53,8 +53,8 @@ define(function (require) {
    * ## Accumulated State ##
    *
    * At all times we know:
-   * - viewSet: The id's that the view has valid state for (based on what we told
-   *   it.)  As we hear about changes that are in our viewSet, we remove them so
+   * - validDataSet: The id's that the view has valid state for (based on what we told
+   *   it.)  As we hear about changes that are in our validDataSet, we remove them so
    *   that when we flush we pull the value from the database cache.
    */
   function WindowedListProxy(toc, ctx) {
@@ -62,18 +62,35 @@ define(function (require) {
     this.ctx = ctx;
     this.batchManager = ctx.batchManager;
 
-    this.viewSet = new Set();
+    /**
+     * The set of id's for which we have provided still-valid data to the
+     * front-end/our view counterpart.  As items are modified and the data
+     * rendered no longer up-to-date, we remove the id's from this set.  This will
+     * trigger propagation of the data at flush-time.
+     */
+    this.validDataSet = new Set();
+
+    /**
+     * The same rationale as `validDataSet`, but for overlays.
+     */
+    this.validOverlaySet = new Set();
 
     this._bound_onChange = this.onChange.bind(this);
+    this._bound_onOverlayPush = this.onOverlayPush.bind(this);
   }
   WindowedListProxy.prototype = {
     __acquire: function () {
       this.toc.on('change', this._bound_onChange);
+
+      this.ctx.dataOverlayManager.on(this.toc.overlayNamespace, this._bound_onOverlayPush);
+
       return Promise.resolve(this);
     },
 
     __release: function () {
       this.toc.removeListener('change', this._bound_onChange);
+
+      this.ctx.dataOverlayManager.removeListener(this.toc.overlayNamespace, this._bound_onOverlayPush);
     },
 
     seek: function (req) {
@@ -112,7 +129,7 @@ define(function (require) {
           if (this.toc.heightAware) {
             this.mode = req.mode;
             // In this case we want to anchor on the first visible item, so we take
-            // the offset and add the si
+            // the offset and add the "before" padding.
             var focalOffset = req.offset + req.before;
             var { orderingKey, offset } = this.toc.getInfoForOffset(focalOffset);
             this.focusKey = orderingKey;
@@ -158,11 +175,24 @@ define(function (require) {
         // If we haven't told the view about the data, there's no need for us to
         // do anything.  Note that this also covers the case where we have an
         // async read in flight.
-        if (!this.viewSet.has(id) && metadataOnly) {
+        if (!this.validDataSet.has(id) && metadataOnly) {
           return;
         }
-        this.viewSet.delete(id);
+        this.validDataSet.delete(id);
       }
+
+      if (this.dirty) {
+        return;
+      }
+      this.dirty = true;
+      this.batchManager.registerDirtyView(this, /* immediate */false);
+    },
+
+    onOverlayPush: function (id) {
+      if (!this.validOverlaySet.has(id)) {
+        return;
+      }
+      this.validOverlaySet.delete(id);
 
       if (this.dirty) {
         return;
@@ -180,6 +210,8 @@ define(function (require) {
      *
      */
     flush: function () {
+      var _this = this;
+
       var beginBufferedInclusive = undefined,
           beginVisibleInclusive = undefined,
           endVisibleExclusive = undefined,
@@ -217,14 +249,17 @@ define(function (require) {
       // XXX prioritization hints should be generated as a result of the visible
       // range!
 
-      var { ids, state, readPromise, newKnownSet } = this.toc.getDataForSliceRange(beginBufferedInclusive, endBufferedExclusive, this.viewSet);
+      var { ids, state, readPromise, newValidDataSet } = this.toc.getDataForSliceRange(beginBufferedInclusive, endBufferedExclusive, this.validDataSet, this.validOverlaySet);
 
-      this.viewSet = newKnownSet;
+      this.validDataSet = newValidDataSet;
+      // We will have generated valid overlay information for all valid data
+      // (filling in any holes), so duplicate the set.
+      this.validOverlaySet = new Set(newValidDataSet);
 
       if (readPromise) {
-        readPromise.then(() => {
+        readPromise.then(function () {
           // Trigger an immediate dirtying/flush.
-          this.batchManager.registerDirtyView(this, /* immediate */true);
+          _this.batchManager.registerDirtyView(_this, /* immediate */true);
         });
       }
 

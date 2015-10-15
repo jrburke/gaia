@@ -53,15 +53,21 @@ define(function (require) {
 
       for (var change of details.changes) {
         if (change.type === 'add') {
-          var obj = new this._itemConstructor(this._api, change.state, this);
+          var obj = new this._itemConstructor(this._api, change.state, change.overlays, this);
           obj.serial = newSerial;
           this.items.splice(change.index, 0, obj);
           this.emit('add', obj, change.index);
         } else if (change.type === 'change') {
           var obj = this.items[change.index];
           obj.serial = newSerial;
-          obj.__update(change.state);
-          this.emit('change', obj, change.index);
+          if (change.state) {
+            obj.__update(change.state);
+          }
+          if (change.overlays) {
+            obj.__updateOverlays(change.overlays);
+          }
+          this.emit('change', obj, change.index, !!change.state, !!change.overlays);
+          obj.emit('change', !!change.state, !!change.overlays);
         } else if (change.type === 'remove') {
           var obj = this.items[change.index];
           this.items.splice(change.index, 1);
