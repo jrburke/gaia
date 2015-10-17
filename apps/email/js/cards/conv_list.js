@@ -74,7 +74,7 @@ return [
 
       this.updateTitle(mailConversation);
 
-      this.msgVScroll.setListCursor(listCursor);
+      this.msgVScroll.setListCursor(listCursor, this.model);
 
       // Now that a folder is available, enable edit mode toggling.
       this.editModeEnabled = true;

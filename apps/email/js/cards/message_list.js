@@ -172,7 +172,7 @@ return [
     onArgs: function(args) {
       var model = this.model = args.model;
       var listCursor = this.listCursor = args.listCursor || new ListCursor();
-      this.msgVScroll.setListCursor(listCursor);
+      this.msgVScroll.setListCursor(listCursor, model);
 
       model.latest('folder', this, '_folderChanged');
       model.on('newInboxMessages', this, 'onNewMail');
@@ -335,14 +335,9 @@ return [
      * Show a folder, returning true if we actually changed folders or false if
      * we did nothing because we were already in the folder.
      */
-    showFolder: function(folder, forceRefresh) {
-      var isSameFolder = false;
+    showFolder: function(folder) {
       if (folder === this.curFolder) {
-        if (forceRefresh) {
-          isSameFolder = true;
-        } else {
-          return false;
-        }
+        return false;
       }
 
       // If using a cache, do not clear the HTML as it will
@@ -380,19 +375,6 @@ return [
       this.msgVScroll.hideEmptyLayout();
 
       this.editToolbar.updateDomFolderType(folder.type);
-
-      if (forceRefresh) {
-        // We are creating a new slice, so any pending snippet requests are
-        // moot.
-//todo: does msgVScroll need to be notified here or can remove?
-        this.msgVScroll._snippetRequestPending = false;
-
-        if (isSameFolder) {
-          this.listCursor.list.refresh();
-        } else {
-          this.freshMessagesList();
-        }
-      }
 
       this.onFolderShown();
 
