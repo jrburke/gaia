@@ -6,7 +6,6 @@ var cards = require('cards'),
     containerListen = require('container_listen'),
     mozL10n = require('l10n!'),
     msgMessageItemNode = require('tmpl!../msg/message_item.html'),
-    toaster = require('toaster'),
     VScroll = require('vscroll');
 
 /**
@@ -18,6 +17,10 @@ return [
   require('../base')(require('template!./msg_vscroll.html')),
   {
     createdCallback: function() {
+//todo: remove this long term if gelam supports knowing this on the list itself.
+      this.listIsGrowing = false;
+      this.listGrowComplete = null;
+
       this.setAttribute('role', 'listbox');
       this.setAttribute('aria-multiselectable', 'true');
 
@@ -108,18 +111,27 @@ return [
       this.vScroll.on('scrollStopped', this, '_onVScrollStopped');
     },
 
-    setListCursor: function(listCursor) {
+    setListCursor: function(listCursor, model) {
 
 console.log('MSG_VSCROLL SETLISTCURSOR: ' + listCursor);
 
-      if (this.listCursor) {
-        this.releaseFromListCursor;
+      this.releaseFromListCursor();
+
+      this.listIsGrowing = false;
+      if (this.listGrowComplete) {
+        this.listCursor.list.removeListener(this.listGrowComplete);
       }
 
       this.listCursor = listCursor;
 
       listCursor.on('seeked', this, 'onWinListSeeked');
       listCursor.on('currentItem', this, 'onCurrentMessage');
+
+      if (this.model) {
+        this.model.removeObjectListener(this);
+      }
+      this.model = model;
+      model.on('folderUpdated', this, 'onListGrowChange');
     },
 
     /**
@@ -167,6 +179,19 @@ console.log('MSG_VSCROLL SETLISTCURSOR: ' + listCursor);
       });
 
 //todo: check this is correct.
+      this.listIsGrowing = true;
+      this.emit('listGrowChange', this.listIsGrowing);
+
+      if (this.listGrowComplete) {
+        this.listCursor.list.removeListener(this.listGrowComplete);
+      }
+
+      this.listGrowComplete = () => {
+        this.listIsGrowing = false;
+        this.emit('listGrowChange', this.listIsGrowing);
+      };
+
+      this.listCursor.list.once('complete', this.listGrowComplete);
       this.listCursor.list.grow();
     },
 
@@ -191,32 +216,35 @@ console.log('MSG_VSCROLL SETLISTCURSOR: ' + listCursor);
       this.emit('emptyLayoutHidden');
     },
 
-//todo: what to do here?
-//listen now on folder.change for syncStatus as in message_list?
-    // The funny name because it is auto-bound as a listener for
-    // list events in listCursor using a naming convention.
-    messages_status: function(newStatus) {
-      var syncInProgress = true;
-      if (newStatus === 'synchronizing' ||
-         newStatus === 'syncblocked') {
+//todo: revisit once syncBlocked available, and when grow state goes elsewhere.
+    onListGrowChange: function() {
+      var syncStatus = this.model && this.model.folder &&
+                       this.model.folder.syncStatus;
+
+
+      var syncInProgress = syncStatus === 'pending' ||
+                           status === 'active' || this.listIsGrowing;
+
+      if (syncInProgress) {
           this.syncingNode.classList.remove('collapsed');
           this.syncMoreNode.classList.add('collapsed');
           this.hideEmptyLayout();
-      } else if (newStatus === 'syncfailed' ||
-                 newStatus === 'synced') {
-        syncInProgress = false;
-        if (newStatus === 'syncfailed') {
+      } else {
+        //todo: redo once syncBlocked is available.
+        // if (newStatus === 'syncfailed') {
           // If there was a problem talking to the server, notify the user and
           // provide a means to attempt to talk to the server again.  We have
           // made onRefresh pretty clever, so it can do all the legwork on
           // accomplishing this goal.
-          toaster.toast({
-            text: mozL10n.get('toaster-retryable-syncfailed')
-          });
-        }
+        //   toaster.toast({
+        //     text: mozL10n.get('toaster-retryable-syncfailed')
+        //   });
+        // }
         this.syncingNode.classList.add('collapsed');
+
+        //todo: consider case where syncing is to the end of the folder.
+        this.syncMoreNode.classList.remove('collapsed');
       }
-      //todo: commented out this.emit('syncInProgress', syncInProgress);
     },
 
     // A listener for list 'seek' events in the list cursor.
@@ -419,10 +447,15 @@ console.log('MSG_VSCROLL CALLING seekFocusedOnAbsoluteIndex, index: ' +
     },
 
     releaseFromListCursor: function() {
-      this.listCursor.removeObjectListener(this);
+      if (this.listCursor) {
+        this.listCursor.removeObjectListener(this);
+      }
     },
 
     release: function() {
+      if (this.model) {
+        this.model.removeObjectListener(this);
+      }
       this.releaseFromListCursor();
       this.vScroll.destroy();
     }

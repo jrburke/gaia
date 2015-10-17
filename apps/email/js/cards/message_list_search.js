@@ -108,7 +108,7 @@ return [
     onArgs: function(args) {
       var model = this.model = args.model;
       var listCursor = this.listCursor = args.listCursor || new ListCursor();
-      this.msgVScroll.setListCursor(listCursor);
+      this.msgVScroll.setListCursor(listCursor, model);
 
       model.latest('folder', this, '_folderChanged');
 
