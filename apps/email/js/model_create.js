@@ -231,10 +231,10 @@ define(function(require) {
           this.selectInbox();
         };
 
-        account.folders.on('complete', this, onFoldersComplete);
-
         if (account.folders.complete) {
           onFoldersComplete();
+        } else {
+          account.folders.once('complete', this, onFoldersComplete);
         }
       }
 
@@ -272,10 +272,20 @@ define(function(require) {
      */
     changeFolder: function(folder) {
       if (folder && (!this.folder || folder.id !== this.folder.id)) {
+        if (this.folder) {
+          this.folder.removeObjectListener(this);
+        }
+
         this.folder = folder;
+        this.folder.on('change', this, 'emitFolderChanged');
+        this.folder.on('complete', this, 'emitFolderChanged');
         this._callEmit('folder');
       }
       return this.folder;
+    },
+
+    emitFolderChanged: function() {
+      this.emit('folderUpdated', this.folder);
     },
 
     /**
