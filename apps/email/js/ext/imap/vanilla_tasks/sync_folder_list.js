@@ -12,7 +12,7 @@ define(function (require) {
   /**
    * Common IMAP folder list syncing logic.
    */
-  return TaskDefiner.defineSimpleTask([require('./mix_sync_folder_list'), {
+  return TaskDefiner.defineSimpleTask([require('../../task_mixins/mix_sync_folder_list'), {
     syncFolders: function* (ctx, account) {
       var { imapAccount, foldersTOC } = account;
 

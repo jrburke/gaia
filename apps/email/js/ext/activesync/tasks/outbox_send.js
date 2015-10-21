@@ -13,7 +13,7 @@ define(function (require) {
    * - The server puts the message in the sent folder automatically, so that's
    *   easy/free and we use the default saveSentMessage implementation.
    */
-  return TaskDefiner.defineComplexTask([require('../../tasks/mix_outbox_send'), {
+  return TaskDefiner.defineComplexTask([require('../../task_mixins/mix_outbox_send'), {
     shouldIncludeBcc: function () /* account */{
       // ActiveSync auto-appends.
       return true;

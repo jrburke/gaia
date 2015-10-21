@@ -7,7 +7,7 @@ define(function (require) {
 
   var TaskDefiner = require('../../task_infra/task_definer');
 
-  var { resolveConversationTaskHelper } = require('../../tasks/mix_conv_resolver');
+  var { resolveConversationTaskHelper } = require('../../task_mixins/conv_resolver');
 
   var { conversationMessageComparator } = require('../../db/comparators');
 

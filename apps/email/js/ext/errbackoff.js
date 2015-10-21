@@ -45,7 +45,7 @@
  *   that's way down the road.
  **/
 
-define(['./date', 'rdcommon/log', 'module', 'exports'], function ($date, $log, $module, exports) {
+define(['./date', 'logic', 'module', 'exports'], function ($date, logic, $module, exports) {
 
   var BACKOFF_DURATIONS = exports.BACKOFF_DURATIONS = [{ fixedMS: 0, randomMS: 0 }, { fixedMS: 800, randomMS: 400 }, { fixedMS: 4500, randomMS: 1000 }];
 
@@ -69,7 +69,7 @@ define(['./date', 'rdcommon/log', 'module', 'exports'], function ($date, $log, $
    *   ]]
    * ]
    */
-  function BackoffEndpoint(name, listener, parentLog) {
+  function BackoffEndpoint(name, listener) {
     /** @oneof[
      *    @case['healthy']
      *    @case['unreachable']
@@ -82,8 +82,10 @@ define(['./date', 'rdcommon/log', 'module', 'exports'], function ($date, $log, $
      */
     this.state = 'healthy';
     this._iNextBackoff = 0;
-    this._LOG = LOGFAB.BackoffEndpoint(this, parentLog, name);
-    this._LOG.state(this.state);
+
+    logic.defineScope(this, 'BackoffEndpoint', { name: name });
+
+    logic(this, 'state', { state: this.state });
 
     this._badResources = {};
 
@@ -93,7 +95,7 @@ define(['./date', 'rdcommon/log', 'module', 'exports'], function ($date, $log, $
     _setState: function (newState) {
       if (this.state === newState) return;
       this.state = newState;
-      this._LOG.state(newState);
+      logic(this, 'state', { state: newState });
       if (this.listener) this.listener.onEndpointStateChange(newState);
     },
 
@@ -118,7 +120,7 @@ define(['./date', 'rdcommon/log', 'module', 'exports'], function ($date, $log, $
      * }
      */
     noteConnectFailureMaybeRetry: function (reachable) {
-      this._LOG.connectFailure(reachable);
+      logic(this, 'connectFailure', { reachable: reachable });
       if (this.state === 'shutdown') return false;
 
       if (reachable) {
@@ -145,7 +147,7 @@ define(['./date', 'rdcommon/log', 'module', 'exports'], function ($date, $log, $
      * requests.
      */
     noteBrokenConnection: function () {
-      this._LOG.connectFailure(true);
+      logic(this, 'connectFailure', { reachable: true });
       this._setState('broken');
 
       this._iNextBackoff = BACKOFF_DURATIONS.length;
@@ -189,21 +191,7 @@ define(['./date', 'rdcommon/log', 'module', 'exports'], function ($date, $log, $
     }
   };
 
-  exports.createEndpoint = function (name, listener, parentLog) {
-    return new BackoffEndpoint(name, listener, parentLog);
+  exports.createEndpoint = function (name, listener) {
+    return new BackoffEndpoint(name, listener);
   };
-
-  var LOGFAB = exports.LOGFAB = $log.register($module, {
-    BackoffEndpoint: {
-      type: $log.TASK,
-      subtype: $log.CLIENT,
-      stateVars: {
-        state: false
-      },
-      events: {
-        connectFailure: { reachable: true }
-      },
-      errors: {}
-    }
-  });
 }); // end define

@@ -5,7 +5,7 @@ define(function (require) {
 
   var TaskDefiner = require('../../task_infra/task_definer');
 
-  return TaskDefiner.defineComplexTask([require('./mix_sync_body'), {
+  return TaskDefiner.defineComplexTask([require('../../task_mixins/mix_sync_body'), require('../task_mixins/imap_mix_sync_body'), {
     prepForMessages: co.wrap(function* (ctx, account, messages) {
       var umidLocations = new Map();
       for (var message of messages) {

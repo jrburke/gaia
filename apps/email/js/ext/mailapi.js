@@ -65,8 +65,8 @@ define(function (require, exports) {
         msg = '' + arguments[i];
       }
     }
-    logic.fail(msg);
-    throw new Error(msg);
+    // When in tests, this will fail the test; when not in tests, we just log.
+    logic.fail(new Error(msg));
   }
   var unexpectedBridgeDataError = reportError,
       internalError = reportError,

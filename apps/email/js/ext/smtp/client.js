@@ -5,7 +5,7 @@
  */
 define(function (require, exports) {
 
-  var slog = require('slog');
+  var logic = require('logic');
   var SmtpClient = require('smtpclient');
   var syncbase = require('../syncbase');
   var oauth = require('../oauth');
@@ -16,6 +16,8 @@ define(function (require, exports) {
     setTimeout = setFn;
     clearTimeout = clearFn;
   };
+
+  var scope = logic.scope('SmtpClient');
 
   /**
    * Create an SMTP connection using the given credentials and
@@ -45,7 +47,7 @@ define(function (require, exports) {
           pass: credentials.outgoingPassword !== undefined ? credentials.outgoingPassword : credentials.password,
           xoauth2: credentials.oauth2 ? credentials.oauth2.accessToken : null
         };
-        slog.log('smtp:connect', {
+        logic(scope, 'connect', {
           _auth: auth,
           usingOauth2: !!credentials.oauth2,
           connInfo: connInfo
@@ -76,7 +78,7 @@ define(function (require, exports) {
 
         conn.onidle = function () {
           clearConnectTimeout();
-          slog.info('smtp:connected', connInfo);
+          logic(scope, 'connected', connInfo);
           conn.onidle = conn.onclose = conn.onerror = function () {/* noop */};
           resolve(conn);
         };
@@ -106,7 +108,7 @@ define(function (require, exports) {
           return exports.createImapConnection(credentials, connInfo, credsUpdatedCallback);
         });
       } else {
-        slog.error('smtp:connect-error', {
+        logic(scope, 'connect-error', {
           error: errorString,
           connInfo: connInfo
         });
@@ -259,7 +261,7 @@ define(function (require, exports) {
           normalizedError = err;
         }
 
-    slog.log('smtp:analyzed-error', {
+    logic(scope, 'analyzed-error', {
       statusCode: err.statusCode,
       enhancedStatus: err.enhancedStatus,
       rawError: rawError,

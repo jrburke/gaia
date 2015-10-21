@@ -75,7 +75,7 @@
  * - Body, allows ignoring quoted bits
  **/
 
-define(['rdcommon/log', './util', './allback', './syncbase', './date', './bodies/htmlchew', 'module', 'exports'], function ($log, $util, allback, $syncbase, $date, htmlchew, $module, exports) {
+define(['logic', './util', './allback', './syncbase', './date', './bodies/htmlchew', 'module', 'exports'], function (logic, $util, allback, $syncbase, $date, htmlchew, $module, exports) {
   var BEFORE = $date.BEFORE,
       ON_OR_BEFORE = $date.ON_OR_BEFORE,
       SINCE = $date.SINCE,
@@ -461,7 +461,7 @@ define(['rdcommon/log', './util', './allback', './syncbase', './date', './bodies
   /**
    *
    */
-  function SearchSlice(bridgeHandle, storage, phrase, whatToSearch, _parentLog) {
+  function SearchSlice(bridgeHandle, storage, phrase, whatToSearch) {
     console.log('sf: creating SearchSlice:', phrase);
     this._bridgeHandle = bridgeHandle;
     bridgeHandle.__listener = this;
@@ -469,7 +469,11 @@ define(['rdcommon/log', './util', './allback', './syncbase', './date', './bodies
     bridgeHandle.userCanGrowDownwards = false;
 
     this._storage = storage;
-    this._LOG = LOGFAB.SearchSlice(this, _parentLog, bridgeHandle._handle);
+    logic.defineScope(this, 'SearchSlice');
+
+    // XXX: This helps test_search_slice do its job, in a world where
+    // we no longer have loggers associated with specific instances.
+    SearchSlice._TEST_latestInstance = this;
 
     // These correspond to the range of headers that we have searched to generate
     // the current set of matched headers.  Our matches will always be fully
@@ -658,7 +662,8 @@ define(['rdcommon/log', './util', './allback', './syncbase', './date', './bodies
         if (matchPairs.length) {
           console.log(logPrefix, 'willHave', willHave, 'of', this.desiredHeaders, 'want more?', wantMore);
           var insertAt = dir === -1 ? 0 : this.headers.length;
-          this._LOG.headersAppended(insertAt, matchPairs);
+          logic(this, 'headersAppended', { insertAt: insertAt,
+            matchPairs: matchPairs });
 
           this.headers.splice.apply(this.headers, [insertAt, 0].concat(matchPairs));
           this.headerCount = this.headers.length + (atBottom ? 0 : this.IMAGINARY_MESSAGE_COUNT_WHEN_NOT_AT_BOTTOM);
@@ -792,7 +797,7 @@ define(['rdcommon/log', './util', './allback', './syncbase', './date', './bodies
       // though.
       this.desiredHeaders = this.headers.length;
 
-      this._LOG.headerAdded(idx, wrappedHeader);
+      logic(this, 'headerAdded', { index: idx, header: wrappedHeader });
       this.headers.splice(idx, 0, wrappedHeader);
       this.headerCount = this.headers.length + (this.atBottom ? 0 : this.IMAGINARY_MESSAGE_COUNT_WHEN_NOT_AT_BOTTOM);
       this._bridgeHandle.sendSplice(idx, 0, [wrappedHeader], false, false);
@@ -825,7 +830,8 @@ define(['rdcommon/log', './util', './allback', './syncbase', './date', './bodies
         // Update the header in the match and send it out.
         var existingMatch = this.headers[idx];
         existingMatch.header = header;
-        this._LOG.headerModified(idx, existingMatch);
+        logic(this, 'headerModified', { index: idx,
+          existingMatch: existingMatch });
         this._bridgeHandle.sendUpdate([idx, existingMatch]);
         return;
       }
@@ -883,7 +889,7 @@ define(['rdcommon/log', './util', './allback', './syncbase', './date', './bodies
       var wrappedHeader = { header: header, matches: null };
       var idx = bsearchMaybeExists(this.headers, wrappedHeader, cmpMatchHeadersYoungToOld);
       if (idx !== null) {
-        this._LOG.headerRemoved(idx, wrappedHeader);
+        logic(this, 'headerRemoved', { index: idx, header: wrappedHeader });
         this.headers.splice(idx, 1);
         this.headerCount = this.headers.length + (this.atBottom ? 0 : this.IMAGINARY_MESSAGE_COUNT_WHEN_NOT_AT_BOTTOM);
         this._bridgeHandle.sendSplice(idx, 1, [], false, false);
@@ -993,25 +999,6 @@ define(['rdcommon/log', './util', './allback', './syncbase', './date', './bodies
     die: function () {
       this._storage.dyingSlice(this);
       this._bridgeHandle = null;
-      this._LOG.__die();
     }
   };
-
-  var LOGFAB = exports.LOGFAB = $log.register($module, {
-    SearchSlice: {
-      type: $log.QUERY,
-      events: {
-        headersAppended: { index: false },
-        headerAdded: { index: false },
-        headerModified: { index: false },
-        headerRemoved: { index: false }
-      },
-      TEST_ONLY_events: {
-        headersAppended: { headers: false },
-        headerAdded: { header: false },
-        headerModified: { header: false },
-        headerRemoved: { header: false }
-      }
-    }
-  }); // end LOGFAB
 }); // end define

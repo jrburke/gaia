@@ -81,7 +81,6 @@ define(function (require) {
     if (!items) {
       items = this.items;
     }
-
     for (var i = 0; i < items.length; i++) {
       var folder = items[i];
       if (folder.type === type) {

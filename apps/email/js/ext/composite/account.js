@@ -2,7 +2,7 @@
  * Configurator for fake
  **/
 
-define(['logic', 'rdcommon/log', '../accountcommon', '../a64', '../accountmixins', '../imap/account', '../pop3/account', '../smtp/account', '../allback', 'exports'], function (logic, $log, $accountcommon, $a64, $acctmixins, $imapacct, $pop3acct, $smtpacct, allback) {
+define(['logic', '../accountcommon', '../a64', '../accountmixins', '../imap/account', '../pop3/account', '../smtp/account', '../allback'], function (logic, $accountcommon, $a64, $acctmixins, $imapacct, $pop3acct, $smtpacct, allback) {
   'use strict';
 
   var PIECE_ACCOUNT_TYPE_TO_CLASS = {
@@ -21,6 +21,7 @@ define(['logic', 'rdcommon/log', '../accountcommon', '../a64', '../accountmixins
     this.universe = universe;
     this.id = accountDef.id;
     this.accountDef = accountDef;
+    logic.defineScope(this, 'Account', { accountId: this.id });
 
     // Currently we don't persist the disabled state of an account because it's
     // easier for the UI to be edge-triggered right now and ensure that the
