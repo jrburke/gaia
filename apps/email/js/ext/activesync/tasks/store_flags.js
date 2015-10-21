@@ -12,7 +12,7 @@ define(function (require) {
   /**
    * @see MixStoreFlagsMixin
    */
-  return TaskDefiner.defineComplexTask([require('../../imap/vanilla_tasks/mix_store_flags'), {
+  return TaskDefiner.defineComplexTask([require('../../task_mixins/mix_store_flags'), {
     name: 'store_flags',
 
     execute: co.wrap(function* (ctx, persistentState, memoryState, marker) {

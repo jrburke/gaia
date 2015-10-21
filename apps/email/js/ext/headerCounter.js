@@ -35,9 +35,8 @@ define(['module', 'exports'], function ($module, exports) {
       }
 
       var checkHandle = function checkHandle(headers) {
-
         // Update the matched count
-        for (i = 0; i < headers.length; i++) {
+        for (var i = 0; i < headers.length; i++) {
           var header = headers[i];
           var isMatch = filter(header);
           if (isMatch) {

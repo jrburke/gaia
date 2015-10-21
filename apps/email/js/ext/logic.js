@@ -289,6 +289,7 @@ define(function (require) {
 
   // True when being run within a test.
   logic.underTest = false;
+  logic._currentTestRejectFunction = null;
 
   /**
    * Immediately fail the current test with the given exception. If no test is
@@ -299,7 +300,15 @@ define(function (require) {
    *   Exception object, as with Promise.reject()
    */
   logic.fail = function (ex) {
-    console.error('Not in a test, cannot logic.fail(' + ex + ')');
+    if (logic.underTest) {
+      if (logic._currentTestRejectFunction) {
+        logic._currentTestRejectFunction(ex);
+      } else {
+        throw ex;
+      }
+    } else {
+      console.error('Logic fail:', ex);
+    }
   };
 
   var nextId = 1;
@@ -371,7 +380,7 @@ define(function (require) {
         if (this.matcher.not) {
           return 'MismatchError: expected ' + this.event + ' to not occur (failIfMatched ' + this.matcher + ').';
         } else {
-          return 'MismatchError: expected ' + this.event + ' to match ' + this.matcher + '.';
+          return 'MismatchError: expected ' + this.event + ' to match ' + JSON.stringify(this.matcher.detailPredicate) + '.';
         }
       } }
   });
@@ -403,10 +412,12 @@ define(function (require) {
 
     logic.defineScope(this, 'LogicMatcher');
 
-    var prevPromise = opts.prevPromise || Promise.resolve();
+    var hasPrevPromise = !!opts.prevPromise;
+    var normalizedPrevPromise = opts.prevPromise || Promise.resolve();
 
     if (this.not) {
-      this.promise = prevPromise.then(function () {
+      // XXX this should probably bind instantly like the next case.
+      this.promise = normalizedPrevPromise.then(function () {
         _this.capturedLogs.some(function (event) {
           if ((!_this.ns || event.namespace === _this.ns) && event.matches(_this.type, _this.detailPredicate)) {
             throw new MismatchError(_this, event);
@@ -419,6 +430,12 @@ define(function (require) {
         // subscribe to a following match.
         var subscribeToNextMatch = function () {
           var timeoutId = setTimeout(function () {
+            logic(_this, 'failedMatch', {
+              ns: _this.ns,
+              type: _this.type,
+              detailPredicate: _this.detailPredicate,
+              capturedLogs: _this.capturedLogs
+            });
             reject(new Error('LogicMatcherTimeout: ' + _this));
           }, _this.timeoutMS);
 
@@ -490,8 +507,8 @@ define(function (require) {
           }
         };
 
-        if (prevPromise) {
-          prevPromise.then(subscribeToNextMatch, function (e) {
+        if (hasPrevPromise) {
+          normalizedPrevPromise.then(subscribeToNextMatch, function (e) {
             return reject(e);
           });
         } else {
@@ -505,7 +522,7 @@ define(function (require) {
     } else {
       // This is the '.then()' case; we still want to return a
       // LogicMatcher so they can chain, but without any further expectations.
-      this.promise = prevPromise;
+      this.promise = normalizedPrevPromise;
     }
   }
 

@@ -37,7 +37,7 @@ define(function (require) {
    *   the FolderSyncState too.  It's not so bad that we need to mark 2.5 with
    *   a different engine, but it's certainly frustrating.
    */
-  return TaskDefiner.defineComplexTask([require('../../imap/vanilla_tasks/mix_sync_body'), {
+  return TaskDefiner.defineComplexTask([require('../../task_mixins/mix_sync_body'), {
     execute: co.wrap(function* (ctx, persistentState, memoryState, marker) {
       var req = memoryState.get(marker.convId);
 

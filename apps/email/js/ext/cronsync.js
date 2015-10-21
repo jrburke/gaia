@@ -132,12 +132,12 @@ function makeHackedUpSlice(storage, callback, parentLog) {
    *   being closed, you want to make sure that if you're doing anything like
    *   scheduling snippet downloads that you do that first.
    */
-  function makeHackedUpSlice(storage, callback, parentLog) {
+  function makeHackedUpSlice(storage, callback) {
     var fakeBridgeThatEatsStuff = {
       __sendMessage: function () {}
     },
         proxy = new SliceBridgeProxy(fakeBridgeThatEatsStuff, 'cron'),
-        slice = new $mailslice.MailSlice(proxy, storage, parentLog),
+        slice = new $mailslice.MailSlice(proxy, storage),
         oldStatusMethod = proxy.sendStatus,
         newHeaders = [];
 
@@ -203,8 +203,7 @@ function CronSync(universe, _logParent) {
     }
   });
   this.sendCronSync('hello');
-
-    this._LOG = LOGFAB.CronSync(this, null, _logParent);
+    logic.defineScope(this, 'CronSync');
 
 exports.CronSync = CronSync;
 CronSync.prototype = {

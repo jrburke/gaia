@@ -7,7 +7,7 @@ define(function (require) {
    * Gmail just uses the stock outbox send logic because gmail always
    * automatically puts a copy of the message in the sent folder for us.
    */
-  return TaskDefiner.defineComplexTask([require('../../tasks/mix_outbox_send'), {
+  return TaskDefiner.defineComplexTask([require('../../task_mixins/mix_outbox_send'), {
     shouldIncludeBcc: function () /*account*/{
       // Gmail automatically appends the sent message, so yes to BCC.
       return true;

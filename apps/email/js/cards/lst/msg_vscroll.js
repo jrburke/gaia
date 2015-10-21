@@ -244,6 +244,10 @@ console.log('MSG_VSCROLL SETLISTCURSOR: ' + listCursor);
 
         //todo: consider case where syncing is to the end of the folder.
         this.syncMoreNode.classList.remove('collapsed');
+
+        //todo: Also trigger snippets, may go away once default syncing of n new
+        // messages includes snippets.
+        this._requestSnippets();
       }
     },
 

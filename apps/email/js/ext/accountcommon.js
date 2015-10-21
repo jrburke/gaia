@@ -2,7 +2,7 @@
  * Common code for creating and working with various account types.
  **/
 
-define(['./a64', './slog', './allback', 'require', 'module', 'exports'], function ($a64, slog, allback, require, $module, exports) {
+define(['./a64', 'logic', './allback', 'require', 'module', 'exports'], function ($a64, logic, allback, require, $module, exports) {
   'use strict';
 
   var latchedWithRejections = allback.latchedWithRejections;

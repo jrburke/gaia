@@ -3,9 +3,9 @@ define(function (require) {
 
   var co = require('co');
 
-  const { makeFolderMeta } = require('../../db/folder_info_rep');
+  const { makeFolderMeta } = require('../db/folder_info_rep');
 
-  const { shallowClone } = require('../../util');
+  const { shallowClone } = require('../util');
 
   /**
    * Mix-in for folder list synchronization and ensuring that an account has all

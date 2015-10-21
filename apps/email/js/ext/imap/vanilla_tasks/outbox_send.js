@@ -15,7 +15,7 @@ define(function (require) {
    * someday we could make understand that.  Or not, since we expect fastmail to
    * move to JMAP soon.
    */
-  return TaskDefiner.defineComplexTask([require('../../tasks/mix_outbox_send'), {
+  return TaskDefiner.defineComplexTask([require('../../task_mixins/mix_outbox_send'), {
     shouldIncludeBcc: function (account) {
       // If the SMTP send automatically saves the message in the sent folder,
       // we need to put the BCC's in there while sending.
