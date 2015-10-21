@@ -7,7 +7,7 @@ define(function (require) {
    * Planning-only task that applies modifications to a conversation based on
    * other sync logic.
    */
-  return TaskDefiner.defineSimpleTask([require('./mix_sync_conv'), {
+  return TaskDefiner.defineSimpleTask([require('../../task_mixins/mix_sync_conv'), {
     name: 'sync_conv',
 
     applyChanges: function (message, newFlags) {

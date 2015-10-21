@@ -2,7 +2,6 @@ define(function (require) {
   'use strict';
 
   const logic = require('logic');
-  const slog = require('./slog');
   const MailDB = require('./maildb');
 
   const AccountManager = require('./universe/account_manager');
@@ -111,7 +110,6 @@ define(function (require) {
       // XXX proper logging configuration again once things start working
       // XXX XXX XXX XXX XXX XXX XXX
       logic.realtimeLogEverything = true;
-      slog.setSensitiveDataLoggingEnabled(true);
 
       // XXX hack to skip the next logic without the linter.
       config = null;
@@ -132,7 +130,6 @@ define(function (require) {
           console.warn('https://wiki.mozilla.org/Gaia/Email/SecretDebugMode');
           console.warn('...................................................');
           logic.realtimeLogEverything();
-          slog.setSensitiveDataLoggingEnabled(true);
         }
       }
     },

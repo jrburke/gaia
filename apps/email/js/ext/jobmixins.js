@@ -2,7 +2,7 @@
  * Mix-ins for account job functionality where the code is reused.
  **/
 
-define(['./worker-router', './util', './allback', './wakelocks', './date', './syncbase', './mailslice', './headerCounter', 'exports', 'require'], function ($router, $util, $allback, $wakelocks, $date, $sync, $mailslice, $count, exports, require) {
+define(['./worker-router', './util', './allback', './wakelocks', './date', './syncbase', './mailslice', './headerCounter', 'logic', 'exports', 'require'], function ($router, $util, $allback, $wakelocks, $date, $sync, $mailslice, $count, logic, exports, require) {
 
   var sendMessage = $router.registerCallbackType('devicestorage');
 
@@ -279,7 +279,7 @@ define(['./worker-router', './util', './allback', './wakelocks', './date', './sy
             partInfo.file = blob;
           } else {
             pendingCbs++;
-            saveToDeviceStorage(self._LOG, blob, storeTo, registerDownload[i], partInfo.name, partInfo, next);
+            saveToDeviceStorage(self, blob, storeTo, registerDownload[i], partInfo.name, partInfo, next);
           }
         }
       }
@@ -303,16 +303,22 @@ define(['./worker-router', './util', './allback', './wakelocks', './date', './sy
    * Save an attachment to device storage, making the filename unique if we
    * encounter a collision.
    */
-  var saveToDeviceStorage = exports.saveToDeviceStorage = function (_LOG, blob, storeTo, registerDownload, filename, partInfo, cb, isRetry) {
+  var saveToDeviceStorage = exports.saveToDeviceStorage = function (scope, blob, storeTo, registerDownload, filename, partInfo, cb, isRetry) {
     var self = this;
     var callback = function (success, error, savedFilename, registered) {
       if (success) {
-        _LOG.savedAttachment(storeTo, blob.type, blob.size);
+        logic(scope, 'savedAttachment', { storeTo: storeTo,
+          type: blob.type,
+          size: blob.size });
         console.log('saved attachment to', storeTo, savedFilename, 'type:', blob.type, 'registered:', registered);
         partInfo.file = [storeTo, savedFilename];
         cb();
       } else {
-        _LOG.saveFailure(storeTo, blob.type, error, filename);
+        logic(scope, 'saveFailure', { storeTo: storeTo,
+          type: blob.type,
+          size: blob.size,
+          error: error,
+          filename: filename });
         console.warn('failed to save attachment to', storeTo, filename, 'type:', blob.type);
         // if we failed to unique the file after appending junk, just give up
         if (isRetry) {
@@ -324,7 +330,8 @@ define(['./worker-router', './util', './allback', './wakelocks', './date', './sy
         var idxLastPeriod = filename.lastIndexOf('.');
         if (idxLastPeriod === -1) idxLastPeriod = filename.length;
         filename = filename.substring(0, idxLastPeriod) + '-' + $date.NOW() + filename.substring(idxLastPeriod);
-        saveToDeviceStorage(_LOG, blob, storeTo, registerDownload, filename, partInfo, cb, true);
+
+        saveToDeviceStorage(scope, blob, storeTo, registerDownload, filename, partInfo, cb, true);
       }
     };
     sendMessage('save', [storeTo, blob, filename, registerDownload], callback);
@@ -716,7 +723,7 @@ define(['./worker-router', './util', './allback', './wakelocks', './date', './sy
         try {
           callOnConnLoss();
         } catch (ex) {
-          self._LOG.callbackErr(ex);
+          self.log.error('callbackErr', { ex: ex });
         }
       }
       terminated = true;

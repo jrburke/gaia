@@ -30,7 +30,7 @@ define(function (require) {
    * fetched.  So no-one will try and use us for snippets.  If they do, we'll
    * end up downloading the entirety of the message, which could be bad.
    */
-  return TaskDefiner.defineComplexTask([require('../../imap/vanilla_tasks/mix_sync_body'), {
+  return TaskDefiner.defineComplexTask([require('../../task_mixins/mix_sync_body'), {
     execute: co.wrap(function* (ctx, persistentState, memoryState, marker) {
       var req = memoryState.get(marker.convId);
 

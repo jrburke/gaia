@@ -3,10 +3,10 @@ define(function (require) {
 
   var co = require('co');
 
-  var { normalizeAndApplyChanges, applyChanges, mergeChanges } = require('../../delta_algebra');
-  var { selectMessages } = require('../../message_selector');
+  var { normalizeAndApplyChanges, applyChanges, mergeChanges } = require('../delta_algebra');
+  var { selectMessages } = require('../message_selector');
 
-  var churnConversation = require('../../churn_drivers/conv_churn_driver');
+  var churnConversation = require('../churn_drivers/conv_churn_driver');
 
   /**
    * Not-particularly-clever flag-storing complex task.  All requests/local

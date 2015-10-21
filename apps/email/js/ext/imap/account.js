@@ -1,4 +1,4 @@
-define(['logic', '../a64', '../accountmixins', '../allback', '../errbackoff', '../db/folder_info_rep', '../searchfilter', '../syncbase', '../util', '../composite/incoming', './folder', './client', './protocol/parallel_imap', '../errorutils', '../disaster-recovery', 'module', 'require', 'exports'], function (logic, $a64, $acctmixins, $allback, $errbackoff, folderInfoRep, $searchfilter, $syncbase, $util, incoming, $imapfolder, $imapclient, ParallelImap, errorutils, DisasterRecovery, $module, require, exports) {
+define(['logic', '../a64', '../accountmixins', '../allback', '../errbackoff', '../db/folder_info_rep', '../searchfilter', '../syncbase', '../util', '../composite/incoming', './client', './protocol/parallel_imap', '../errorutils', '../disaster-recovery', 'module', 'require', 'exports'], function (logic, $a64, $acctmixins, $allback, $errbackoff, folderInfoRep, $searchfilter, $syncbase, $util, incoming, $imapclient, ParallelImap, errorutils, DisasterRecovery, $module, require, exports) {
   'use strict';
 
   var CompositeIncomingAccount = incoming.CompositeIncomingAccount;
@@ -12,7 +12,7 @@ define(['logic', '../a64', '../accountmixins', '../allback', '../errbackoff', '.
    *
    */
   function ImapAccount(universe, compositeAccount, accountId, credentials, connInfo, foldersTOC, dbConn, existingProtoConn) {
-    logic.defineScope(this, 'ImapAccount');
+    logic.defineScope(this, 'Account', { accountId, accountType: 'imap' });
     CompositeIncomingAccount.apply(this, arguments);
 
     /**
@@ -299,65 +299,62 @@ define(['logic', '../a64', '../accountmixins', '../allback', '../errbackoff', '.
       // Mark a pending connection synchronously; the require call will not return
       // until at least the next turn of the event loop.
       this._pendingConn = true;
-      // Dynamically load the probe/imap code to speed up startup.
-      require(['./client'], (function ($imapclient) {
-        logic(this, 'createConnection', {
-          folderId: whyFolderId,
-          label: whyLabel
+      logic(this, 'createConnection', {
+        folderId: whyFolderId,
+        label: whyLabel
+      });
+
+      $imapclient.createImapConnection(this._credentials, this._connInfo, (function onCredentialsUpdated() {
+        return new Promise((function (resolve) {
+          // Note: Since we update the credentials object in-place,
+          // there's no need to explicitly assign the changes here;
+          // just save the account information.
+          this.universe.saveAccountDef(this.compositeAccount.accountDef,
+          /* folderDbState: */null,
+          /* callback: */resolve);
+        }).bind(this));
+      }).bind(this)).then((function (conn) {
+        DisasterRecovery.associateSocketWithAccount(conn.client.socket, this);
+
+        this._pendingConn = null;
+        this._bindConnectionDeathHandlers(conn);
+        this._backoffEndpoint.noteConnectSuccess();
+        this._ownedConns.push({
+          conn: conn,
+          inUseBy: null
+        });
+        this._allocateExistingConnection();
+
+        // If more connections are needed, keep connecting.
+        if (this._demandedConns.length) {
+          this._makeConnectionIfPossible();
+        }
+
+        callback && callback(null);
+      }).bind(this)).catch((function (err) {
+        logic(this, 'deadConnection', {
+          reason: 'connect-error',
+          folderId: whyFolderId
         });
 
-        $imapclient.createImapConnection(this._credentials, this._connInfo, (function onCredentialsUpdated() {
-          return new Promise((function (resolve) {
-            // Note: Since we update the credentials object in-place,
-            // there's no need to explicitly assign the changes here;
-            // just save the account information.
-            this.universe.saveAccountDef(this.compositeAccount.accountDef,
-            /* folderDbState: */null,
-            /* callback: */resolve);
-          }).bind(this));
-        }).bind(this)).then((function (conn) {
-          DisasterRecovery.associateSocketWithAccount(conn.client.socket, this);
+        if (errorutils.shouldReportProblem(err)) {
+          this.universe.__reportAccountProblem(this.compositeAccount, err, 'incoming');
+        }
 
-          this._pendingConn = null;
-          this._bindConnectionDeathHandlers(conn);
-          this._backoffEndpoint.noteConnectSuccess();
-          this._ownedConns.push({
-            conn: conn,
-            inUseBy: null
-          });
-          this._allocateExistingConnection();
+        this._pendingConn = null;
+        callback && callback(err);
 
-          // If more connections are needed, keep connecting.
-          if (this._demandedConns.length) {
+        // Track this failure for backoff purposes.
+        if (errorutils.shouldRetry(err)) {
+          if (this._backoffEndpoint.noteConnectFailureMaybeRetry(errorutils.wasErrorFromReachableState(err))) {
             this._makeConnectionIfPossible();
-          }
-
-          callback && callback(null);
-        }).bind(this)).catch((function (err) {
-          logic(this, 'deadConnection', {
-            reason: 'connect-error',
-            folderId: whyFolderId
-          });
-
-          if (errorutils.shouldReportProblem(err)) {
-            this.universe.__reportAccountProblem(this.compositeAccount, err, 'incoming');
-          }
-
-          this._pendingConn = null;
-          callback && callback(err);
-
-          // Track this failure for backoff purposes.
-          if (errorutils.shouldRetry(err)) {
-            if (this._backoffEndpoint.noteConnectFailureMaybeRetry(errorutils.wasErrorFromReachableState(err))) {
-              this._makeConnectionIfPossible();
-            } else {
-              this._killDieOnConnectFailureDemands();
-            }
           } else {
-            this._backoffEndpoint.noteBrokenConnection();
             this._killDieOnConnectFailureDemands();
           }
-        }).bind(this));
+        } else {
+          this._backoffEndpoint.noteBrokenConnection();
+          this._killDieOnConnectFailureDemands();
+        }
       }).bind(this));
     },
 

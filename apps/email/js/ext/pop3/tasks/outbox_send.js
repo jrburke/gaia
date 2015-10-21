@@ -11,7 +11,7 @@ define(function (require) {
    * TODO: in the future when the attachments use the download cache we can keep
    * them around.
    */
-  return TaskDefiner.defineComplexTask([require('../../tasks/mix_outbox_send'), {
+  return TaskDefiner.defineComplexTask([require('../../task_mixins/mix_outbox_send'), {
     shouldIncludeBcc: function () /*account*/{
       // Never trust the SMTP server to not screw up since by definition a POP3
       // server is part of a horrible mail server configuration.

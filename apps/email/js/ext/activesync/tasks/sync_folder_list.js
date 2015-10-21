@@ -13,7 +13,7 @@ define(function (require) {
    * Sync the folder list for an ActiveSync account.  We leverage IMAP's mix-in
    * for the infrastructure (that wants to move someplace less IMAPpy.)
    */
-  return TaskDefiner.defineSimpleTask([require('../../imap/vanilla_tasks/mix_sync_folder_list'), {
+  return TaskDefiner.defineSimpleTask([require('../../task_mixins/mix_sync_folder_list'), {
     essentialOfflineFolders: [
     // Although the inbox is an online folder, we aren't daring enough to
     // predict its server id, so it will be fixed up later, so we just

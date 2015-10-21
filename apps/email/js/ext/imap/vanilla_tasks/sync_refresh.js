@@ -88,7 +88,8 @@ define(function (require) {
               accountId: req.accountId,
               folderId: req.folderId
             }]
-          }
+          },
+          announceUpdatedOverlayData: [['folders', req.folderId]]
         };
       }
 

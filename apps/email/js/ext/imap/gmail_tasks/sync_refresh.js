@@ -101,7 +101,8 @@ define(function (require) {
               accountId: req.accountId,
               folderId: req.folderId
             }]
-          }
+          },
+          announceUpdatedOverlayData: [['accounts', req.accountId], ['accountCascadeToFolders', req.accountId]]
         };
       }
       var syncState = new SyncStateHelper(ctx, rawSyncState, req.accountId, 'refresh');
