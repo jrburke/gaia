@@ -80,13 +80,14 @@ return [
         this.updateMatchedMessageDom(message);
       });
 
-      this.msgVScroll.on('messagesComplete', this, function(newEmailCount) {
-        // Search does not trigger normal conditions for a folder changed,
-        // so if vScroll is missing its data, set it up now.
-        if (!this.msgVScroll.vScroll.list) {
-          this.msgVScroll.vScroll.setData(this.msgVScroll.listFunc);
-        }
-      });
+//todo: revisit
+      // this.msgVScroll.on('messagesComplete', this, function(newEmailCount) {
+      //   // Search does not trigger normal conditions for a folder changed,
+      //   // so if vScroll is missing its data, set it up now.
+      //   if (!this.msgVScroll.vScroll.list) {
+      //     this.msgVScroll.vScroll.setData(this.msgVScroll.listFunc);
+      //   }
+      // });
 
       var vScrollBindData = (model, node) => {
         model.element = node;
