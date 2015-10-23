@@ -71,8 +71,12 @@ return [
 
       this.curFolder = null;
       this.isIncomingFolder = true;
+      this._emittedContentEvents = false;
 
       this.usingCachedNode = this.dataset.cached === 'cached';
+
+//todo: listen to some event for new email notifications, and do:
+//    this.onNewMail(newEmailCount);
 
       this.msgVScroll.on('messagesSpliceStart', this, function(whatChanged) {
         this._clearCachedMessages();
@@ -85,15 +89,6 @@ return [
             this.msgVScroll.listCursor.list.offset
           );
         }
-      });
-
-      this.msgVScroll.on('messagesChange', this, function(message, index) {
-        this.onMessagesChange(message, index);
-      });
-
-      this._emittedContentEvents = false;
-      this.msgVScroll.on('messagesComplete', this, function(newEmailCount) {
-        this.onNewMail(newEmailCount);
 
         // Inform that content is ready. There could actually be a small delay
         // with vScroll.updateDataBind from rendering the final display, but it
@@ -103,6 +98,10 @@ return [
           evt.emit('metrics:contentDone');
           this._emittedContentEvents = true;
         }
+      });
+
+      this.msgVScroll.on('messagesChange', this, function(message, index) {
+        this.onMessagesChange(message, index);
       });
 
       // Outbox has some special concerns, override status method to account for

@@ -122,8 +122,13 @@ console.log('MSG_VSCROLL SETLISTCURSOR: ' + listCursor);
         this.listCursor.list.removeListener(this.listGrowComplete);
       }
 
+
+      if (this.listCursor) {
+        this.listCursor.removeObjectListener(this);
+      }
       this.listCursor = listCursor;
 
+      listCursor.on('change', this, 'onWinListChange');
       listCursor.on('seeked', this, 'onWinListSeeked');
       listCursor.on('currentItem', this, 'onCurrentMessage');
 
@@ -251,84 +256,39 @@ console.log('MSG_VSCROLL SETLISTCURSOR: ' + listCursor);
       }
     },
 
-    // A listener for list 'seek' events in the list cursor.
-    onWinListSeeked: function(whatChanged) {
-      var listCursor = this.listCursor,
-          list = this.listCursor.list,
-          index = list.offset,
-          addedItems = list.items;
-
-console.log('ADDED ITEMS: ' + addedItems.length + ' at ' + index);
-if (!addedItems[0]) {
-  return;
-}
-
-
-      this.emit('messagesSpliceStart', whatChanged);
-
-      if (this._needVScrollData) {
-        this.vScroll.setData(this.listFunc);
-        this._needVScrollData = false;
-      }
-
-      this.vScroll.updateDataBind(index, addedItems, 0);
-
-      // Remove the no message text while new messages added:
-      if (addedItems.length > 0) {
+    onWinListChange: function() {
+      // If the list cursor's list has changed, it could be for length reasons.
+//todo: need to revisit, distinguish between cangrow and count, once backend has
+//those properties.
+      if (this.listCursor.list.totalCount) {
         this.hideEmptyLayout();
-      }
-
-      // If the end result is no more messages, then show empty layout.
-      // This is needed mostly because local drafts do not trigger
-//todo: commt:      // a messages_complete callback when removing the last draft
-      // from the compose triggered in that view. The scrollStopped
-      // is used to avoid a flash where the old message is briefly visible
-      // before cleared, and having the empty layout overlay it.
-      // Using the slice's totalCount because it is updated before splice
-      // listeners are notified, so should be accurate.
-      if (!listCursor.list.totalCount) {
-        this.vScroll.once('scrollStopped', () => {
-          // Confirm there are still no messages. Since this callback happens
-          // async, some items could have appeared since first issuing the
-          // request to show empty.
-          if (!listCursor.list.totalCount) {
-            this.showEmptyLayout();
-          }
-        });
-      }
-
-      this.emit('messagesSpliceEnd', whatChanged);
-
-//todo: what to do here? this is now messages_complete, but it used to
-//receive newEmailCount. Does that make sense now?
-var newEmailCount = 0;
-
-      console.log('message_list complete:',
-                  listCursor.list.items.length, 'items of',
-                  listCursor.list.totalCount,
-                  'alleged known messages. canGrow:',
-                  !listCursor.list.atBottom);
-
-    // Show "load more", but only if the slice can grow and if there is a
-    // non-zero totalCount. If zero totalCount, it likely means the folder
-    // has never been synchronized, and this display was an offline display,
-    // so it is hard to know if messages can be synchronized. In this case,
-    // canGrow is not enough of an indicator, because as far as the back end is
-    // concerned, it could grow, it just has no way to check for sure yet. So
-    // hide the "load more", the user can use the refresh icon once online to
-    // load messages.
-    if (listCursor.list.atBottom &&
-        listCursor.list.totalCount) {
-        this.syncMoreNode.classList.remove('collapsed');
       } else {
-        this.syncMoreNode.classList.add('collapsed');
-      }
-
-      // Show empty layout, unless this is a slice with fake data that
-      // will get changed soon.
-      if (listCursor.list.items.length === 0) {
         this.showEmptyLayout();
       }
+      // Show "load more", but only if the slice can grow and if there is a
+      // non-zero totalCount. If zero totalCount, it likely means the folder
+      // has never been synchronized, and this display was an offline display,
+      // so it is hard to know if messages can be synchronized. In this case,
+      // canGrow is not enough of an indicator, because as far as the back end
+      // is concerned, it could grow, it just has no way to check for sure yet.
+      // So hide the "load more", the user can use the refresh icon once online
+      // to load messages.
+      // if (listCursor.list.atBottom &&
+      //     listCursor.list.totalCount) {
+      //   this.syncMoreNode.classList.remove('collapsed');
+      // } else {
+      //   this.syncMoreNode.classList.add('collapsed');
+      // }
+
+//todo: maybe newEmailCount comes through this channel? Hmm, may be confusing
+//with a total unread count?
+    },
+
+    // A listener for list 'seek' events in the list cursor.
+    onWinListSeeked: function(whatChanged) {
+      var list = this.listCursor.list,
+          index = list.offset,
+          items = list.items;
 
       this.waitingOnChunk = false;
       // Load next chunk if one is pending
@@ -337,29 +297,24 @@ var newEmailCount = 0;
         this.desiredHighAbsoluteIndex = 0;
       }
 
-      // It's possible for a synchronization to result in a change to
-      // totalCount without resulting in a splice.  This is very likely
-      // to happen with a search filter when it was lying about another
-      // messages existing, but it's also possible to happen in
-      // synchronizations.
-      //
-      // XXX Our total correctness currently depends on totalCount only
-      // changing as a result of a synchronization triggered by this slice.
-      // This does not hold up when confronted with periodic background sync; we
-      // need to finish cleanup up the totalCount change notification stuff.
-      //
-      // (However, this is acceptable glitchage right now.  We just need to make
-      // sure it doesn't happen for searches since it's so blatant.)
-      //
-      // So, anyways, use updateDataBind() to cause VScroll to double-check that
-      // our list size didn't change from what it thought it was.  (It renders
-      // coordinate-space predictively based on our totalCount, but we
-      // currently only provide strong correctness guarantees for actually
-      // reported `items`, so we must do this.)  If our list size is the same,
-      // this call is effectively a no-op.
-      this.vScroll.updateDataBind(0, [], 0);
+      if (!items[0]) {
+        // No data, return.
+        return;
+      }
 
-      this.emit('messagesComplete', newEmailCount);
+      console.log('MSG_VSCROLL onWinListSeeked: ' +
+                  items.length + ' at ' + index);
+
+      this.emit('messagesSpliceStart', whatChanged);
+
+      if (this._needVScrollData) {
+        this.vScroll.setData(this.listFunc);
+        this._needVScrollData = false;
+      }
+
+      this.vScroll.updateDataBind(index, items, 0);
+
+      this.emit('messagesSpliceEnd', whatChanged);
     },
 
 //todo: what to do here?
@@ -405,6 +360,7 @@ var newEmailCount = 0;
       var items = listCursor.list.items;
       var curHighAbsoluteIndex = items.length - 1;
       var amount = desiredHighAbsoluteIndex - curHighAbsoluteIndex;
+
       if (amount > 0) {
         // IMPORTANT NOTE!
         // 1 is unfortunately a special value right now for historical reasons
