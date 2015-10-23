@@ -170,6 +170,7 @@ define(function(require) {
 
       this.list = list;
       this.list.on('seeked', this, 'onWinListSeeked');
+      this.list.on('change', this, 'onWinListChange');
 
 //todo: once mail_app_logic thing worked out, the front_end can use a
 //conv_churn with a height of 1 and then use seekInCoordinateSpace
@@ -188,6 +189,10 @@ console.log('LIST_CURSOR CALLING SEEKTOTOP 20, 20');
       }
 
       this.emit('seeked', whatChanged);
+    },
+
+    onWinListChange: function() {
+      this.emit.apply(this, ['change'].concat(Array.from(arguments)));
     },
 
 //todo: remove/repurpose? How to know when an item is removed, and if it affects
