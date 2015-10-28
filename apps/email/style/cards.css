@@ -53,9 +53,8 @@
   opacity: 1;
 }
 
-.card.before {
-  transform: translateX(-100%);
-}
+html[dir="ltr"] .card.before { transform: translateX(-100%); }
+html[dir="rtl"] .card.before { transform: translateX(100%); }
 
 .card.before.anim-vertical {
   transform: translateY(100%);
@@ -70,9 +69,8 @@
   transform: translateY(-100%);
 }
 
-.card.after {
-  transform: translateX(100%);
-}
+html[dir="ltr"] .card.after { transform: translateX(100%); }
+html[dir="rtl"] .card.after { transform: translateX(-100%); }
 
 .card.after.anim-vertical {
   transform: translateY(-100%);
