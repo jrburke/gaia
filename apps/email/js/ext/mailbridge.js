@@ -255,6 +255,10 @@ define(function (require) {
       // TODO: implement; existing logic has been moved to tasks/modify_account.js
     },
 
+    _cmd_recreateAccount: function (msg) {
+      this.universe.recreateAccount(msg.accountId, 'bridge');
+    },
+
     _cmd_deleteAccount: function (msg) {
       this.universe.deleteAccount(msg.accountId, 'bridge');
     },
@@ -494,13 +498,14 @@ define(function (require) {
       this.universe.fetchMessageBody(msg.id, msg.date, 'bridge');
     },
 
-    _cmd_downloadAttachments: function mb__cmd__downloadAttachments(msg) {
-      // XXX OLD
-      var self = this;
-      this.universe.downloadMessageAttachments(msg.suid, msg.date, msg.relPartIndices, msg.attachmentIndices, msg.registerAttachments, function (err) {
-        self.__sendMessage({
-          type: 'downloadedAttachments',
-          handle: msg.handle
+    _cmd_downloadAttachments: function (msg) {
+      var _this6 = this;
+
+      this.universe.downloadMessageAttachments(msg.downloadReq).then(function () {
+        _this6.__sendMessage({
+          type: 'promisedResult',
+          handle: msg.handle,
+          data: null
         });
       });
     },
@@ -524,10 +529,10 @@ define(function (require) {
     },
 
     _cmd_outboxSetPaused: function (msg) {
-      var _this6 = this;
+      var _this7 = this;
 
       this.universe.outboxSetPaused(msg.accountId, msg.bePaused).then(function () {
-        _this6.__sendMessage({
+        _this7.__sendMessage({
           type: 'promisedResult',
           handle: msg.handle,
           data: null
@@ -544,7 +549,7 @@ define(function (require) {
     // Composition
 
     _cmd_createDraft: function (msg) {
-      var _this7 = this;
+      var _this8 = this;
 
       this.universe.createDraft({
         draftType: msg.draftType,
@@ -553,7 +558,7 @@ define(function (require) {
         refMessageDate: msg.refMessageDate,
         folderId: msg.folderId
       }).then(function ({ messageId, messageDate }) {
-        _this7.__sendMessage({
+        _this8.__sendMessage({
           type: 'promisedResult',
           handle: msg.handle,
           data: {
@@ -579,6 +584,8 @@ define(function (require) {
      * told about attachments via their Blobs.
      */
     _cmd_doneCompose: function (msg) {
+      var _this9 = this;
+
       // Delete and be done if delete.
       if (msg.command === 'delete') {
         this.universe.deleteDraft(msg.messageId);
@@ -589,7 +596,13 @@ define(function (require) {
       this.universe.saveDraft(msg.messageId, msg.draftFields);
       // Actually send if send.
       if (msg.command === 'send') {
-        this.universe.outboxSendDraft(msg.messageId);
+        this.universe.outboxSendDraft(msg.messageId).then(function (sendProblem) {
+          _this9.__sendMessage({
+            type: 'promisedResult',
+            handle: msg.handle,
+            data: sendProblem
+          });
+        });
       }
     },
 

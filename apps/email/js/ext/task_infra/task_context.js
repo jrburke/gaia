@@ -69,6 +69,22 @@ define(function (require) {
       }
     },
 
+    /**
+     * Returns whether we think the device is currently online.
+     */
+    get deviceOnline() {
+      return this.universe.online;
+    },
+
+    /**
+     * Returns whether we think the account associated with this task is currently
+     *
+     * TODO: Actually make this do something.
+     */
+    get accountProblem() {
+      return false;
+    },
+
     // Convenience helpers to help us get at these without redundantly storing.
     // Underscored since tasks should not be directly accessing these on their
     // own.  Instead they should be using helpers on this object.
@@ -77,6 +93,9 @@ define(function (require) {
     },
     get _taskRegistry() {
       return this.universe.taskRegistry;
+    },
+    get _taskGroupTracker() {
+      return this.universe.taskGroupTracker;
     },
 
     /**
@@ -127,6 +146,15 @@ define(function (require) {
     },
 
     /**
+     * Ensure that a task group with the given name exists and that this task
+     * belongs to the group.  Returns a Promise that will be resolved when the
+     * last task in the group completes.
+     */
+    trackMeInTaskGroup: function (groupName) {
+      this._taskGroupTracker.ensureNamedTaskGroup(groupName, this.id);
+    },
+
+    /**
      * In the event our task throws an error, we want you to plan the tasks we
      * pass in now in order to repair our state.  This should be used in those
      * cases where a complex task is altering its in-memory aggregated state
@@ -152,7 +180,7 @@ define(function (require) {
      * silly and if we're needing to do that we should just break the task up
      * into distinct sub-tasks.
      */
-    setFailureTasks: function (tasks) {},
+    setFailureTasks: function () /*tasks*/{},
 
     /**
      * Called by a task to indicate that it's still alive.
@@ -303,7 +331,7 @@ define(function (require) {
           }
           // nuke the marker
           else {
-              this.universe.taskManager.__removeTaskOrMarker(markerId);
+              this.universe.taskManager.__removeTaskOrMarker(markerId, this.id);
             }
         }
       }
@@ -323,7 +351,7 @@ define(function (require) {
           // running, the idea is that IndexedDB should really be assigning the
           // id's as part of the transaction, so we will only have assigned id's
           // at this point.  See the __wrapTasks documentation for more context.)
-          _this.universe.taskManager.__enqueuePersistedTasksForPlanning(wrappedTasks);
+          _this.universe.taskManager.__enqueuePersistedTasksForPlanning(wrappedTasks, _this.id);
         }
       });
     }

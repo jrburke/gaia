@@ -198,7 +198,7 @@ define(function (require) {
         }
       };
 
-      var messages = yield conn.listMessages(request.uid, ['BODY.PEEK[' + (request.partInfo.partID || '1') + ']' + (request.bytes ? '<' + request.bytes[0] + '.' + request.bytes[1] + '>' : '')], { byUid: true, precheck });
+      var messages = yield conn.listMessages(request.uid, ['BODY.PEEK[' + (request.partInfo.partId || '1') + ']' + (request.bytes ? '<' + request.bytes[0] + '.' + request.bytes[1] + '>' : '')], { byUid: true, precheck });
       var msg = messages[0];
       var body = undefined;
       for (var key in msg) {

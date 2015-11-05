@@ -14,6 +14,7 @@ define(function (require) {
   const TaskRegistry = require('./task_infra/task_registry');
   const TaskPriorities = require('./task_infra/task_priorities');
   const TaskResources = require('./task_infra/task_resources');
+  const TaskGroupTracker = require('./task_infra/task_group_tracker');
 
   const TriggerManager = require('./db/trigger_manager');
   const dbTriggerDefs = require('./db_triggers/all');
@@ -67,6 +68,7 @@ define(function (require) {
       priorities: this.taskPriorities,
       accountsTOC: this.accountManager.accountsTOC
     });
+    this.taskGroupTracker = new TaskGroupTracker(this.taskManager);
     this.triggerManager = new TriggerManager({
       db: this.db,
       triggers: dbTriggerDefs
@@ -426,12 +428,34 @@ define(function (require) {
       }], why);
     },
 
+    recreateAccount: function (accountId, why) {
+      var _this6 = this;
+
+      // Latch the accountDef now since it's going away.  It's safe to do this
+      // synchronously since the accountDefs are loaded by startup and the
+      // AccountManager provides immediate access to them.
+      var accountDef = this.accountManager.getAccountDefById(accountId);
+
+      // Because of how the migration logic works (verbatim reuse of the account
+      // id), make sure we don't schedule the migration task until the deletion
+      // task has been executed.
+      this.taskManager.scheduleTaskAndWaitForExecutedResult({
+        type: 'account_delete',
+        accountId
+      }, why).then(function () {
+        _this6.taskManager.scheduleTasks([{
+          type: 'account_migrate',
+          accountDef
+        }], why);
+      });
+    },
+
     /**
      * TODO: This and tryToCreateAccount should be refactored to properly be
      * tasks.
      */
     saveAccountDef: function (accountDef, protoConn) {
-      var _this6 = this;
+      var _this7 = this;
 
       this.db.saveAccountDef(this.config, accountDef);
 
@@ -442,13 +466,13 @@ define(function (require) {
       } else {
         var _ret = (function () {
           // (this happens during intial account (re-)creation)
-          var accountWireRep = _this6._accountExists(accountDef);
+          var accountWireRep = _this7._accountExists(accountDef);
           // If we were given a connection, instantiate the account so it can use
           // it.  Note that there's no potential for races at this point since no
           // one knows about this account until we return.
           if (protoConn) {
             return {
-              v: _this6._loadAccount(accountDef, _this6.accountFoldersTOCs.get(accountDef.id), protoConn).then(function () {
+              v: _this7._loadAccount(accountDef, _this7.accountFoldersTOCs.get(accountDef.id), protoConn).then(function () {
                 return {
                   error: null,
                   errorDetails: null,
@@ -654,13 +678,13 @@ define(function (require) {
      * Move a message from being a draft to being in the outbox, potentially
      * initiating the send if we're online.
      */
-    outboxSendDraft: function (messageId) {
-      return this.taskManager.scheduleTasks([{
+    outboxSendDraft: function (messageId, why) {
+      return this.taskManager.scheduleTaskAndWaitForPlannedResult({
         type: 'outbox_send',
         command: 'send',
         accountId: accountIdFromMessageId(messageId),
         messageId
-      }]);
+      }, why);
     },
 
     /**
@@ -711,8 +735,9 @@ define(function (require) {
      *     indicating whether the download should be registered with the download
      *     manager.
      */
-    downloadMessageAttachments: function (messageSuid, messageDate, relPartIndices, attachmentIndices, registerAttachments, callback) {
-      // XXX OLD
+    downloadMessageAttachments: function ({
+      messageId, messageDate, relatedPartRelIds, attachmentRelIds }) {
+      return this.taskManager.scheduleNonPer;
     },
 
     moveMessages: function (messageSuids, targetFolderId, callback) {

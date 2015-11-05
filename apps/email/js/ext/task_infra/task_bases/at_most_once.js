@@ -7,7 +7,7 @@ define(function () {
   // "let" issues.)
   const makeWrappedOverlayFunc = function (helpedOverlayFunc) {
     return function (persistentState, memoryState, id) {
-      return helpedOverlayFunc.call(this, id, persistentState.binToMarker.get(id), memoryState.inProgressBins.has(id));
+      return helpedOverlayFunc.call(this, id, persistentState.binToMarker.get(id), memoryState.inProgressBins.has(id) || memoryState.remainInProgressBins.has(id));
     };
   };
 
@@ -15,7 +15,7 @@ define(function () {
     return function (persistentState, memoryState, fullId) {
       // use the provided extractor to get the id for the bin.
       var binId = extractor(fullId);
-      return helpedOverlayFunc.call(this, fullId, binId, persistentState.binToMarker.get(binId), memoryState.inProgressBins.has(binId));
+      return helpedOverlayFunc.call(this, fullId, binId, persistentState.binToMarker.get(binId), memoryState.inProgressBins.has(binId) || memoryState.remainInProgressBins.has(binId));
     };
   };
 
@@ -71,7 +71,8 @@ define(function () {
       return {
         memoryState: {
           accountId,
-          inProgressBins: new Set()
+          inProgressBins: new Set(),
+          remainInProgressBins: new Set()
         },
         markers: persistentState.binToMarker.values()
       };
@@ -81,15 +82,23 @@ define(function () {
      * Checks if an existing task already exists.  If it does, we do nothing other
      * than (someday) doing root cause id bookkeeping stuff.  Otherwise we invoke
      * the helped_plan method and repurpose its taskState to be our marker.  It's
-     * on the helped_plan implementation to generate
+     * on the helped_plan implementation to generate.
      */
     plan: co.wrap(function* (ctx, persistentState, memoryState, req) {
+      var _this = this;
+
       var binId = req[this.binByArg];
 
       // - Fast-path out if the bin is already planned.
       if (persistentState.binToMarker.has(binId)) {
-        yield ctx.finishTask({});
-        return undefined;
+        var _rval = undefined;
+        if (this.helped_already_planned) {
+          _rval = yield this.helped_already_planned(ctx, req);
+        } else {
+          _rval = {};
+        }
+        yield ctx.finishTask(_rval);
+        return _rval.result;
       }
 
       var rval = yield this.helped_plan(ctx, req);
@@ -106,12 +115,23 @@ define(function () {
         persistentState.binToMarker.set(binId, marker);
         rval.complexTaskState = persistentState;
 
+        if (rval.remainInProgressUntil) {
+          memoryState.remainInProgressBins.add(binId);
+          rval.remainInProgressUntil.then(function () {
+            memoryState.remainInProgressBins.delete(binId);
+            _this.helped_progress_completed(binId, ctx.universe.dataOverlayManager);
+          });
+        }
+
         // The TaskContext doesn't actually know whether we're complex or not,
         // so we need to clobber this to be null to indicate that it should close
         // out the task.
         rval.taskState = null;
       }
 
+      if (this.helped_invalidate_overlays) {
+        this.helped_invalidate_overlays(binId, ctx.universe.dataOverlayManager);
+      }
       // The helped_plan implementation needs to tell us to do the announcement
       // for it since the persistentState will not be updated until after it
       // returns.  (Although could dangerously/incorrectly try and depend on the
@@ -130,12 +150,19 @@ define(function () {
       var binId = marker[this.binByArg];
       memoryState.inProgressBins.add(binId);
 
+      if (this.helped_invalidate_overlays) {
+        this.helped_invalidate_overlays(binId, ctx.universe.dataOverlayManager);
+      }
+
       var rval = yield this.helped_execute(ctx, marker);
 
       memoryState.inProgressBins.delete(binId);
       persistentState.binToMarker.delete(binId);
       rval.complexTaskState = persistentState;
 
+      if (this.helped_invalidate_overlays) {
+        this.helped_invalidate_overlays(binId, ctx.universe.dataOverlayManager);
+      }
       // The helped_execute implementation needs to tell us to do the announcement
       // for it since the persistentState will not be updated until after it
       // returns.  (Although could dangerously/incorrectly try and depend on the

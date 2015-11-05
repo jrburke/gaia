@@ -962,6 +962,9 @@
         decode: function (buf, fromCharset) {
             fromCharset = mimefuncs.charset.normalizeCharset(fromCharset || 'UTF-8');
 
+            if (!buf) {
+                console.error(new Error().stack);
+            }
             // ensure the value is a Uint8Array, not ArrayBuffer if used
             if (!buf.buffer) {
                 buf = new Uint8Array(buf);
@@ -994,7 +997,6 @@
          */
         convert: function (data, fromCharset) {
             fromCharset = mimefuncs.charset.normalizeCharset(fromCharset || 'UTF-8');
-
             var bufString;
 
             if (typeof data !== 'string') {

@@ -50,6 +50,14 @@ define(['mimeparser', 'mimefuncs', 'exports'], function (MimeParser, mimefuncs, 
     complete: function () {
       this._parser.end();
 
+      // If this part was empty, we won't have any data in `this._parser`.
+      if (this._totalBytes === 0) {
+        return {
+          bytesFetched: 0,
+          text: ''
+        };
+      }
+
       var str = mimefuncs.charset.decode(this._parser.node.content, 'utf-8');
 
       return {
