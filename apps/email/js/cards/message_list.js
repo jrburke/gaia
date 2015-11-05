@@ -4,7 +4,6 @@
 define(function(require, exports, module) {
 
 var cards = require('cards'),
-    ConfirmDialog = require('confirm_dialog'),
     date = require('date'),
     defaultVScrollData = require('./lst/default_vscroll_data'),
     evt = require('evt'),
@@ -214,7 +213,7 @@ return [
       }
 
       //todo: commented out until search is usable.
-      ConfirmDialog.show('search not implemented yet', function() {});
+      require('not_implemented')('Search');
       // cards.add('animate', 'message_list_search', {
       //   model: this.model,
       //   folder: this.curFolder

@@ -82,7 +82,7 @@ define(function (require) {
            */
           sendEnvelope: function (conn) {
             var envelope = composer.getEnvelope();
-            logic(scope, 'sendEnvelope', { _envelope: envelope });
+            logic(_this, 'sendEnvelope', { _envelope: envelope });
             conn.useEnvelope(envelope);
           },
 
@@ -100,7 +100,7 @@ define(function (require) {
             var blob = composer.superBlob;
 
             // Then send the actual message if everything was cool
-            logic(scope, 'sending-blob', { size: blob.size });
+            logic(_this, 'sending-blob', { size: blob.size });
             // simplesmtp's SMTPClient does not understand Blobs, so we
             // issue the write directly. All that it cares about is
             // knowing whether our data payload included a trailing
@@ -123,16 +123,16 @@ define(function (require) {
            * The send succeeded.
            */
           onSendComplete: function () /* conn */{
-            logic(scope, 'smtp:sent');
+            logic(_this, 'smtp:sent');
             resolve({ error: null });
           },
           /**
            * The send failed.
            */
           onError: function (error, badAddresses) {
-            logic(scope, 'smtp:error', {
-              error: err,
-              badAddresses: badAddresses
+            logic(_this, 'smtp:error', {
+              error,
+              badAddresses
             });
             resolve({ error, badAddresses });
           }
@@ -165,7 +165,7 @@ define(function (require) {
           onSendComplete: function () /* conn */{
             // Ibid.
           },
-          onError: (function (err /*, badAddresses */) {
+          onError: function (err /*, badAddresses */) {
             // Aha, here we have an error -- we might have bad credentials
             // or something else. This error is normalized per the
             // documentation for sendMessage, so we can just pass it along.
@@ -175,10 +175,10 @@ define(function (require) {
             // not trying to send a message.
             // XXX the consumer should handle error logging.
             if (err === 'bad-user-or-pass') {
-              this.universe.__reportAccountProblem(this.compositeAccount, err, 'outgoing');
+              _this2.universe.__reportAccountProblem(_this2.compositeAccount, err, 'outgoing');
             }
             resolve(err);
-          }).bind(_this2)
+          }
         });
       });
     },
@@ -196,22 +196,23 @@ define(function (require) {
      * onError(err, badAddresses) -- send failed (or connection error)
      */
     establishConnection: function (callbacks) {
-      var scope = this;
+      var _this3 = this;
+
       var conn;
       var sendingMessage = false;
-      client.createSmtpConnection(this.credentials, this.connInfo, (function onCredentialsUpdated() {
-        return new Promise((function (resolve) {
+      client.createSmtpConnection(this.credentials, this.connInfo, function () {
+        return new Promise(function (resolve) {
           // Note: Since we update the credentials object in-place,
           // there's no need to explicitly assign the changes here;
           // just save the account information.
-          this.universe.saveAccountDef(this.compositeAccount.accountDef,
+          _this3.universe.saveAccountDef(_this3.compositeAccount.accountDef,
           /* folderInfo: */null,
           /* callback: */resolve);
-        }).bind(this));
-      }).bind(this)).then((function (newConn) {
+        });
+      }).then(function (newConn) {
         conn = newConn;
-        DisasterRecovery.associateSocketWithAccount(conn.socket, this);
-        this._activeConnections.push(conn);
+        DisasterRecovery.associateSocketWithAccount(conn.socket, _this3);
+        _this3._activeConnections.push(conn);
 
         // Intercept the 'ondrain' event, which is as close as we can
         // get to knowing that we are still sending data to the
@@ -226,11 +227,11 @@ define(function (require) {
 
         // We sent the envelope; see if we can now send the message.
         conn.onready = function (badRecipients) {
-          logic(scope, 'onready');
+          logic(_this3, 'onready');
 
           if (badRecipients.length) {
             conn.close();
-            logic(scope, 'bad-recipients', { badRecipients: badRecipients });
+            logic(_this3, 'bad-recipients', { badRecipients: badRecipients });
             callbacks.onError('bad-recipient', badRecipients);
           } else {
             sendingMessage = true;
@@ -243,10 +244,10 @@ define(function (require) {
           conn.close();
 
           if (success) {
-            logic(scope, 'sent');
+            logic(_this3, 'sent');
             callbacks.onSendComplete(conn);
           } else {
-            logic(scope, 'send-failed');
+            logic(_this3, 'send-failed');
             // We don't have an error to reference here, but we stored
             // the most recent SMTP error, which should tell us why the
             // server rejected the message.
@@ -262,17 +263,17 @@ define(function (require) {
           callbacks.onError(err, /* badAddresses: */null);
         };
 
-        conn.onclose = (function () {
-          logic(scope, 'onclose');
+        conn.onclose = function () {
+          logic(_this3, 'onclose');
 
-          var idx = this._activeConnections.indexOf(conn);
+          var idx = _this3._activeConnections.indexOf(conn);
           if (idx !== -1) {
-            this._activeConnections.splice(idx, 1);
+            _this3._activeConnections.splice(idx, 1);
           } else {
-            logic(scope, 'dead-unknown-connection');
+            logic(_this3, 'dead-unknown-connection');
           }
-        }).bind(this);
-      }).bind(this)).catch(function (err) {
+        };
+      }).catch(function (err) {
         err = client.analyzeSmtpError(conn, err, sendingMessage);
         callbacks.onError(err);
       });

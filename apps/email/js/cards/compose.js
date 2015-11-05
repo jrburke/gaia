@@ -234,6 +234,10 @@ return [
               }
 
               this._loadStateFromComposer();
+            })
+            .catch(function(err) {
+              console.error('beginMessageComposition call chain failure: ' +
+                            err);
             });
           });
         }
@@ -1014,7 +1018,7 @@ return [
       console.log('compose: initiating send');
       evt.emit('uiDataOperationStart', this._dataIdSendEmail);
 
-      this.composer.finishCompositionSendMessage((sendInfo) => {
+      this.composer.finishCompositionSendMessage().then((sendInfo) => {
         evt.emit('uiDataOperationStop', this._dataIdSendEmail);
 
         // Card could have been destroyed in the meantime,
