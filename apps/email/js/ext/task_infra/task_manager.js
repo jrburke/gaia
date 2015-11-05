@@ -217,17 +217,45 @@ define(function (require) {
     },
 
     /**
+     * Schedule a persistent task, returning a promise that will be resolved
+     * with the return value of the task's planning stage.
+     */
+    scheduleTaskAndWaitForPlannedResult: function (rawTask, why) {
+      var _this4 = this;
+
+      return this.scheduleTasks([rawTask], why).then(function (taskIds) {
+        return _this4.waitForTasksToBePlanned(taskIds);
+      }).then(function (results) {
+        return results[0];
+      });
+    },
+
+    /**
+     * Schedule a persistent task, returning a promise that will be resolved
+     * with the return value of the task's execution stage.
+     */
+    scheduleTaskAndWaitForExecutedResult: function (rawTask, why) {
+      var _this5 = this;
+
+      return this.scheduleTasks([rawTask], why).then(function (taskIds) {
+        return _this5.waitForTasksToBeExecuted(taskIds);
+      }).then(function (results) {
+        return results[0];
+      });
+    },
+
+    /**
      * Return a promise that will be resolved when the tasks with the given id's
      * have been executed.  The resolved value is a list of the declared results
      * of each task having been executed.  Tasks may optionally return a result;
      * if they return no result, `undefined` will be returned.
      */
     waitForTasksToBeExecuted: function (taskIds) {
-      var _this4 = this;
+      var _this6 = this;
 
       return Promise.all(taskIds.map(function (taskId) {
         return new Promise(function (resolve) {
-          _this4.once('executed:' + taskId, resolve);
+          _this6.once('executed:' + taskId, resolve);
         });
       }));
     },
@@ -268,10 +296,10 @@ define(function (require) {
      * interactive.
      */
     scheduleNonPersistentTaskAndWaitForPlannedResult: function (rawTask, why) {
-      var _this5 = this;
+      var _this7 = this;
 
       return this.scheduleNonPersistentTasks([rawTask], why).then(function (taskIds) {
-        return _this5.waitForTasksToBePlanned(taskIds);
+        return _this7.waitForTasksToBePlanned(taskIds);
       }).then(function (results) {
         return results[0];
       });
@@ -290,10 +318,10 @@ define(function (require) {
      * interactive.
      */
     scheduleNonPersistentTaskAndWaitForExecutedResult: function (rawTask, why) {
-      var _this6 = this;
+      var _this8 = this;
 
       return this.scheduleNonPersistentTasks([rawTask], why).then(function (taskIds) {
-        return _this6.waitForTasksToBeExecuted(taskIds);
+        return _this8.waitForTasksToBeExecuted(taskIds);
       }).then(function (results) {
         return results[0];
       });
@@ -304,11 +332,11 @@ define(function (require) {
      * database.
      */
     __wrapTasks: function (rawTasks) {
-      var _this7 = this;
+      var _this9 = this;
 
       return rawTasks.map(function (rawTask) {
         return {
-          id: _this7._nextId++,
+          id: _this9._nextId++,
           rawTask: rawTask,
           state: null // => planned => (deleted)
         };
@@ -319,14 +347,17 @@ define(function (require) {
      * Enqueue the given tasks for planning now that they have been persisted to
      * disk.
      */
-    __enqueuePersistedTasksForPlanning: function (wrappedTasks) {
+    __enqueuePersistedTasksForPlanning: function (wrappedTasks, sourceId) {
       this._ensureWakeLock();
+      for (var wrappedTask of wrappedTasks) {
+        this.emit('willPlan', wrappedTask, sourceId);
+      }
       this._tasksToPlan.splice(this._tasksToPlan.length, 0, ...wrappedTasks);
       this._maybeDoStuff();
     },
 
     /**
-     * Makes us aware of planend tasks or complex task markers.  This happens
+     * Makes us aware of planned tasks or complex task markers.  This happens
      * as tasks / complex states are restored from the database, or planning
      * steps complete (via `TaskContext`).
      *
@@ -334,11 +365,15 @@ define(function (require) {
      * TaskPriorities.
      */
     __queueTasksOrMarkers: function (taskThings, sourceId, noTrigger) {
-      var _this8 = this;
+      var _this10 = this;
 
+      // Track the number of things task resources passed through to
+      // TaskPriorities.  If this stays zero, everything was blocked on a resource
+      // and there's no new work to do.
       var prioritized = 0;
       for (var taskThing of taskThings) {
         logic(this, 'queueing', { taskThing, sourceId });
+        this.emit('willExecute', taskThing, sourceId);
         if (this._resources.ownOrRelayTaskThing(taskThing)) {
           prioritized++;
         }
@@ -354,7 +389,7 @@ define(function (require) {
       // wasteful.
       if (prioritized && !noTrigger && !this._activePromise) {
         Promise.resolve().then(function () {
-          _this8._maybeDoStuff();
+          _this10._maybeDoStuff();
         });
       }
     },
@@ -375,7 +410,7 @@ define(function (require) {
      * time.  We *absolutely* do not want to be doing this forever.
      */
     _maybeDoStuff: function () {
-      var _this9 = this;
+      var _this11 = this;
 
       if (this._activePromise) {
         return;
@@ -404,19 +439,19 @@ define(function (require) {
         // we clear the stack.
         if (this._tasksToPlan.length || !this._priorities.hasTasksToExecute()) {
           setTimeout(function () {
-            _this9._maybeDoStuff();
+            _this11._maybeDoStuff();
           }, 0);
         }
         return;
       }
 
       this._activePromise.then(function () {
-        _this9._activePromise = null;
-        _this9._maybeDoStuff();
+        _this11._activePromise = null;
+        _this11._maybeDoStuff();
       }, function (error) {
-        _this9._activePromise = null;
-        logic(_this9, 'taskError', { error, stack: error.stack });
-        _this9._maybeDoStuff();
+        _this11._activePromise = null;
+        logic(_this11, 'taskError', { error, stack: error.stack });
+        _this11._maybeDoStuff();
       });
     },
 
@@ -426,7 +461,7 @@ define(function (require) {
      * happen via a call to `__queueTasksOrMarkers` via TaskContext.
      */
     _planNextTask: function () {
-      var _this10 = this;
+      var _this12 = this;
 
       var wrappedTask = this._tasksToPlan.shift();
       logic(this, 'planning:begin', { task: wrappedTask });
@@ -434,18 +469,20 @@ define(function (require) {
       var planResult = this._registry.planTask(ctx, wrappedTask);
       if (planResult) {
         planResult.then(function (returnedResult) {
-          logic(_this10, 'planning:end', { task: wrappedTask });
-          _this10.emit('planned:' + wrappedTask.id, returnedResult);
+          logic(_this12, 'planning:end', { task: wrappedTask });
+          _this12.emit('planned:' + wrappedTask.id, returnedResult);
+          _this12.emit('planned', wrappedTask.id, returnedResult);
         });
       } else {
         logic(this, 'planning:end', { moot: true, task: wrappedTask });
         this.emit('planned:' + wrappedTask.id, undefined);
+        this.emit('planned', wrappedTask.id, undefined);
       }
       return planResult;
     },
 
     _executeNextTask: function () {
-      var _this11 = this;
+      var _this13 = this;
 
       var taskThing = this._priorities.popNextAvailableTask();
       logic(this, 'executing:begin', { task: taskThing });
@@ -454,12 +491,14 @@ define(function (require) {
       var execResult = this._registry.executeTask(ctx, taskThing);
       if (execResult) {
         execResult.then(function (returnedResult) {
-          logic(_this11, 'executing:end', { task: taskThing });
-          _this11.emit('executed:' + taskThing.id, returnedResult);
+          logic(_this13, 'executing:end', { task: taskThing });
+          _this13.emit('executed:' + taskThing.id, returnedResult);
+          _this13.emit('executed', taskThing.id, returnedResult);
         });
       } else {
         logic(this, 'executing:end', { moot: true, task: taskThing });
         this.emit('executed:' + taskThing.id, undefined);
+        this.emit('executed', taskThing.id, undefined);
       }
       return execResult;
     }
