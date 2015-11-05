@@ -2,7 +2,7 @@
  * Mix-ins for account job functionality where the code is reused.
  **/
 
-define(['./worker-router', './util', './allback', './wakelocks', './date', './syncbase', './mailslice', './headerCounter', 'logic', 'exports', 'require'], function ($router, $util, $allback, $wakelocks, $date, $sync, $mailslice, $count, logic, exports, require) {
+define(['./worker-router', './util', './allback', './wakelocks', './date', './syncbase', './mailslice', './headerCounter', 'co', 'logic', 'exports', 'require'], function ($router, $util, $allback, $wakelocks, $date, $sync, $mailslice, $count, co, logic, exports, require) {
 
   var sendMessage = $router.registerCallbackType('devicestorage');
 
@@ -200,103 +200,93 @@ define(['./worker-router', './util', './allback', './wakelocks', './date', './sy
   };
 
   exports.do_download = function (op, callback) {
-    var self = this;
-    var idxLastSlash = op.messageSuid.lastIndexOf('.'),
-        folderId = op.messageSuid.substring(0, idxLastSlash);
+    co((function* () {
+      var _this = this;
 
-    var folderConn, folderStorage;
-    // Once we have the connection, get the current state of the body rep.
-    var gotConn = function gotConn(_folderConn, _folderStorage) {
-      folderConn = _folderConn;
-      folderStorage = _folderStorage;
+      var folderId = op.messageSuid.substring(0, op.messageSuid.lastIndexOf('/'));
 
-      folderStorage.getMessageHeader(op.messageSuid, op.messageDate, gotHeader);
-    };
-    var deadConn = function deadConn() {
-      callback('aborted-retry');
-    };
-    // Now that we have the body, we can know the part numbers and eliminate /
-    // filter out any redundant download requests.  Issue all the fetches at
-    // once.
-    var partsToDownload = [],
-        storePartsTo = [],
-        registerDownload = [],
-        header,
-        bodyInfo,
-        uid;
-    var gotHeader = function gotHeader(_headerInfo) {
-      header = _headerInfo;
-      uid = header.srvid;
-      folderStorage.getMessageBody(op.messageSuid, op.messageDate, gotBody);
-    };
-    var gotBody = function gotBody(_bodyInfo) {
-      bodyInfo = _bodyInfo;
+      var { folderConn, folderStorage } = yield new Promise(function (resolve, reject) {
+        _this._accessFolderForMutation(folderId, true, function (folderConn, folderStorage) {
+          resolve({ folderConn, folderStorage });
+        }, function () {
+          reject('aborted-retry'); // deadConn
+        }, 'download');
+      });
+
+      // Once we have the connection, get the current state of the body rep.
+      var header = yield new Promise(function (resolve) {
+        folderStorage.getMessageHeader(op.messageSuid, op.messageDate, resolve);
+      });
+
+      var uid = header.srvid;
+
+      var bodyInfo = yield new Promise(function (resolve) {
+        folderStorage.getMessageBody(op.messageSuid, op.messageDate, resolve);
+      });
+
+      // Now that we have the body, we can know the part numbers and eliminate /
+      // filter out any redundant download requests.  Issue all the fetches at
+      // once.
+      var partsToDownload = [];
+      var partLocationInfo = [];
       var i, partInfo;
       for (i = 0; i < op.relPartIndices.length; i++) {
         partInfo = bodyInfo.relatedParts[op.relPartIndices[i]];
-        if (partInfo.file) continue;
-        partsToDownload.push(partInfo);
-        storePartsTo.push('idb');
-        registerDownload.push(false);
+        // If it was not downloaded, or previously only partially-downloaded...
+        if (!partInfo.file || partInfo.file.parts) {
+          partsToDownload.push(partInfo);
+          partLocationInfo.push({
+            key: 'relatedParts',
+            index: op.relPartIndices[i]
+          });
+        }
       }
       for (i = 0; i < op.attachmentIndices.length; i++) {
         partInfo = bodyInfo.attachments[op.attachmentIndices[i]];
-        if (partInfo.file) continue;
-        partsToDownload.push(partInfo);
-        // right now all attachments go in sdcard
-        storePartsTo.push('sdcard');
-        registerDownload.push(op.registerAttachments[i]);
-      }
-
-      folderConn.downloadMessageAttachments(uid, partsToDownload, gotParts);
-    };
-
-    var downloadErr = null;
-    var gotParts = function gotParts(err, bodyBlobs) {
-      if (bodyBlobs.length !== partsToDownload.length) {
-        callback(err, null, false);
-        return;
-      }
-      downloadErr = err;
-      var pendingCbs = 1;
-      function next() {
-        if (! --pendingCbs) {
-          done();
+        if (!partInfo.file || partInfo.file.parts) {
+          partsToDownload.push(partInfo);
+          partLocationInfo.push({
+            key: 'attachments',
+            index: op.attachmentIndices[i]
+          });
         }
       }
+
+      var bodyBlobs = yield folderConn.downloadMessageAttachments(uid, partsToDownload, {
+        flushFileWithIndex: function (index, file) {
+          return new Promise(function (resolve) {
+            var locationInfo = partLocationInfo[index];
+            bodyInfo[locationInfo.key][locationInfo.index].file = file;
+
+            folderStorage.updateMessageBody(header, bodyInfo, { flushBecause: 'blobs' }, {}, function (_bodyInfo) {
+              bodyInfo = _bodyInfo;
+              resolve(bodyInfo[locationInfo.key][locationInfo.index].file);
+            });
+          });
+        }
+      });
 
       for (var i = 0; i < partsToDownload.length; i++) {
         // Because we should be under a mutex, this part should still be the
         // live representation and we can mutate it.
         var partInfo = partsToDownload[i],
-            blob = bodyBlobs[i],
-            storeTo = storePartsTo[i];
+            blob = bodyBlobs[i];
 
         if (blob) {
           partInfo.sizeEstimate = blob.size;
           partInfo.type = blob.type;
-          if (storeTo === 'idb') {
-            partInfo.file = blob;
-          } else {
-            pendingCbs++;
-            saveToDeviceStorage(self, blob, storeTo, registerDownload[i], partInfo.name, partInfo, next);
-          }
+          partInfo.file = blob;
         }
       }
 
-      next();
-    };
-    function done() {
-      folderStorage.updateMessageBody(header, bodyInfo, { flushBecause: 'blobs' }, {
-        changeDetails: {
-          attachments: op.attachmentIndices
-        }
-      }, function () {
-        callback(downloadErr, null, true);
+      yield new Promise(function (resolve) {
+        folderStorage.updateMessageBody(header, bodyInfo, { flushBecause: 'blobs' }, { changeDetails: { attachments: op.attachmentIndices } }, resolve);
       });
-    };
-
-    self._accessFolderForMutation(folderId, true, gotConn, deadConn, 'download');
+    }).bind(this)).then(function () {
+      callback(null, null, true);
+    }, function (err) {
+      callback(err, null, true);
+    });
   };
 
   /**
@@ -342,10 +332,72 @@ define(['./worker-router', './util', './allback', './wakelocks', './date', './sy
     callback(null);
   };
 
+  // See if we actually downloaded all the parts.
   exports.check_download = function (op, callback) {
-    // If we downloaded the file and persisted it successfully, this job would be
-    // marked done because of the atomicity guarantee on our commits.
-    callback(null, 'coherent-notyet');
+    co((function* () {
+      var _this2 = this;
+
+      var folderId = op.messageSuid.substring(0, op.messageSuid.lastIndexOf('/'));
+
+      var { folderConn, folderStorage } = yield new Promise(function (resolve, reject) {
+        _this2._accessFolderForMutation(folderId, true, function (folderConn, folderStorage) {
+          resolve({ folderConn, folderStorage });
+        }, function () {
+          reject('aborted-retry'); // deadConn
+        }, 'download');
+      });
+
+      // Once we have the connection, get the current state of the body rep.
+      var header = yield new Promise(function (resolve) {
+        folderStorage.getMessageHeader(op.messageSuid, op.messageDate, resolve);
+      });
+
+      var uid = header.srvid;
+
+      var bodyInfo = yield new Promise(function (resolve) {
+        folderStorage.getMessageBody(op.messageSuid, op.messageDate, resolve);
+      });
+
+      var partsToDownload = [];
+      var partLocationInfo = [];
+      var madeChanges = false;
+      var i, partInfo;
+      for (i = 0; i < op.relPartIndices.length; i++) {
+        partInfo = bodyInfo.relatedParts[op.relPartIndices[i]];
+        // If it was not downloaded, or previously only partially-downloaded...
+        if (!partInfo.file || partInfo.file.parts) {
+          madeChanges = true;
+          partInfo.file = null;
+        }
+      }
+      for (i = 0; i < op.attachmentIndices.length; i++) {
+        partInfo = bodyInfo.attachments[op.attachmentIndices[i]];
+        if (!partInfo.file || partInfo.file.parts) {
+          madeChanges = true;
+          partInfo.file = null;
+        }
+      }
+
+      if (madeChanges) {
+        yield new Promise(function (resolve) {
+          folderStorage.updateMessageBody(header, bodyInfo, { flushBecause: 'blobs' }, { changeDetails: { attachments: op.attachmentIndices } }, resolve);
+        });
+        // NOTE: We could return 'coherent-notyet' here, but that would cause
+        // us to attempt to redownload the file. While that would work, it may
+        // be undesirable: if we failed to download a huge attachment for some
+        // reason, best not to waste bandwidth. Also, if for some reason we
+        // OOMed (even though we're streaming)!, we don't want to test the gods
+        // by just blindly trying again. So we 'moot' it instead, and the UI
+        // will allow us to reattempt the download next time.
+        return 'moot';
+      } else {
+        return 'moot'; // We did it!
+      }
+    }).bind(this)).then(function (result) {
+      callback(null, result, true);
+    }, function (err) {
+      callback(err, null, true);
+    });
   };
   exports.local_undo_download = function (op, callback) {
     callback(null);

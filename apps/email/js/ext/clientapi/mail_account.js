@@ -166,6 +166,16 @@ define(function (require) {
     },
 
     /**
+     * Delete the account and then immediate re-create it as if we had performed
+     * a lazy config migration.  This is intended mainly for debugging and
+     * development scenarios where one wants to use the same account but start
+     * from scratch without typing things all over again.
+     */
+    recreateAccount: function () {
+      this._api._recreateAccount(this);
+    },
+
+    /**
      * Delete the account and all its associated data.  No privacy guarantees are
      * provided; we just delete the data from the database, so it's up to the
      * (IndexedDB) database's guarantees on that.

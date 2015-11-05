@@ -1,302 +1,77 @@
-define(function (require, exports, module) {
+define(function (require, exports) {
   'use strict';
 
   const { parseUI64: parseGmailMsgId, encodeInt: encodeA64 } = require('../a64');
 
-  var mimefuncs = require('mimefuncs');
-  var mailRep = require('../db/mail_rep');
-  var $mailchew = require('../bodies/mailchew');
-  var MimeParser = require('mimeparser');
+  const mimefuncs = require('mimefuncs');
+  const mailRep = require('../db/mail_rep');
+  const $mailchew = require('../bodies/mailchew');
+  const jsmime = require('jsmime');
+  const mimeStreams = require('mime-streams');
 
-  function parseRfc2231CharsetEncoding(s) {
-    // charset'lang'url-encoded-ish
-    var match = /^([^']*)'([^']*)'(.+)$/.exec(s);
-    if (match) {
-      // we can convert the dumb encoding into quoted printable.
-      return mimefuncs.mimeWordsDecode('=?' + (match[1] || 'us-ascii') + '?Q?' + match[3].replace(/%/g, '=') + '?=');
-    }
-    return null;
-  }
+  // parseImapDateTime and formatImapDateTime functions from node-imap;
+  // MIT licensed, (c) Brian White.
 
-  // Given an array or string, strip any surrounding angle brackets.
-  function stripArrows(s) {
-    if (Array.isArray(s)) {
-      return s.map(stripArrows);
-    } else if (s && s[0] === '<') {
-      return s.slice(1, -1);
-    } else {
-      return s;
-    }
-  }
-
-  function firstHeader(msg, headerName) {
-    return msg.headers[headerName] && msg.headers[headerName][0] || null;
-  }
+  // ( ?\d|\d{2}) = day number; technically it's either "SP DIGIT" or "2DIGIT"
+  // but there's no harm in us accepting a single digit without whitespace;
+  // it's conceivable the caller might have trimmed whitespace.
+  //
+  // The timezone can, as unfortunately demonstrated by net-c.com/netc.fr, be
+  // omitted.  So we allow it to be optional and assume its value was zero if
+  // omitted.
+  var reDateTime = /^( ?\d|\d{2})-(.{3})-(\d{4}) (\d{2}):(\d{2}):(\d{2})(?: ([+-]\d{4}))?$/;
+  var HOUR_MILLIS = 60 * 60 * 1000;
+  var MINUTE_MILLIS = 60 * 1000;
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   /**
-   * Process the headers and bodystructure of a message to build preliminary state
-   * and determine what body parts to fetch.  The list of body parts will be used
-   * to issue another fetch request, and those results will be passed to
-   * `chewBodyParts`.
-   *
-   * For now, our stop-gap heuristics for content bodies are:
-   * - pick text/plain in multipart/alternative
-   * - recurse into other multipart types looking for an alterntive that has
-   *    text.
-   * - do not recurse into message/rfc822
-   * - ignore/fail-out messages that lack a text part, skipping to the next
-   *    task.  (This should not happen once we support HTML, as there are cases
-   *    where there are attachments without any body part.)
-   * - Append text body parts together; there is no benefit in separating a
-   *    mailing list footer from its content.
-   *
-   * For attachments, our heuristics are:
-   * - only like them if they have filenames.  We will find this as "name" on
-   *    the "content-type" or "filename" on the "content-disposition", quite
-   *    possibly on both even.
-   * - ignore crypto signatures, even though they are named.  S/MIME gives us
-   *    "smime.p7s" as an application/pkcs7-signature under a multipart/signed
-   *    (that the server tells us is "signed").  PGP in MIME mode gives us
-   *    application/pgp-signature "signature.asc" under a multipart/signed.
-   *
-   * The next step in the plan is to get an HTML sanitizer exposed so we can
-   *  support text/html.  That will also imply grabbing multipart/related
-   *  attachments.
-   *
-   * @typedef[ChewRep @dict[
-   *   @key[bodyReps @listof[ImapJsPart]]
-   *   @key[attachments @listof[AttachmentInfo]]
-   *   @key[relatedParts @listof[RelatedPartInfo]]
-   * ]]
-   * @return[ChewRep]
-   */
-  function chewStructure(msg) {
-    var attachments = [],
-        bodyReps = [],
-        unnamedPartCounter = 0,
-        relatedParts = [];
-
-    /**
-     * Sizes are the size of the encoded string, not the decoded value.
-     */
-    function estimatePartSizeInBytes(partInfo) {
-      var encoding = partInfo.encoding.toLowerCase();
-      // Base64 encodes 3 bytes in 4 characters with padding that always
-      // causes the encoding to take 4 characters.  The max encoded line length
-      // (ignoring CRLF) is 76 bytes, with 72 bytes also fairly common.
-      // As such, a 78=19*4+2 character line encodes 57=19*3 payload bytes and
-      // we can use that as a rough estimate.
-      if (encoding === 'base64') {
-        return Math.floor(partInfo.size * 57 / 78);
-      }
-      // Quoted printable is hard to predict since only certain things need
-      // to be encoded.  It could be perfectly efficient if the source text
-      // has a bunch of newlines built-in.
-      else if (encoding === 'quoted-printable') {
-          // Let's just provide an upper-bound of perfectly efficient.
-          return partInfo.size;
-        }
-      // No clue; upper bound.
-      return partInfo.size;
+  * Parses IMAP "date-time" instances into UTC timestamps whose quotes have
+  * already been stripped.
+  *
+  * http://tools.ietf.org/html/rfc3501#page-84
+  *
+  * date-day = 1*2DIGIT
+  * ; Day of month
+  * date-day-fixed = (SP DIGIT) / 2DIGIT
+  * ; Fixed-format version of date-day
+  * date-month = "Jan" / "Feb" / "Mar" / "Apr" / "May" / "Jun" /
+  * "Jul" / "Aug" / "Sep" / "Oct" / "Nov" / "Dec"
+  * date-year = 4DIGIT
+  * time = 2DIGIT ":" 2DIGIT ":" 2DIGIT
+  * ; Hours minutes seconds
+  * zone = ("+" / "-") 4DIGIT
+  * date-time = DQUOTE date-day-fixed "-" date-month "-" date-year
+  * SP time SP zone DQUOTE
+  */
+  var parseImapDateTime = exports.parseImapDateTime = function (dstr) {
+    var match = reDateTime.exec(dstr);
+    if (!match) {
+      throw new Error('Not a good IMAP date-time: ' + dstr);
     }
+    var day = parseInt(match[1], 10),
+        zeroMonth = MONTHS.indexOf(match[2]),
+        year = parseInt(match[3], 10),
+        hours = parseInt(match[4], 10),
+        minutes = parseInt(match[5], 10),
+        seconds = parseInt(match[6], 10),
 
-    function chewNode(partInfo, parentMultipartSubtype) {
-      var i, filename, disposition;
-      var type = partInfo.type.split('/')[0];
-      var subtype = partInfo.type.split('/')[1];
+    // figure the timestamp before the zone stuff. We don't
+    timestamp = Date.UTC(year, zeroMonth, day, hours, minutes, seconds),
 
-      if (type === 'multipart') {
-        switch (subtype) {
-          // For alternative, scan from the back to find the first part we like.
-          // XXX I believe in Thunderbird we observed some ridiculous misuse of
-          // alternative that we'll probably want to handle.
-          case 'alternative':
-            for (i = partInfo.childNodes.length - 1; i >= 0; i--) {
-              var subPartInfo = partInfo.childNodes[i];
-              var childType = subPartInfo.type.split('/')[0];
-              var childSubtype = subPartInfo.type.split('/')[1];
+    // to reduce string garbage creation, we use one string. (we have to
+    // play math games no matter what, anyways.)
+    zoneDelta = match[7] ? parseInt(match[7], 10) : 0,
+        zoneHourDelta = Math.floor(zoneDelta / 100),
 
-              switch (childType) {
-                case 'text':
-                  // fall out for subtype checking
-                  break;
-                case 'multipart':
-                  // this is probably HTML with attachments, let's give it a try
-                  if (chewNode(subPartInfo)) {
-                    return true;
-                  }
-                  break;
-                default:
-                  // no good, keep going
-                  continue;
-              }
+    // (the negative sign sticks around through the mod operation)
+    zoneMinuteDelta = zoneDelta % 100;
 
-              switch (childSubtype) {
-                case 'html':
-                case 'plain':
-                  // (returns true if successfully handled)
-                  if ((chewNode(subPartInfo), subtype)) {
-                    return true;
-                  }
-              }
-            }
-            // (If we are here, we failed to find a valid choice.)
-            return false;
-          // multipart that we should recurse into
-          case 'mixed':
-          case 'signed':
-          case 'related':
-            for (i = 0; i < partInfo.childNodes.length; i++) {
-              chewNode(partInfo.childNodes[i], subtype);
-            }
-            return true;
+    // ex: GMT-0700 means 7 hours behind, so we need to add 7 hours, aka
+    // subtract negative 7 hours.
+    timestamp -= zoneHourDelta * HOUR_MILLIS + zoneMinuteDelta * MINUTE_MILLIS;
 
-          default:
-            console.warn('Ignoring multipart type:', subtype);
-            return false;
-        }
-      }
-      // Otherwise, this is a leaf node:
-      else {
-          // Detect named parts; they could be attachments.
-          // filename via content-type 'name' parameter
-          if (partInfo.parameters && partInfo.parameters.name) {
-            filename = mimefuncs.mimeWordsDecode(partInfo.parameters.name);
-          }
-          // filename via content-type 'name' with charset/lang info
-          else if (partInfo.parameters && partInfo.parameters['name*']) {
-              filename = parseRfc2231CharsetEncoding(partInfo.parameters['name*']);
-            }
-            // rfc 2231 stuff:
-            // filename via content-disposition filename without charset/lang info
-            else if (partInfo.dispositionParameters && partInfo.dispositionParameters.filename) {
-                filename = mimefuncs.mimeWordsDecode(partInfo.dispositionParameters.filename);
-              }
-              // filename via content-disposition filename with charset/lang info
-              else if (partInfo.dispositionParameters && partInfo.dispositionParameters['filename*']) {
-                  filename = parseRfc2231CharsetEncoding(partInfo.dispositionParameters['filename*']);
-                } else {
-                  filename = null;
-                }
-
-          // Determining disposition:
-
-          // First, check whether an explict one exists
-          if (partInfo.disposition) {
-            // If it exists, keep it the same, except in the case of inline
-            // disposition without a content id.
-            if (partInfo.disposition.toLowerCase() == 'inline') {
-              // Displaying text-parts inline is not a problem for us, but we need a
-              // content id for other embedded content.  (Currently only images are
-              // supported, but that is enforced in a subsequent check.)
-              if (type === 'text' || partInfo.id) {
-                disposition = 'inline';
-              } else {
-                disposition = 'attachment';
-              }
-            } else if (partInfo.disposition.toLowerCase() == 'attachment') {
-              disposition = 'attachment';
-            }
-            // This case should never trigger, but it's here for safety's sake
-            else {
-                disposition = 'inline';
-              }
-            // Inline image attachments that belong to a multipart/related
-            // may lack a disposition but have a content-id.
-            // XXX Ensure 100% correctness in the future by fixing up
-            // mis-guesses during sanitization as part of
-            // https://bugzil.la/1024685
-          } else if (parentMultipartSubtype === 'related' && partInfo.id && type === 'image') {
-              disposition = 'inline';
-            } else if (filename || type !== 'text') {
-              disposition = 'attachment';
-            } else {
-              disposition = 'inline';
-            }
-
-          // Some clients want us to display things inline that we simply can't
-          // display (historically and currently, PDF) or that our usage profile
-          // does not want to automatically download (in the future, PDF, because
-          // they can get big.)
-          if (type !== 'text' && type !== 'image') {
-            disposition = 'attachment';
-          }
-
-          // - But we don't care if they are signatures...
-          if (type === 'application' && (subtype === 'pgp-signature' || subtype === 'pkcs7-signature')) {
-            return true;
-          }
-
-          var makePart = function (partInfo, filename) {
-            return mailRep.makeAttachmentPart({
-              relId: encodeA64(attachments.length),
-              name: filename || 'unnamed-' + ++unnamedPartCounter,
-              contentId: partInfo.id ? stripArrows(partInfo.id) : null,
-              type: partInfo.type.toLowerCase(),
-              part: partInfo.part,
-              encoding: partInfo.encoding && partInfo.encoding.toLowerCase(),
-              sizeEstimate: estimatePartSizeInBytes(partInfo),
-              file: null
-            });
-          };
-
-          var makeTextPart = function (partInfo) {
-            return mailRep.makeBodyPart({
-              type: subtype,
-              part: partInfo.part || '1',
-              sizeEstimate: partInfo.size,
-              amountDownloaded: 0,
-              // its important to know that sizeEstimate and amountDownloaded
-              // do _not_ determine if the bodyRep is fully downloaded; the
-              // estimated amount is not reliable
-              // Zero-byte bodies are assumed to be accurate and we treat the file
-              // as already downloaded.
-              isDownloaded: partInfo.size === 0,
-              // full internal IMAP representation
-              // it would also be entirely appropriate to move
-              // the information on the bodyRep directly?
-              _partInfo: partInfo.size ? {
-                partID: partInfo.part,
-                type: type,
-                subtype: subtype,
-                params: valuesOnly(partInfo.parameters),
-                encoding: partInfo.encoding && partInfo.encoding.toLowerCase()
-              } : null,
-              contentBlob: null
-            });
-          };
-
-          if (disposition === 'attachment') {
-            attachments.push(makePart(partInfo, filename));
-            return true;
-          }
-
-          // - We must be an inline part or structure
-          switch (type) {
-            // - related image
-            case 'image':
-              relatedParts.push(makePart(partInfo, filename));
-              return true;
-            // - content
-            case 'text':
-              if (subtype === 'plain' || subtype === 'html') {
-                bodyReps.push(makeTextPart(partInfo));
-                return true;
-              }
-              break;
-          }
-          return false;
-        }
-    }
-
-    chewNode(msg.bodystructure);
-
-    return {
-      bodyReps: bodyReps,
-      attachments: attachments,
-      relatedParts: relatedParts
-    };
-  }
+    return timestamp;
+  };
 
   /**
    * Transform a browserbox representation of an item that has a value
@@ -306,7 +81,7 @@ define(function (require, exports, module) {
    *   { value: 1 } -> 1
    *   undefined -> null
    */
-  function valuesOnly(item) {
+  var valuesOnly = exports.valuesOnly = function (item) {
     if (Array.isArray(item)) {
       return item.map(valuesOnly);
     } else if (item && typeof item === 'object') {
@@ -326,18 +101,161 @@ define(function (require, exports, module) {
     } else {
       return null;
     }
+  };
+
+  /**
+   * PartBuilder assists in populating the attachments/relatedParts/bodyReps of
+   * the MessageInfo structure.
+   *
+   * As each part is added (because, with streaming, we don't have all parts),
+   * we decide which ones are attachments, body parts, or parts to ignore.
+   *
+   * Usage:
+   *   var builder = new PartBuilder(headers);
+   *   builder.addPart(...);
+   *   var { header, body } = builder.finalize();
+   *
+   * @param {MimeHeaderInfo} headers
+   * @param {object} options
+   */
+  function PartBuilder(headers) {
+    this.rootHeaders = headers;
+
+    this.attachments = [];
+    this.relatedParts = [];
+    this.bodyReps = [];
+
+    this.unnamedPartCounter = 0;
+
+    this.alternativePartNumbers = [];
   }
-  exports.valuesOnly = valuesOnly;
+  exports.PartBuilder = PartBuilder;
 
-  function ensureHeadersParsed(msg) {
-    // already parsed!
-    if (msg.headers) {
-      return;
+  PartBuilder.prototype = {
+
+    /**
+     * Return the header and body MailRep representation.
+     */
+    finalize: function () {
+      var _this = this;
+
+      // Since we only now know that we've seen all the parts, it's time to make
+      // a decision for multipart/alternative parts: which body parts should we
+      // keep, and which ones should we discard? We've generated bodyReps for
+      // each compatible part, so we just need to remove the ones we don't want.
+      this.alternativePartNumbers.forEach(function (altPart) {
+        var foundSuitableBody = false;
+        for (var i = _this.bodyReps.length - 1; i >= 0; i--) {
+          var rep = _this.bodyReps[i];
+          // Is this rep a suitable body for this multipart/alternative part?
+          // If so, the multipart/alternative part will be an ancestor of it.
+          // We just want the first one that matches, since we already filtered
+          // out unacceptable bodies.
+          if (rep.part.indexOf(altPart + '.') === 0) {
+            if (!foundSuitableBody) {
+              foundSuitableBody = true;
+            } else {
+              _this.bodyReps.splice(i, 1);
+            }
+          }
+        }
+      });
+
+      return {
+        attachments: this.attachments,
+        relatedParts: this.relatedParts,
+        bodyReps: this.bodyReps,
+        rootHeaders: this.rootHeaders
+      };
+    },
+
+    /**
+     * Add one MimeHeaderInfo to the incoming message, returning information about
+     * what kind of part we think this is (body/attachment/ignore).
+     *
+     * The return format is as follows:
+     *
+     * {
+     *   type: 'ignore' OR 'attachment' OR 'related' OR 'body',
+     *   rep: the MailRep representing this part,
+     *   index: the index of the current part in attachments/relatedParts
+     * }
+     *
+     * @param {string} partNum
+     * @param {MimeHeaderInfo} headers
+     * @return {object}
+     */
+    addNode: function (partNum, headers) {
+      if (headers.parentContentType === 'message/rfc822') {
+        return { type: 'ignore' };
+      }
+      if (headers.mediatype === 'multipart') {
+        if (headers.subtype === 'alternative') {
+          this.alternativePartNumbers.push(partNum);
+        }
+        return { type: 'ignore' };
+      } else {
+        // Ignore signatures.
+        if (headers.mediatype === 'application' && (headers.subtype === 'pgp-signature' || headers.subtype === 'pkcs7-signature')) {
+          return { type: 'ignore' };
+        }
+
+        var rep;
+        if (headers.disposition === 'attachment') {
+          rep = this._makePart(partNum, headers);
+          this.attachments.push(rep);
+          return { type: 'attachment',
+            rep: rep,
+            index: this.attachments.length - 1 };
+        } else if (headers.mediatype === 'image') {
+          rep = this._makePart(partNum, headers);
+          this.relatedParts.push(rep);
+          return { type: 'related',
+            rep: rep,
+            index: this.relatedParts.length - 1 };
+        } else if (headers.mediatype === 'text' && (headers.subtype === 'plain' || headers.subtype === 'html')) {
+          rep = this._makeBodyPart(partNum, headers);
+          this.bodyReps.push(rep);
+          return { type: 'body', rep: rep };
+        } else {
+          return { type: 'ignore' };
+        }
+      }
+    },
+
+    _makePart: function (partNum, headers) {
+      return mailRep.makeAttachmentPart({
+        relId: encodeA64(this.attachments.length),
+        name: headers.filename || 'unnamed-' + ++this.unnamedPartCounter,
+        contentId: headers.contentId,
+        type: headers.contentType.toLowerCase(),
+        part: partNum,
+        encoding: headers.encoding,
+        sizeEstimate: 0, // we do not know
+        file: null,
+        charset: headers.charset,
+        textFormat: headers.format
+      });
+    },
+
+    _makeBodyPart: function (partNum, headers) {
+      return mailRep.makeBodyPart({
+        type: headers.subtype,
+        part: partNum,
+        sizeEstimate: 0,
+        amountDownloaded: 0,
+        isDownloaded: false,
+        contentBlob: null
+      });
     }
+  };
 
-    msg.headers = {};
-
-    for (var key in msg) {
+  /**
+   * Convert the headers from a FETCH response to a MimeHeaderInfo object.
+   */
+  function browserboxMessageToMimeHeaders(browserboxMessage) {
+    var headers = new Map();
+    for (var key in browserboxMessage) {
       // We test the key using a regex here because the key name isn't
       // normalized to a form we can rely on. The browserbox docs in
       // particular indicate that the full key name may be dependent on
@@ -346,81 +264,105 @@ define(function (require, exports, module) {
       // rely on instead: grabbing the right key based upon just this
       // regex.
       if (/header\.fields/.test(key)) {
-        var headerParser = new MimeParser();
-        headerParser.write(msg[key] + '\r\n');
-        headerParser.end();
-        msg.headers = headerParser.node.headers;
+        // (the stuff in here runs exactly once; not multiple times!)
+        var headerParser = new jsmime.MimeParser({
+          startPart(jsmimePartNum, jsmimeHeaders) {
+            headers = mimeStreams.MimeHeaderInfo.fromJSMime(jsmimeHeaders);
+          }
+        }, {
+          bodyformat: 'decode', // Decode base64/quoted-printable for us.
+          strformat: 'typedarray',
+          onerror: function (e) {
+            console.error('Browserbox->JSMIME Parser Error:', e, '\n', e.stack);
+          }
+        });
+        headerParser.deliverData(browserboxMessage[key] + '\r\n');
+        headerParser.deliverEOF();
         break;
       }
     }
+    return headers;
   }
-
-  function extractMessageIdHeader(msg) {
-    ensureHeadersParsed(msg);
-    return stripArrows(valuesOnly(firstHeader(msg, 'message-id')));
-  }
-  exports.extractMessageIdHeader = extractMessageIdHeader;
 
   /**
-   * Given a message extract and normalize the references header into a list of
-   * strings without arrows, etc.  If there is no references header but there is
-   * an in-reply-to header, use that.
+   * Encode a header value (with parameters) into a parameter header.
    *
-   * Note that we currently require properly <> enclosed id's and ignore things
-   * outside of them.
-   *
-   * @return {String[]}
-   *   An array of references.  If there were no references, this will be an
-   *   empty list.
-   *
-   * XXX actually do the in-reply-to stuff; this has extra normalization sanity
-   * checking required so not doing that right now.
+   * encodeHeaderValueWithParams('text/plain', { charset: 'utf-8' })
+   *   => 'text/plain; charset="utf-8"'
    */
-  function extractReferences(msg, messageId) {
-    ensureHeadersParsed(msg);
-    var referencesStr = valuesOnly(firstHeader(msg, 'references'));
-    if (!referencesStr) {
-      return [];
+  function encodeHeaderValueWithParams(header, params) {
+    var value = header;
+    for (var key in params) {
+      value += '; ' + key + '="' + mimefuncs.mimeWordEncode(params[key]) + '"';
     }
-
-    var idx = 0;
-    var len = referencesStr.length;
-    var references = [];
-
-    while (idx < len) {
-      idx = referencesStr.indexOf('<', idx);
-      if (idx === -1) {
-        break;
-      }
-
-      var closeArrow = referencesStr.indexOf('>', idx + 1);
-      if (closeArrow === -1) {
-        break;
-      }
-
-      // Okay, so now we have a <...> we can consume.
-      var deArrowed = referencesStr.substring(idx + 1, closeArrow);
-      // Don't let a message include itself in its references
-      if (deArrowed !== messageId) {
-        references.push(deArrowed);
-      }
-
-      idx = closeArrow + 1;
-    }
-
-    return references;
+    return value;
   }
-  exports.extractReferences = extractReferences;
 
+  /**
+   * Return the estimated size of the encoded string.
+   */
+  function estimatePartSizeInBytes(encoding, size) {
+    switch (encoding.toLowerCase()) {
+      case 'base64':
+        // Base64 encodes 3 bytes in 4 characters with padding that always causes
+        // the encoding to take 4 characters. The max encoded line length
+        // (ignoring CRLF) is 76 bytes, with 72 bytes also fairly common. As such,
+        // a 78=19*4+2 character line encodes 57=19*3 payload bytes and we can use
+        // that as a rough estimate.
+        return Math.floor(size * 57 / 78);
+      case 'quoted-printable':
+        // Quoted printable is hard to predict since only certain things need to
+        // be encoded. It could be perfectly efficient if the source text has a
+        // bunch of newlines built-in. Let's just provide an upper-bound of
+        // perfectly efficient.
+        return size;
+      default:
+        // No clue; upper bound.
+        return size;
+    }
+  }
+
+  /**
+   * Convert a BODYSTRUCTURE response containing MIME metadata into a format
+   * suitable for a MailRep (`{ header, body }`).
+   */
   exports.chewMessageStructure = function (msg, folderIds, flags, convId, maybeUmid, explicitMessageId) {
-    ensureHeadersParsed(msg);
+    var headers = browserboxMessageToMimeHeaders(msg);
 
-    // begin by splitting up the raw imap message
-    var parts = chewStructure(msg);
+    var partBuilder = new PartBuilder(headers);
+    function chewStructureNode(snode, partNum, parentContentType) {
+      var nodeHeaders = new mimeStreams.MimeHeaderInfo({
+        'content-id': snode.id ? [snode.id] : null,
+        'content-transfer-encoding': snode.encoding ? [snode.encoding] : null,
+        'content-disposition': [encodeHeaderValueWithParams(snode.disposition, snode.dispositionParameters)],
+        'content-type': [encodeHeaderValueWithParams(snode.type, snode.parameters)]
+      }, { parentContentType });
 
-    msg.date = msg.internaldate && parseImapDateTime(msg.internaldate);
+      var { rep } = partBuilder.addNode(partNum, nodeHeaders);
 
-    var fromArray = valuesOnly(firstHeader(msg, 'from'));
+      if (rep && snode.encoding && snode.size) {
+        rep.sizeEstimate = estimatePartSizeInBytes(snode.encoding, snode.size);
+      }
+      if (rep) {
+        rep._partInfo = {
+          partId: snode.part,
+          type: nodeHeaders.mediatype,
+          subtype: nodeHeaders.subtype,
+          params: snode.parameters,
+          encoding: snode.encoding && snode.encoding.toLowerCase()
+        };
+      }
+
+      if (snode.childNodes) {
+        for (var i = 0; i < snode.childNodes.length; i++) {
+          chewStructureNode(snode.childNodes[i], partNum + '.' + (i + 1), snode.type);
+        }
+      }
+    }
+
+    chewStructureNode(msg.bodystructure, '1', null);
+
+    var { attachments, relatedParts, bodyReps } = partBuilder.finalize();
 
     var messageId = undefined;
     var umid = null;
@@ -438,30 +380,26 @@ define(function (require, exports, module) {
     return mailRep.makeMessageInfo({
       id: messageId,
       // uniqueMessageId which provides server indirection for non-gmail sync
-      umid: umid,
+      umid,
       // The message-id header value
-      guid: extractMessageIdHeader(msg),
-      date: msg.date,
-      // mimeparser models from as an array; we do not.
-      author: fromArray && fromArray[0] ||
-      // we require a sender e-mail; let's choose an illegal default as
-      // a stopgap so we don't die.
-      { address: 'missing-address@example.com' },
-      to: valuesOnly(firstHeader(msg, 'to')),
-      cc: valuesOnly(firstHeader(msg, 'cc')),
-      bcc: valuesOnly(firstHeader(msg, 'bcc')),
-      replyTo: valuesOnly(firstHeader(msg, 'reply-to')),
-      flags: flags,
-      folderIds: folderIds,
-      hasAttachments: parts.attachments.length > 0,
-      subject: valuesOnly(firstHeader(msg, 'subject')),
+      guid: headers.guid,
+      date: msg.internaldate ? parseImapDateTime(msg.internaldate) : headers.date,
+      author: headers.author,
+      to: headers.getAddressHeader('to', null),
+      cc: headers.getAddressHeader('cc', null),
+      bcc: headers.getAddressHeader('bcc', null),
+      replyTo: headers.getAddressHeader('reply-to', null),
+      flags: msg.flags,
+      folderIds,
+      hasAttachments: attachments.length > 0,
+      subject: headers.getStringHeader('subject'),
 
       // we lazily fetch the snippet later on
       snippet: null,
-      attachments: parts.attachments,
-      relatedParts: parts.relatedParts,
-      references: extractReferences(msg),
-      bodyReps: parts.bodyReps
+      attachments,
+      relatedParts,
+      references: headers.references,
+      bodyReps
     });
   };
 
@@ -574,75 +512,5 @@ define(function (require, exports, module) {
       }
     });
     return bytesLeft;
-  };
-
-  // parseImapDateTime and formatImapDateTime functions from node-imap;
-  // MIT licensed, (c) Brian White.
-
-  // ( ?\d|\d{2}) = day number; technically it's either "SP DIGIT" or "2DIGIT"
-  // but there's no harm in us accepting a single digit without whitespace;
-  // it's conceivable the caller might have trimmed whitespace.
-  //
-  // The timezone can, as unfortunately demonstrated by net-c.com/netc.fr, be
-  // omitted.  So we allow it to be optional and assume its value was zero if
-  // omitted.
-  var reDateTime = /^( ?\d|\d{2})-(.{3})-(\d{4}) (\d{2}):(\d{2}):(\d{2})(?: ([+-]\d{4}))?$/;
-  var HOUR_MILLIS = 60 * 60 * 1000;
-  var MINUTE_MILLIS = 60 * 1000;
-  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-  /**
-  * Parses IMAP "date-time" instances into UTC timestamps whose quotes have
-  * already been stripped.
-  *
-  * http://tools.ietf.org/html/rfc3501#page-84
-  *
-  * date-day = 1*2DIGIT
-  * ; Day of month
-  * date-day-fixed = (SP DIGIT) / 2DIGIT
-  * ; Fixed-format version of date-day
-  * date-month = "Jan" / "Feb" / "Mar" / "Apr" / "May" / "Jun" /
-  * "Jul" / "Aug" / "Sep" / "Oct" / "Nov" / "Dec"
-  * date-year = 4DIGIT
-  * time = 2DIGIT ":" 2DIGIT ":" 2DIGIT
-  * ; Hours minutes seconds
-  * zone = ("+" / "-") 4DIGIT
-  * date-time = DQUOTE date-day-fixed "-" date-month "-" date-year
-  * SP time SP zone DQUOTE
-  */
-  var parseImapDateTime = exports.parseImapDateTime = function (dstr) {
-    var match = reDateTime.exec(dstr);
-    if (!match) {
-      throw new Error('Not a good IMAP date-time: ' + dstr);
-    }
-    var day = parseInt(match[1], 10),
-        zeroMonth = MONTHS.indexOf(match[2]),
-        year = parseInt(match[3], 10),
-        hours = parseInt(match[4], 10),
-        minutes = parseInt(match[5], 10),
-        seconds = parseInt(match[6], 10),
-
-    // figure the timestamp before the zone stuff. We don't
-    timestamp = Date.UTC(year, zeroMonth, day, hours, minutes, seconds),
-
-    // to reduce string garbage creation, we use one string. (we have to
-    // play math games no matter what, anyways.)
-    zoneDelta = match[7] ? parseInt(match[7], 10) : 0,
-        zoneHourDelta = Math.floor(zoneDelta / 100),
-
-    // (the negative sign sticks around through the mod operation)
-    zoneMinuteDelta = zoneDelta % 100;
-
-    // ex: GMT-0700 means 7 hours behind, so we need to add 7 hours, aka
-    // subtract negative 7 hours.
-    timestamp -= zoneHourDelta * HOUR_MILLIS + zoneMinuteDelta * MINUTE_MILLIS;
-
-    return timestamp;
-  };
-
-  exports.formatImapDateTime = function (date) {
-    var s;
-    s = (date.getDate() < 10 ? ' ' : '') + date.getDate() + '-' + MONTHS[date.getMonth()] + '-' + date.getFullYear() + ' ' + ('0' + date.getHours()).slice(-2) + ':' + ('0' + date.getMinutes()).slice(-2) + ':' + ('0' + date.getSeconds()).slice(-2) + (date.getTimezoneOffset() > 0 ? ' -' : ' +') + ('0' + Math.abs(date.getTimezoneOffset()) / 60).slice(-2) + ('0' + Math.abs(date.getTimezoneOffset()) % 60).slice(-2);
-    return s;
   };
 }); // end define

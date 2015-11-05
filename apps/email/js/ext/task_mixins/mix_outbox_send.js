@@ -173,6 +173,18 @@ define(function (require) {
         modifyTaskMarkers.set(marker.id, marker);
       }
 
+      // Provide a result to the caller that lets them know
+      var reportProblem = undefined;
+      if (memoryState.paused) {
+        reportProblem = 'outbox-paused';
+      } else if (ctx.accountProblem) {
+        reportProblem = 'account-problem';
+      } else if (!ctx.online) {
+        reportProblem = 'offline';
+      } else {
+        reportProblem = null;
+      }
+
       yield ctx.finishTask({
         mutations: {
           conversations: new Map([[convId, convInfo]]),
@@ -181,6 +193,7 @@ define(function (require) {
         taskMarkers: modifyTaskMarkers,
         complexTaskState: persistentState
       });
+      return reportProblem;
     }),
 
     /**
