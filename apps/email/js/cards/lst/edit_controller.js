@@ -1,8 +1,8 @@
 'use strict';
 
 define(function(require, exports) {
-  var folderSelector = require('folder_selector'),
-      ConfirmDialog = require('confirm_dialog'),
+  // var folderSelector = require('folder_selector'),
+  var ConfirmDialog = require('confirm_dialog'),
       deleteConfirmMsgNode = require('tmpl!../msg/delete_confirm.html'),
       mozL10n = require('l10n!'),
       toaster = require('toaster');
@@ -178,13 +178,16 @@ define(function(require, exports) {
     },
 
     onMoveMessages: function() {
-      folderSelector(this.model, (folder) => {
-        var op = this.model.api.moveMessages(this.selectedMessages, folder);
-        toaster.toastOperation(op);
-        this.setEditMode(false);
-      }, function(folder) {
-        return folder.isValidMoveTarget;
-      });
+      //todo: re-enable once moving is in place
+      require('not_implemented')('Move');
+
+      // folderSelector(this.model, (folder) => {
+      //   var op = this.model.api.moveMessages(this.selectedMessages, folder);
+      //   toaster.toastOperation(op);
+      //   this.setEditMode(false);
+      // }, function(folder) {
+      //   return folder.isValidMoveTarget;
+      // });
     }
   };
 });

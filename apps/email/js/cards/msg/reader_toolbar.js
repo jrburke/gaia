@@ -4,7 +4,7 @@ define(function(require, exports) {
 
 var cards = require('cards'),
     ConfirmDialog = require('confirm_dialog'),
-    folderSelector = require('folder_selector'),
+    // folderSelector = require('folder_selector'),
     mozL10n = require('l10n!'),
     msgAttachmentDisabledConfirmNode =
                          require('tmpl!./attachment_disabled_confirm.html'),
@@ -226,13 +226,15 @@ return [
 
     onMove: function() {
       //TODO: Please verify move functionality after api landed.
-      folderSelector(this.model, (folder) => {
-        var op = this.message.moveMessage(folder);
-        this.emitDomEvent('moved');
-        toaster.toastOperation(op);
-      }, function(folder) {
-        return folder.isValidMoveTarget;
-      });
+      require('not_implemented')('Move');
+
+      // folderSelector(this.model, (folder) => {
+      //   var op = this.message.moveMessage(folder);
+      //   this.emitDomEvent('moved');
+      //   toaster.toastOperation(op);
+      // }, function(folder) {
+      //   return folder.isValidMoveTarget;
+      // });
     },
 
     onEditDraft: function() {
