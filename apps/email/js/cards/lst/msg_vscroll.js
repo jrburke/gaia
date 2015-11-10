@@ -88,11 +88,8 @@ return [
         // Make sure total amount stays within possible range.
         if (highAbsoluteIndex > totalCount - 1) {
           highAbsoluteIndex = totalCount - 1;
-        }
-
-        // We're already prepared if the slice is already that big.
-        if (highAbsoluteIndex < items.length) {
-          return;
+        } else if (highAbsoluteIndex < 0) {
+          highAbsoluteIndex = 0;
         }
 
         this.loadNextChunk(highAbsoluteIndex);
@@ -112,9 +109,6 @@ return [
     },
 
     setListCursor: function(listCursor, model) {
-
-console.log('MSG_VSCROLL SETLISTCURSOR: ' + listCursor);
-
       this.releaseFromListCursor();
 
       this.listIsGrowing = false;
@@ -349,17 +343,16 @@ console.log('MSG_VSCROLL SETLISTCURSOR: ' + listCursor);
       }
 
       // Do not bother asking for more than exists
-      var listCursor = this.listCursor;
-      if (desiredHighAbsoluteIndex >= listCursor.list.totalCount) {
-        desiredHighAbsoluteIndex = listCursor.list.totalCount - 1;
+      var listCursor = this.listCursor,
+          totalCount = listCursor.list.totalCount;
+
+      if (desiredHighAbsoluteIndex >= totalCount) {
+console.log('loadNextChunk desiredHighAbsoluteIndex too big, skipping: ' +
+            desiredHighAbsoluteIndex);
+        return;
       }
 
-//todo: this needs to change, seek is a different metaphor.
-      // Do not bother asking for more than what is already
-      // fetched
-      var items = listCursor.list.items;
-      var curHighAbsoluteIndex = items.length - 1;
-      var amount = desiredHighAbsoluteIndex - curHighAbsoluteIndex;
+      var amount = 25;
 
       if (amount > 0) {
         // IMPORTANT NOTE!
@@ -367,18 +360,15 @@ console.log('MSG_VSCROLL SETLISTCURSOR: ' + listCursor);
         // that the other side interprets as a request to grow downward with the
         // default growth size.  XXX change backend and its tests...
         console.log('message_list loadNextChunk growing', amount,
-                    (amount === 1 ? '(will get boosted to 15!) to' : 'to'),
+                    'to',
                     (desiredHighAbsoluteIndex + 1), 'items out of',
-                    listCursor.list.totalCount, 'alleged known');
-
-        var segment = Math.ceil(amount / 2);
-        var seekIndex = curHighAbsoluteIndex + segment;
+                    totalCount, 'alleged known');
 
 console.log('MSG_VSCROLL CALLING seekFocusedOnAbsoluteIndex, index: ' +
-            seekIndex + ', amount: ' + amount);
+            desiredHighAbsoluteIndex + ', amount: ' + amount);
 
-        listCursor.list.seekFocusedOnAbsoluteIndex(seekIndex,
-                                                              amount, amount);
+        listCursor.list.seekFocusedOnAbsoluteIndex(desiredHighAbsoluteIndex,
+                                              amount, amount, amount, amount);
         this.waitingOnChunk = true;
       }
     },
