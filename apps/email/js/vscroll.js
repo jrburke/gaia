@@ -364,7 +364,7 @@ define(function(require, exports, module) {
         // scrolling up
         startIndex = visibleRange[0] - this.prerenderItemCount;
         endIndex = visibleRange[1];
-        // no need to prepareData; it's already there!
+        this.prepareData(startIndex);
       }
 
       this._render(startIndex, endIndex);
