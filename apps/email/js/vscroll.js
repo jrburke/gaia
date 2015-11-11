@@ -163,12 +163,6 @@ define(function(require, exports, module) {
     prerenderScreens: 3,
 
     /**
-     * The number of screens worth of items to prefetch (but not
-     * render!) beyond what we prerender.
-     */
-    prefetchScreens: 2,
-
-    /**
      * The number of extra screens worth of rendered items to keep
      * around beyond what is required for prerendering.  When
      * scrolling in a single direction, this ends up being the number
@@ -211,11 +205,6 @@ define(function(require, exports, module) {
      * The number of items to prerender (computed).
      */
     prerenderItemCount: undefined,
-
-    /**
-     * The number of items to prefetch (computed).
-     */
-    prefetchItemCount: undefined,
 
     /**
      * The number of items to render when (non-initial) recalculating.
@@ -302,8 +291,9 @@ define(function(require, exports, module) {
       for (var i = 0; i < dataList.length; i++) {
         var absoluteIndex = index + i;
         var node = this._getNodeFromDataIndex(absoluteIndex);
-        if (node) {
-          this.bindData(dataList[i], node);
+        var data  = dataList[i];
+        if (node && data) {
+          this.bindData(data, node);
         }
       }
     },
@@ -359,12 +349,13 @@ define(function(require, exports, module) {
         // both _render and prepareData clamp appropriately
         startIndex = visibleRange[0];
         endIndex = visibleRange[1] + this.prerenderItemCount;
-        this.prepareData(endIndex + this.prefetchItemCount);
+        this.prepareData(endIndex, this.prerenderItemCount);
       } else {
         // scrolling up
         startIndex = visibleRange[0] - this.prerenderItemCount;
         endIndex = visibleRange[1];
-        this.prepareData(startIndex);
+        this.prepareData(startIndex - this.prerenderItemCount,
+                         this.prerenderItemCount);
       }
 
       this._render(startIndex, endIndex);
@@ -408,7 +399,7 @@ define(function(require, exports, module) {
       this._render(startIndex, endIndex);
       // make sure we have at least enough data to cover what we want
       // to display
-      this.prepareData(endIndex);
+      this.prepareData(endIndex, this.prerenderItemCount);
     },
 
     /**
@@ -635,8 +626,6 @@ define(function(require, exports, module) {
       this.itemsPerScreen = Math.ceil(this.innerHeight / this.itemHeight);
       this.prerenderItemCount =
         Math.ceil(this.itemsPerScreen * this.prerenderScreens);
-      this.prefetchItemCount =
-        Math.ceil(this.itemsPerScreen * this.prefetchScreens);
       this.recalculatePaddingItemCount =
         Math.ceil(this.itemsPerScreen * this.recalculatePaddingScreens);
 
