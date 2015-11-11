@@ -59,7 +59,7 @@ return [
       // We need to wait for the slice to complete before we can issue any
       // sensible growth requests.
       this.waitingOnChunk = true;
-      this.desiredHighAbsoluteIndex = 0;
+      this._loadNextChunkArgs = null;
       this._needVScrollData = false;
       this.vScroll = new VScroll(
         this.vScrollContainer,
@@ -76,12 +76,12 @@ return [
       // future. VScroll does not know if it already asked for this
       // information, so this function needs to be sure it actually needs to
       // ask for more from the back end.
-      this.vScroll.prepareData = (highAbsoluteIndex) => {
-        var items = this.listCursor.list &&
-                    this.listCursor.list.items,
-            totalCount = this.listCursor.list.totalCount;
+      this.vScroll.prepareData =
+                         (highAbsoluteIndex, prerenderCount) => {
+        var listCursor = this.listCursor,
+            totalCount = listCursor.list.totalCount;
 
-        if (!items || !totalCount) {
+        if (!listCursor.list.items || !totalCount) {
           return;
         }
 
@@ -92,7 +92,7 @@ return [
           highAbsoluteIndex = 0;
         }
 
-        this.loadNextChunk(highAbsoluteIndex);
+        this.loadNextChunk(highAbsoluteIndex, prerenderCount);
       };
 
       // Find the containing element that is a card, for use when asking if that
@@ -286,9 +286,9 @@ return [
 
       this.waitingOnChunk = false;
       // Load next chunk if one is pending
-      if (this.desiredHighAbsoluteIndex) {
-        this.loadNextChunk(this.desiredHighAbsoluteIndex);
-        this.desiredHighAbsoluteIndex = 0;
+      if (this._loadNextChunkArgs) {
+        this.loadNextChunk.apply(this, this._loadNextChunkArgs);
+        this._loadNextChunkArgs = null;
       }
 
       if (!items[0]) {
@@ -328,7 +328,7 @@ return [
      *
      * @param  {Number} desiredHighAbsoluteIndex
      */
-    loadNextChunk: function(desiredHighAbsoluteIndex) {
+    loadNextChunk: function(desiredHighAbsoluteIndex, prerenderCount) {
       // The recalculate logic will trigger a call to prepareData, so
       // it's okay for us to bail.  It's advisable for us to bail
       // because any calls to prepareData will be based on outdated
@@ -338,39 +338,34 @@ return [
       }
 
       if (this.waitingOnChunk) {
-        this.desiredHighAbsoluteIndex = desiredHighAbsoluteIndex;
+        this._loadNextChunkArgs =
+                      [desiredHighAbsoluteIndex, prerenderCount];
         return;
       }
 
       // Do not bother asking for more than exists
       var listCursor = this.listCursor,
+          offset = listCursor.list.offset,
+          items = listCursor.list.items,
           totalCount = listCursor.list.totalCount;
 
-      if (desiredHighAbsoluteIndex >= totalCount) {
-console.log('loadNextChunk desiredHighAbsoluteIndex too big, skipping: ' +
-            desiredHighAbsoluteIndex);
+      if (desiredHighAbsoluteIndex >= totalCount ||
+          // Already have enough data prepped, no need to seek.
+          (desiredHighAbsoluteIndex >= offset &&
+          desiredHighAbsoluteIndex <= offset + items.length)) {
         return;
       }
 
-      var amount = 25;
+      var amount = prerenderCount * 2;
 
-      if (amount > 0) {
-        // IMPORTANT NOTE!
-        // 1 is unfortunately a special value right now for historical reasons
-        // that the other side interprets as a request to grow downward with the
-        // default growth size.  XXX change backend and its tests...
-        console.log('message_list loadNextChunk growing', amount,
-                    'to',
-                    (desiredHighAbsoluteIndex + 1), 'items out of',
-                    totalCount, 'alleged known');
+      console.log('message_list loadNextChunk seeking to',
+                   desiredHighAbsoluteIndex,
+                  'prerenderCount:', prerenderCount,
+                  'items out of', totalCount, 'alleged known');
 
-console.log('MSG_VSCROLL CALLING seekFocusedOnAbsoluteIndex, index: ' +
-            desiredHighAbsoluteIndex + ', amount: ' + amount);
-
-        listCursor.list.seekFocusedOnAbsoluteIndex(desiredHighAbsoluteIndex,
-                                              amount, amount, amount, amount);
-        this.waitingOnChunk = true;
-      }
+      listCursor.list.seekFocusedOnAbsoluteIndex(desiredHighAbsoluteIndex,
+              amount, amount, amount, amount);
+      this.waitingOnChunk = true;
     },
 
     /**
