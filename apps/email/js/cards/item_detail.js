@@ -54,15 +54,25 @@ return [
         this.convList.classList.add('collapsed');
         this.reader.classList.remove('collapsed');
 
-        var messageList = mailConversation.viewMessages();
-console.log('ITEM_DETAIL CALLING SEEKTOTOP 1, 1');
-        messageList.seekToTop(1, 1);
-        messageList.once('seeked', () => {
+        var onSeeked = () => {
           var message = messageList.items[0];
+          if (!message) {
+            //todo: figure out why this can happen. This is why this is a
+            // separate function that is a on('seeked' instead of a
+            // once('seeked')
+            console.error('Unexpected: no message in item_detail seeked.');
+            return;
+          }
+          messageList.removeListener(onSeeked);
 
           this.reader.setCurrentMessage(new ListCursor
                      .CurrentItem(message, currentItem.siblings));
-        });
+        };
+
+        var messageList = mailConversation.viewMessages();
+console.log('ITEM_DETAIL CALLING SEEKTOTOP 1, 1');
+        messageList.seekToTop(1, 1);
+        messageList.on('seeked', onSeeked);
       } else {
         this.convList.classList.remove('collapsed');
         this.reader.classList.add('collapsed');
