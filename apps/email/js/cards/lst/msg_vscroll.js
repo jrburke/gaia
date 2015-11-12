@@ -19,7 +19,6 @@ return [
     createdCallback: function() {
 //todo: remove this long term if gelam supports knowing this on the list itself.
       this.listIsGrowing = false;
-      this.listGrowComplete = null;
 
       this.setAttribute('role', 'listbox');
       this.setAttribute('aria-multiselectable', 'true');
@@ -112,10 +111,6 @@ return [
       this.releaseFromListCursor();
 
       this.listIsGrowing = false;
-      if (this.listGrowComplete) {
-        this.listCursor.list.removeListener(this.listGrowComplete);
-      }
-
 
       if (this.listCursor) {
         this.listCursor.removeObjectListener(this);
@@ -173,24 +168,17 @@ return [
       // will get updated to the right place.
       this.vScroll.once('recalculated', (calledFromTop, refIndex) => {
         // refIndex is the index of the first new message item.
-        this.vScrollContainer.querySelector(
-          '[data-index="' + refIndex + '"]').focus();
+        var focusElement = this.vScrollContainer.querySelector(
+                           '[data-index="' + refIndex + '"]');
+        if (focusElement) {
+          focusElement.focus();
+        } else {
+          console.error('Unexpected: could not find focusElement ' +
+                        'on vscroll recalculated');
+        }
       });
 
-//todo: check this is correct.
       this.listIsGrowing = true;
-      this.emit('listGrowChange', this.listIsGrowing);
-
-      if (this.listGrowComplete) {
-        this.listCursor.list.removeListener(this.listGrowComplete);
-      }
-
-      this.listGrowComplete = () => {
-        this.listIsGrowing = false;
-        this.emit('listGrowChange', this.listIsGrowing);
-      };
-
-      this.listCursor.list.once('complete', this.listGrowComplete);
       this.listCursor.list.grow();
     },
 
@@ -220,15 +208,15 @@ return [
       var syncStatus = this.model && this.model.folder &&
                        this.model.folder.syncStatus;
 
+      var syncInProgress = syncStatus === 'pending' || syncStatus === 'active';
 
-      var syncInProgress = syncStatus === 'pending' ||
-                           status === 'active' || this.listIsGrowing;
-
-      if (syncInProgress) {
+      if (syncInProgress && this.listIsGrowing) {
           this.syncingNode.classList.remove('collapsed');
           this.syncMoreNode.classList.add('collapsed');
           this.hideEmptyLayout();
       } else {
+        this.listIsGrowing = false;
+
         //todo: redo once syncBlocked is available.
         // if (newStatus === 'syncfailed') {
           // If there was a problem talking to the server, notify the user and
@@ -236,7 +224,7 @@ return [
           // made onRefresh pretty clever, so it can do all the legwork on
           // accomplishing this goal.
         //   toaster.toast({
-        //     text: mozL10n.get('toaster-retryable-syncfailed')
+        //     text: mozL10n////get('toaster-retryable-syncfailed')
         //   });
         // }
         this.syncingNode.classList.add('collapsed');
