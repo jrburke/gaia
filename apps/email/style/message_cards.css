@@ -1007,6 +1007,6 @@ html[dir="rtl"] .msg-reply-menu menu > button:before { float: right; }
 .conv-list-subject {
   padding: 1rem 1.5rem 1rem 3rem;
   font-size: 1.6rem;
-  color: #707070;
+  color: #131313;
   background-color: #f2f2f2;
 }
