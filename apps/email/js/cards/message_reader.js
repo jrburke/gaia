@@ -132,7 +132,7 @@ return [
           composer
         });
       }).then(() => {
-        cards.removeCard(this);
+        cards.remove(this);
       }).catch(function(err) {
         console.log(err);
       });
