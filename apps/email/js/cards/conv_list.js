@@ -91,7 +91,9 @@ return [
       // moot.
       this.msgVScroll._snippetRequestPending = false;
 
-      listCursor.bindToList(mailConversation.viewMessages());
+      if (mailConversation) {
+        listCursor.bindToList(mailConversation.viewMessages());
+      }
 
       // Previous.
       var hasPrevious = currentItem.siblings.hasPrevious;
@@ -164,9 +166,11 @@ return [
     updateTitle: function(mailConversation) {
       messageDisplay.subject(this.subjectDisplay, mailConversation);
 
-      requestAnimationFrame(() => {
-        FontSizeUtils._reformatHeaderText(this.folderLabel);
-      });
+      if (mailConversation) {
+        requestAnimationFrame(() => {
+          FontSizeUtils._reformatHeaderText(this.folderLabel);
+        });
+      }
     },
 
     /**

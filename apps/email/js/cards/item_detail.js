@@ -3,6 +3,16 @@ define(function(require) {
 
 var ListCursor = require('list_cursor');
 
+// The no-state currentItem to use when wanting to clear the display
+// of a sub-view.
+var emptyItem = {
+  currentItem: null,
+  siblings: {
+    hasPrevious: false,
+    hasNext: false
+  }
+};
+
 return [
   require('./base_card')(require('template!./item_detail.html')),
   {
@@ -73,11 +83,19 @@ return [
 console.log('ITEM_DETAIL CALLING SEEKTOTOP 1, 1');
         messageList.seekToTop(1, 1);
         messageList.on('seeked', onSeeked);
+
+        // Clear the conv view so that next transition to it does not show
+        // the previous state.
+        this.convList.setCurrentItem(emptyItem);
       } else {
         this.convList.classList.remove('collapsed');
         this.reader.classList.add('collapsed');
 
         this.convList.setCurrentItem(currentItem);
+
+        // Clear the reader view so that next transition to it does not show
+        // the previous state.
+        this.reader.setCurrentMessage(emptyItem);
       }
     },
 

@@ -42,7 +42,14 @@ return [
       this._message = message;
       var domNode = this;
 
-      this.classList.toggle('draft', message.isDraft);
+      if (!message) {
+        domNode.dispatchEvent(new CustomEvent('updateFromName', {
+          detail: undefined
+        }));
+        return;
+      }
+
+      this.classList.toggle('draft', !message || message.isDraft);
 
       // -- Header
       function updatePeep(peep) {
