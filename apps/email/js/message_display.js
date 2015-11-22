@@ -13,18 +13,19 @@ define(function(require) {
      *
      * @param {DOMElement} subjectNode the DOM node for the message's
      * subject.
-     * @param {Object} message the message object.
+     * @param {Object} [message] the message object. If this is a falsey value,
+     * then it just indicates the subject should be cleared, empty display.
      */
     subject: function(subjectNode, message) {
-      var subject = message.firstSubject || message.subject;
+      var subject = message && (message.firstSubject || message.subject);
 
-      if (subject) {
-        subject = subject.trim();
+      // No message object means
+      if (!message || subject) {
+        subject = subject ? subject.trim() : '';
         subjectNode.textContent = subject;
         subjectNode.classList.remove('msg-no-subject');
         subjectNode.removeAttribute('data-l10n-id');
-      }
-      else {
+      } else {
         mozL10n.setAttributes(subjectNode, 'message-no-subject');
         subjectNode.classList.add('msg-no-subject');
       }

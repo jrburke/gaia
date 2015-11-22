@@ -4,8 +4,7 @@ define(function(require) {
 var cards = require('cards'),
     date = require('date'),
     evt = require('evt'),
-    largeMessageConfirm = require('./msg/large_message_confirm'),
-    messageDisplay = require('message_display');
+    largeMessageConfirm = require('./msg/large_message_confirm');
 
 return [
   require('./base_card')(require('template!./message_reader.html')),
@@ -99,15 +98,17 @@ return [
 
       this.envelopeBar.setMessage(this.message);
 
-      // If message is too big, ask first before downloading. If user declines,
-      // then just go back a screen, since canceling the event is difficult
-      // to know without too much coupling (was a next/prev arrow pushed, or
-      // did the message come from a list view?).
-      largeMessageConfirm(this.message).then(() => {
-        this.bodyContainer.setState(this.model, this.message);
-      }, () => {
-        this.onBack();
-      });
+      if (this.message) {
+        // If message is too big, ask first before downloading. If user
+        // declines, then just go back a screen, since canceling the event is
+        // difficult to know without too much coupling (was a next/prev arrow
+        // pushed, or did the message come from a list view?).
+        largeMessageConfirm(this.message).then(() => {
+          this.bodyContainer.setState(this.model, this.message);
+        }, () => {
+          this.onBack();
+        });
+      }
 
       this.buildHeaderDom(this);
 
@@ -144,14 +145,14 @@ return [
     },
 
     buildHeaderDom: function(domNode) {
-      var message = this.message;
+      var dateTime,
+          message = this.message;
 
       var dateNode = domNode.querySelector('.msg-envelope-date');
-      var dateTime = dateNode.dataset.time = message.date.valueOf();
+      if (message) {
+        dateTime = dateNode.dataset.time = message.date.valueOf();
+      }
       date.relativeDateElement(dateNode, dateTime);
-
-      messageDisplay.subject(domNode.querySelector('.msg-envelope-subject'),
-                             message);
     },
 
     clearDom: function() {
