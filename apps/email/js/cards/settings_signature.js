@@ -1,6 +1,7 @@
 'use strict';
 define(function(require) {
 var backFormNode = require('tmpl!./sig/save_signature.html'),
+    cards = require('cards'),
     setStatusColor = require('set_status_color'),
     trailingRegExp = /\s+$/;
 
@@ -27,6 +28,10 @@ return [
       return text;
     },
 
+    goBack: function() {
+      cards.back('animate');
+    },
+
     onBack: function() {
       var signature = this.getTextFromEditor();
       if (signature === this.identity.signature) {
@@ -39,7 +44,7 @@ return [
       document.body.appendChild(menu);
 
       var formSubmit = (evt) => {
-        setStatusColor();
+        setStatusColor(this);
         document.body.removeChild(menu);
         this._savePromptMenu = null;
 
