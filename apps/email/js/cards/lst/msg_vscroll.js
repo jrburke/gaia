@@ -376,7 +376,9 @@ return [
     },
 
     _requestSnippets: function() {
-      this.listCursor.list.ensureSnippets();
+      if (this.listCursor.list) {
+        this.listCursor.list.ensureSnippets();
+      }
     },
 
     releaseFromListCursor: function() {
