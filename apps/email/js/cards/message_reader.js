@@ -4,7 +4,8 @@ define(function(require) {
 var cards = require('cards'),
     date = require('date'),
     evt = require('evt'),
-    largeMessageConfirm = require('./msg/large_message_confirm');
+    largeMessageConfirm = require('./msg/large_message_confirm'),
+    messageDisplay = require('message_display');
 
 return [
   require('./base_card')(require('template!./message_reader.html')),
@@ -153,6 +154,8 @@ return [
         dateTime = dateNode.dataset.time = message.date.valueOf();
       }
       date.relativeDateElement(dateNode, dateTime);
+      messageDisplay.subject(domNode.querySelector('.msg-envelope-subject'),
+                             message);
     },
 
     clearDom: function() {
