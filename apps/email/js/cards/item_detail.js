@@ -22,6 +22,7 @@ return [
 
     onArgs: function(args) {
       this.model = args.model;
+      this.focusedView = null;
 
       this.listCursor = args.listCursor;
       this.onCurrentItem = (currentItem) => {
@@ -51,7 +52,9 @@ return [
     },
 
     onCardVisible: function() {
-      this.convList.onCardVisible();
+      if (this.focusedView === this.convList) {
+        this.convList.onCardVisible();
+      }
     },
 
     readerAdvance: function (direction) {
@@ -63,6 +66,7 @@ return [
       if (mailConversation.messageCount < 2) {
         this.convList.classList.add('collapsed');
         this.reader.classList.remove('collapsed');
+        this.focusedView = this.reader;
 
         var onSeeked = () => {
           var message = messageList.items[0];
@@ -90,8 +94,10 @@ console.log('ITEM_DETAIL CALLING SEEKTOTOP 1, 1');
       } else {
         this.convList.classList.remove('collapsed');
         this.reader.classList.add('collapsed');
+        this.focusedView = this.convList;
 
         this.convList.setCurrentItem(currentItem);
+        this.convList.onCardVisible();
 
         // Clear the reader view so that next transition to it does not show
         // the previous state.
