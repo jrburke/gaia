@@ -99,10 +99,10 @@ return [
                            vScrollBindData,
                            defaultSearchVScrollData);
 
-      this._topBar = new MessageListTopBar(
+      this.topBar = new MessageListTopBar(
         this.querySelector('.message-list-topbar')
       );
-      this._topBar.bindToElements(this.scrollContainer,
+      this.topBar.bindToElements(this.scrollContainer,
                                   this.msgVScroll.vScroll);
     },
 
@@ -246,8 +246,7 @@ return [
       // If the placeholder data, indicate that in case VScroll
       // wants to go back and fix later.
       var classAction = message.isPlaceholderData ? 'add' : 'remove';
-      var defaultDataClass = this.msgVScroll.vScroll.itemDefaultDataClass;
-      msgNode.classList[classAction](defaultDataClass);
+      msgNode.classList[classAction]('default-data');
 
       // Even though updateMatchedMessageDom is only used in searches,
       // which likely will not be cached, the dataset.is is set to

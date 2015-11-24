@@ -34,6 +34,9 @@ if (typeof TestUrlResolver === 'undefined') {
         deps: ['l10nbase'],
         exports: 'mozIntl'
       },
+      font_size_utils: {
+        exports: 'FontSizeUtils'
+      },
       'shared/js/mime_mapper': {
         exports: 'MimeMapper'
       },
@@ -58,6 +61,18 @@ if (typeof TestUrlResolver === 'undefined') {
       template: {
         tagToId: function(tag) {
            return tag.replace(/^cards-/, 'cards/')
+                  .replace(/^fld-/, 'cards/fld/')
+                  .replace(/^lst-/, 'cards/lst/')
+                  .replace(/^msg-/, 'cards/msg/')
+                  .replace(/^cmp-/, 'cards/cmp/')
+                  .replace(/-/g, '_');
+        }
+      },
+
+      element_deps: {
+        tagToId: function(tag) {
+           return tag.replace(/^cards-/, 'cards/')
+                  .replace(/^fld-/, 'cards/fld/')
                   .replace(/^lst-/, 'cards/lst/')
                   .replace(/^msg-/, 'cards/msg/')
                   .replace(/^cmp-/, 'cards/cmp/')
@@ -68,11 +83,13 @@ if (typeof TestUrlResolver === 'undefined') {
       element: {
         chainMethods: {
           onArgs: true,
-          release: true
+          release: true,
+          renderEnd: true
         },
 
         idToTag: function(id) {
           return id.toLowerCase()
+                 .replace(/^cards\/fld\//, 'fld-')
                  .replace(/^cards\/lst\//, 'lst-')
                  .replace(/^cards\/msg\//, 'msg-')
                  .replace(/^cards\/cmp\//, 'cmp-')

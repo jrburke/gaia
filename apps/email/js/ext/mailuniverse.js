@@ -148,7 +148,7 @@ define(function (require) {
       console.log('======================');
       // XXX proper logging configuration again once things start working
       // XXX XXX XXX XXX XXX XXX XXX
-      logic.realtimeLogEverything = true;
+//      logic.realtimeLogEverything = true;
 
       // XXX hack to skip the next logic without the linter.
       config = null;

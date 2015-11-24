@@ -1,6 +1,5 @@
+define(function(require, exports) {
 'use strict';
-
-define(function(require, exports, module) {
 
   var evt = require('evt'),
       slice = Array.prototype.slice,
@@ -210,14 +209,6 @@ define(function(require, exports, module) {
      * The number of items to render when (non-initial) recalculating.
      */
     recalculatePaddingItemCount: undefined,
-
-    /**
-     * The class to find items that have their default data set,
-     * in the case where a scroll into a cache has skipped updates
-     * because a previous fast scroll skipped the updates since they
-     * were not visible at the time of that fast scroll.
-     */
-    itemDefaultDataClass: 'default-data',
 
     /**
      * Hook that is implemented by the creator of a VScroll instance.

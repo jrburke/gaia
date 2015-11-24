@@ -1,20 +1,15 @@
-/*global FontSizeUtils, requestAnimationFrame */
-'use strict';
-
 define(function(require, exports, module) {
+'use strict';
 
 var cards = require('cards'),
     date = require('date'),
-    defaultVScrollData = require('./lst/default_vscroll_data'),
     evt = require('evt'),
-    toaster = require('toaster'),
+    itemTemplateNode = require('tmpl!./msg/message_item.html'),
     ListCursor = require('list_cursor'),
-    htmlCache = require('html_cache'),
-    mozL10n = require('l10n!'),
-    MessageListTopBar = require('message_list_topbar'),
     messageDisplay = require('message_display'),
-    updatePeepDom = require('./lst/peep_dom').update,
-    VScroll = require('vscroll');
+    mozL10n = require('l10n!'),
+    toaster = require('toaster'),
+    updatePeepDom = require('./lst/peep_dom').update;
 
 /**
  * List messages for listing the contents of folders. Multi-editing is just a
@@ -28,8 +23,6 @@ var cards = require('cards'),
  * state by looking at the use the usingCachedNode property. It also prevents
  * clicks from button actions that need back end data to complete if the click
  * would result in a card that cannot also handle delayed back end startup.
- * It tracks if the back end has started up by checking curFolder, which is
- * set to a data object sent from the back end.
  *
  * == Less-than-infinite scrolling ==
  *
@@ -59,125 +52,98 @@ var cards = require('cards'),
  *
  */
 return [
-  require('./base_card')(require('template!./message_list.html')),
+  require('./base_render')(['this.model'], function(html) {
+    if (!this.model) {
+      return;
+    }
+
+    html`
+    <!-- Non-search header -->
+    <section data-prop="normalHeader"
+             class="msg-list-header"
+             data-statuscolor="default"
+             role="region">
+      <header>
+        <!-- Unlike a generic back button that navigates to a different screen,
+           folder list header button triggers the folders and settings overlay.
+           Thus the screen reader user requires more context as to what
+           activating the button would do. -->
+        <a href="#" class="msg-folder-list-btn" data-event="click:onShowFolders"
+           aria-expanded="false" aria-controls="cards-folder-picker"
+           role="button" data-l10n-id="message-list-menu">
+          <span class="icon icon-menu"></span>
+        </a>
+        <menu data-prop="headerMenuNode" type="toolbar" class="anim-opacity">
+          <a href="#" class="msg-compose-btn" data-event="click:onCompose"
+             data-l10n-id="message-list-compose">
+            <span class="icon icon-compose"></span>
+          </a>
+        </menu>
+        <h1 class="msg-list-header-folder-label header-label">
+          <lst-folder-title data-model-args></lst-folder-title>
+        </h1>
+      </header>
+    </section>
+
+    <!-- Multi-edit state header -->
+    <lst-edit-header data-prop="editHeader"
+                           data-event="editHeaderClose"></lst-edit-header>
+    <!-- Scroll region -->
+    <lst-msg-vscroll-container class="msg-list-scrollouter"
+                            data-prop="msgVScrollContainer"
+                            data-pass-prop="=>updateMessageDom:updateMessageDom,
+                                            itemTemplateNode,
+                                            emptyListL10nId"
+                            data-event="messagesSeekStart,messagesSeekEnd,
+                            messagesChange,emptyLayoutShown,emptyLayoutHidden"
+                            data-model-args>
+      <lst-search-link data-slot-id="headerElement"></lst-search-link>
+    </lst-msg-vscroll-container>
+
+    <!-- Toolbar for non-multi-edit state -->
+    <ul data-prop="normalToolbar" class="bb-tablist msg-list-action-toolbar"
+        role="toolbar">
+      <li role="presentation">
+        <lst-sync-button data-model-args></lst-sync-button>
+      </li>
+      <li role="status" class="msg-last-sync">
+        <lst-last-synced data-prop="lastSynced"
+                               data-model-args></lst-last-synced>
+      </li>
+      <li role="presentation">
+        <button data-prop="editBtn" data-event="click:setEditModeStart"
+                class="icon msg-edit-btn" data-l10n-id="edit-button"></button>
+      </li>
+    </ul>
+
+    <lst-edit-toolbar data-prop="editToolbar"
+                      data-event="onArchiveMessages,onDeleteMessages,
+                                  onStarMessages,onMarkMessagesRead,
+                                  onMoveMessages">
+    </lst-edit-toolbar>
+    `;
+  }),
+
   require('./lst/edit_controller'),
   require('./lst/msg_click'),
+  require('./lst/message_list_cache'),
   {
     createdCallback: function() {
-      // Sync display
-      this._needsSizeLastSync = true;
-      this.updateLastSynced();
-
-      this.curFolder = null;
-      this.isIncomingFolder = true;
       this._emittedContentEvents = false;
-
-      this.usingCachedNode = this.dataset.cached === 'cached';
-
-      this.msgVScroll.on('syncComplete', this, 'onSyncComplete');
-
-      this.msgVScroll.on('messagesSpliceStart', this, function(whatChanged) {
-        this._clearCachedMessages();
-      });
-
-      this.msgVScroll.on('messagesSpliceEnd', this, function(whatChanged) {
-        // Only cache if it is an add or remove of items
-        if (whatChanged.totalCount) {
-          this._considerCacheDom(
-            this.msgVScroll.listCursor.list.offset
-          );
-        }
-
-        // Inform that content is ready. There could actually be a small delay
-        // with vScroll.updateDataBind from rendering the final display, but it
-        // is small enough that it is not worth trying to break apart the design
-        // to accommodate this metrics signal.
-        if (!this._emittedContentEvents) {
-          evt.emit('metrics:contentDone');
-          this._emittedContentEvents = true;
-        }
-      });
-
-      this.msgVScroll.on('messagesChange', this, function(message, index) {
-        this.onMessagesChange(message, index);
-      });
-
-      // Outbox has some special concerns, override status method to account for
-      // it. Do this **before** initing the vscroll, so that the override is
-      // used.
-//todo: what to do now instead of status?
-      // var oldMessagesStatus = this.msgVScroll.messages_status;
-      // this.msgVScroll.messages_status = (newStatus) => {
-      //   // The outbox's refresh button is used for sending messages, so we
-      //   // ignore any syncing events generated by the slice. The outbox
-      //   // doesn't need to show many of these indicators (like the "Load
-      //   // More Messages..." node, etc.) and it has its own special
-      //   // "refreshing" display, as documented elsewhere in this file.
-      //   if (!this.curFolder || this.curFolder.type === 'outbox') {
-      //     return;
-      //   }
-
-      //   return oldMessagesStatus.call(this.msgVScroll, newStatus);
-      // };
-
-      this.msgVScroll.on('emptyLayoutShown', this, function() {
-        this._clearCachedMessages();
-
-        // The outbox can't refresh anything if there are no messages.
-        if (this.curFolder.type === 'outbox') {
-          this.refreshBtn.disabled = true;
-        }
-
-        this.editBtn.disabled = true;
-
-        this._hideSearchBoxByScrolling();
-
-      });
-      this.msgVScroll.on('emptyLayoutHidden', this, function() {
-        this.editBtn.disabled = false;
-        this.refreshBtn.disabled = false;
-      });
-
-      var vScrollBindData = (model, node) => {
-        model.element = node;
-        node.message = model;
-        this.updateMessageDom(model);
-      };
-
-      this.msgVScroll.init(this.scrollContainer,
-                           vScrollBindData,
-                           defaultVScrollData);
-
-      // Event listeners for VScroll events.
-      this.msgVScroll.vScroll.on('inited', this, '_hideSearchBoxByScrolling');
-      this.msgVScroll.vScroll.on('dataChanged',
-                                 this, '_hideSearchBoxByScrolling');
-      this.msgVScroll.vScroll.on('recalculated', this, function(calledFromTop) {
-        if (calledFromTop) {
-          this._hideSearchBoxByScrolling();
-        }
-      });
-
-      this._topBar = new MessageListTopBar(
-        this.querySelector('.message-list-topbar')
-      );
-      this._topBar.bindToElements(this.scrollContainer,
-                                  this.msgVScroll.vScroll);
-
+      this.curFolder = null;
       evt.on('folderPickerClosing', this, 'onFolderPickerClosing');
     },
 
     onArgs: function(args) {
       var model = this.model = args.model;
-      var listCursor = this.listCursor = args.listCursor || new ListCursor();
-      this.msgVScroll.setListCursor(listCursor, model);
-
-      model.latest('folder', this, '_folderChanged');
+      model.latest('folder', this, 'showFolder');
       // This event is generated by sync.js when it receives a sendStatus
       // notification and our app is already in the foreground so it's not
       // appropriate (per our UX) to use a system notification.
       model.on('uiForegroundSendStatus', this, 'onUiForegroundSendStatus');
     },
+
+    itemTemplateNode,
 
     /**
      * Inform Cards to not emit startup content events, this card will trigger
@@ -187,72 +153,13 @@ return [
      */
     skipEmitContentEvents: true,
 
-    postInsert: function() {
-      this._hideSearchBoxByScrolling();
-
-      // Now that _hideSearchBoxByScrolling has activated the display
-      // of the search box, get the height of the search box and tell
-      // vScroll about it, but only do this once the DOM is displayed
-      // so the ClientRect gives an actual height.
-      this.msgVScroll.vScroll.visibleOffset =
-                                  this.searchBar.getBoundingClientRect().height;
-
-      // Also tell the MessageListTopBar
-      this._topBar.visibleOffset = this.msgVScroll.vScroll.visibleOffset;
-
-      // For search we want to make sure that we capture the screen size prior
-      // to focusing the input since the FxOS keyboard will resize our window to
-      // be smaller which messes up our logic a bit.  We trigger metric
-      // gathering in non-search cases too for consistency.
-      this.msgVScroll.vScroll.captureScreenMetrics();
-    },
-
-    onSearchButton: function() {
-      // Do not bother if there is no current folder.
-      if (!this.curFolder) {
-        return;
-      }
-
-      //todo: commented out until search is usable.
-      require('not_implemented')('Search');
-      // cards.add('animate', 'message_list_search', {
-      //   model: this.model,
-      //   folder: this.curFolder
-      // });
-    },
-
-    _hideSearchBoxByScrolling: function() {
-      // scroll the search bit out of the way
-      var searchBar = this.searchBar,
-          scrollContainer = this.scrollContainer;
-
-      // Search bar could have been collapsed with a cache load,
-      // make sure it is visible, but if so, adjust the scroll
-      // position in case the user has scrolled before this code
-      // runs.
-      if (searchBar.classList.contains('collapsed')) {
-        searchBar.classList.remove('collapsed');
-        scrollContainer.scrollTop += searchBar.offsetHeight;
-      }
-
-      // Adjust scroll position now that there is something new in
-      // the scroll region, but only if at the top. Otherwise, the
-      // user's purpose scroll positioning may be disrupted.
-      //
-      // Note that when we call vScroll.clearDisplay() we
-      // inherently scroll back up to the top, so this check is still
-      // okay even when switching folders.  (We do not want to start
-      // index 50 in our new folder because we were at index 50 in our
-      // old folder.)
-      if (scrollContainer.scrollTop === 0) {
-        scrollContainer.scrollTop = searchBar.offsetHeight;
-      }
-    },
+    // Passed to the msg_vscroll_container.
+    emptyListL10nId: 'messages-folder-empty',
 
     onShowFolders: function() {
       cards.add('immediate', 'folder_picker', {
         model: this.model
-      }).then((domNode) => {
+      }).then(() => {
         this.headerMenuNode.classList.add('transparent');
       });
     },
@@ -264,146 +171,42 @@ return [
     },
 
     /**
-     * If the last synchronised label is more than half the length
-     * of its display area, set a "long" style on it that allows
-     * different styling. But only do this once per card instance,
-     * the label should not change otherwise.
-     * TODO though, once locale changing in app is supported, this
-     * should be revisited.
-     */
-    sizeLastSync: function() {
-      if (this._needsSizeLastSync && this.lastSyncedLabel.scrollWidth) {
-        var label = this.lastSyncedLabel;
-        var overHalf = label.scrollWidth > label.parentNode.clientWidth / 2;
-        label.parentNode.classList[(overHalf ? 'add' : 'remove')]('long');
-        this._needsSizeLastSync = false;
-      }
-    },
-
-    updateLastSynced: function(value) {
-      var method = value ? 'remove' : 'add';
-      this.lastSyncedLabel.classList[method]('collapsed');
-      date.setPrettyNodeDate(this.lastSyncedAtNode, value);
-      this.sizeLastSync();
-    },
-
-    updateUnread: function(num) {
-      var content = '';
-      if (num > 0) {
-        content = num > 999 ? mozL10n.get('messages-folder-unread-max') : num;
-      }
-
-      this.folderUnread.textContent = content;
-      this.folderUnread.classList.toggle('collapsed', !content);
-      this.callHeaderFontSize();
-    },
-
-    /**
-     * A workaround for font_size_utils not recognizing child node content
-     * changing, and if it did, it would be noisy/extra work if done
-     * generically. Using a rAF call to not slow down the rest of card updates,
-     * it is something that can happen lazily on another turn.
-     */
-    callHeaderFontSize: function(node) {
-      requestAnimationFrame(() => {
-        FontSizeUtils._reformatHeaderText(this.folderLabel);
-      });
-    },
-
-    onFolderPropsChange: function() {
-      var folder = this.curFolder;
-
-      this.folderNameNode.textContent = folder.name;
-      this.updateUnread(folder.localUnreadConversations);
-      this.msgVScroll.setAttribute('aria-label', folder.name);
-
-      // BIG ASUTH NOTE!
-      // The WindowedListView's tocMeta can now provide all of
-      // lastSuccessfulSyncAt, syncStatus, and syncBlocked information.  In
-      // particular, lastSuccessfulSyncAt is magically latched to only update
-      // when the syncComplete notification is generated after the entire task
-      // group completes.  The one on the folder updates as part of the
-      // sync_refresh task, which can be more confusing.
-      //
-      // BUT, the tocMeta currently does not provide localUnreadConversations.
-      // The rationale was that it could be hard/expensive to provide it as a
-      // summary statistic in all cases, namely search-on-server, so it might
-      // be better to (at least for now) treat the things in the header as
-      // something the front-end is responsible for tracking.
-      //
-      // I've filed https://bugzilla.mozilla.org/show_bug.cgi?id=1241001 to
-      // track the larger conceptual issue and discussion.  The bottom line for
-      // this code here is that it could also be getting some of its data off of
-      // the `tocMeta` if it wants.
-      this.updateLastSynced(folder.lastSuccessfulSyncAt);
-
-      // You can't refresh messages in the localdrafts folder.
-      this.refreshBtn.classList.toggle('collapsed',
-                                               folder.type === 'localdrafts');
-
-      // Update refresh icon.
-      //todo: consder effects of .syncBlocked when implemented on back end.
-      if (folder.syncStatus === 'pending' || folder.syncStatus === 'active') {
-        this.setRefreshState(true);
-      } else {
-        this.setRefreshState(false);
-      }
-    },
-
-    /**
      * Show a folder, returning true if we actually changed folders or false if
      * we did nothing because we were already in the folder.
      */
     showFolder: function(folder) {
-      if (folder === this.curFolder) {
-        return false;
+      if (this.curFolder === folder) {
+        return;
       }
-
-      // If using a cache, do not clear the HTML as it will
-      // be cleared once real data has been fetched.
-      if (!this.usingCachedNode) {
-        // This inherently scrolls us back up to the top of the list.
-        this.msgVScroll.vScroll.clearDisplay();
-      }
-      this.msgVScroll._needVScrollData = true;
-
-
-      if (folder) {
-        folder.removeObjectListener(this);
-      }
-
       this.curFolder = folder;
-      this.curFolder.on('change', this, 'onFolderPropsChange');
-      this.onFolderPropsChange();
 
       // Now that a folder is available, enable edit mode toggling.
       this.editModeEnabled = true;
+
+      this.editToolbar.updateDomFolderType(folder.type,
+                                           this.model.accountUsesArchive());
+
+      var listCursor = this.listCursor = new ListCursor();
+      listCursor.bindToList(this.model.api.viewFolderConversations(folder));
 
       switch (folder.type) {
         case 'drafts':
         case 'localdrafts':
         case 'outbox':
         case 'sent':
-          this.isIncomingFolder = false;
+          this.msgVScrollContainer.isIncomingFolder = false;
           break;
         default:
-          this.isIncomingFolder = true;
+          this.msgVScrollContainer.isIncomingFolder = true;
           break;
       }
 
-      this.msgVScroll.hideEmptyLayout();
+      this.msgVScrollContainer.listAriaLabel = folder.name;
 
-      this.editToolbar.updateDomFolderType(folder.type,
-                                           this.model.accountUsesArchive());
+      // Trigger model render for msgVScrollContainer.
+      this.msgVScrollContainer.emit('listCursor', listCursor);
 
       this.onFolderShown();
-
-      return true;
-    },
-
-    freshMessagesList: function() {
-      this.listCursor.bindToList(this.model.api
-                                  .viewFolderConversations(this.curFolder));
     },
 
     /**
@@ -416,7 +219,7 @@ return [
         return;
       }
 
-      if (this.curFolder.type === 'outbox') {
+      if (this.model.folder.type === 'outbox') {
         // You cannot edit the outbox messages if the outbox is syncing.
         if (editMode && this.outboxSyncInProgress) {
           return;
@@ -433,49 +236,6 @@ return [
         });
       } else {
         this._setEditMode(editMode);
-      }
-    },
-
-    /**
-     * Set the refresh button state based on the new message status.
-     */
-    setRefreshState: function(syncing) {
-      if (syncing) {
-          this.refreshBtn.dataset.state = 'synchronizing';
-          this.refreshBtn.setAttribute('role', 'progressbar');
-          mozL10n.setAttributes(this.refreshBtn, 'messages-refresh-progress');
-      } else {
-        this.refreshBtn.dataset.state = 'synchronized';
-        this.refreshBtn.removeAttribute('role');
-        mozL10n.setAttributes(this.refreshBtn, 'messages-refresh-button');
-      }
-    },
-
-    // The syncComplete event will be generated whenever a sync occurs in
-    // whatever is backing our current list view.  This occurs regardless of our
-    // virtual scroll position.  It's called a newish count because it covers
-    // both entirely new conversations and conversations that had a new
-    // message added to them.  (And this occurs for all folders.  Not just the
-    // inbox, as was the pre-convoy case.  When we get search filters and
-    // unified folders, this will also notify for them too with sane semantics.)
-    onSyncComplete: function({ newishCount, thisViewTriggered }) {
-      if (newishCount > 0) {
-        if (!cards.isVisible(this)) {
-          // todo: think about this more deeply and/or document the expected
-          // scenario when this would occur.  The back-end can provide stickier
-          // information if desired.
-          this._whenVisible = this.onSyncComplete.bind(this, { newishCount });
-          return;
-        }
-
-        // If the user manually synced, then want to jump to show the new
-        // messages. Otherwise, show the top bar.
-        if (thisViewTriggered) {
-          this.msgVScroll.vScroll.jumpToIndex(0);
-        } else {
-          // Update the existing status bar.
-          this._topBar.showNewEmailCount(newishCount);
-        }
       }
     },
 
@@ -506,121 +266,205 @@ return [
     },
 
     /**
-     * How many items in the message list to keep for the _cacheDom call.
-     * @type {Number}
+     * Called when the folder picker is animating to close. Need to
+     * listen for it so this card can animate fading in the header menu.
      */
-    _cacheListLimit: 7,
-
-    /**
-     * Tracks if a DOM cache save is scheduled for later.
-     * @type {Number}
-     */
-    _cacheDomTimeoutId: 0,
-
-    /**
-     * Confirms card state is in a visual state suitable for caching.
-     */
-    _isCacheableCardState: function() {
-      return this.cacheableFolderId === this.curFolder.id && !this.editMode;
+    onFolderPickerClosing: function() {
+      this.headerMenuNode.classList.remove('transparent');
     },
 
     /**
-     * Caches the DOM for this card, but trims it down a bit first.
+     * Listener called when a folder is shown. The listener emits an
+     * 'inboxShown' for the current account, if the inbox is really being shown
+     * and the app is visible. Useful if periodic sync is involved, and
+     * notifications need to be closed if the inbox is visible to the user.
      */
-    _cacheDom: function() {
-      this._cacheDomTimeoutId = 0;
-      if (!this._isCacheableCardState()) {
+    onFolderShown: function() {
+      var model = this.model,
+          account = model.account,
+          folder = model.folder;
+
+      // The extra checks here are to allow for lazy startup when we might have
+      // a card instance but not a full model available. Once the model is
+      // available though, this method will get called again, so the event
+      // emitting is still correctly done in the lazy startup case.
+      if (!document.hidden && account && folder) {
+        if (folder.type === 'inbox') {
+          evt.emit('inboxShown', account.id);
+        }
+      }
+    },
+
+    /**
+     * An API method for the cards infrastructure, that Cards will call when the
+     * page visibility changes and this card is the currently displayed card.
+     */
+    onCurrentCardDocumentVisibilityChange: function(hidden) {
+      if (!hidden) {
+        this.onFolderShown();
+      }
+    },
+
+    /**
+     * Called by Cards when the instance of this card type is the
+     * visible card.
+     */
+    onCardVisible: function() {
+      this.msgVScrollContainer.nowVisible();
+      this.lastSynced.nowVisible();
+    },
+
+    // Listener for msg_vscroll event.
+    messagesSeekStart: function() {
+      this._clearCachedMessages();
+    },
+
+    // Listener for msg_vscroll event.
+    messagesSeekEnd: function(event) {
+      var { index, totalCount } = event.detail;
+
+      // Only cache if it is an add or remove of items
+      if (totalCount) {
+        this._considerCacheDom(
+          index,
+          module.id
+        );
+      }
+
+      // Inform that content is ready. There could actually be a small delay
+      // with vScroll.updateDataBind from rendering the final display, but it
+      // is small enough that it is not worth trying to break apart the design
+      // to accommodate this metrics signal.
+      if (!this._emittedContentEvents) {
+        evt.emit('metrics:contentDone');
+        this._emittedContentEvents = true;
+      }
+    },
+
+    // Listener for msg_vscroll event.
+    emptyLayoutShown: function() {
+      this._clearCachedMessages();
+      this.editBtn.disabled = true;
+
+      this.scrollAreaInitialized();
+    },
+
+    // Listener for msg_vscroll event.
+    emptyLayoutHidden: function() {
+      this.editBtn.disabled = false;
+    },
+
+    //todo: test this, might need to do more here. Binds to
+    //this.listCursor.on('messageSuidNotFound',
+    //                   this.listNavOnMessageSuidNotFound);
+    listNavOnMessageSuidNotFound: function(messageSuid) {
+      // If no message was found, then go back. This card
+      // may have been created from obsolete data, like an
+      // old notification for a message that no longer exists.
+      // This stops atTop since the most likely case for this
+      // entry point is either clicking on a message that is
+      // at the top of the inbox in the HTML cache, or from a
+      // notification for a new message, which would be near
+      // the top.
+      if (this.messageSuid === messageSuid) {
+        this.onBack();
+      }
+    },
+
+    /**
+     * The outbox has a special role in the message_list, compared to
+     * other folders. We don't expect to synchronize the outbox with the
+     * server, but we do allow the user to use the refresh button to
+     * trigger all of the outbox messages to send.
+     *
+     * While they're sending, we need to display several spinny refresh
+     * icons: One next to each message while it's queued for sending,
+     * and also the main refresh button.
+     *
+     * However, the outbox send operation doesn't happen all in one go;
+     * the backend only fires one 'sendOutboxMessages' at a time,
+     * iterating through the pending messages. Fortunately, it notifies
+     * the frontend (via `onBackgroundSendStatus`) whenever the state of
+     * any message changes, and it provides a flag to let us know
+     * whether or not the outbox sync is fully complete.
+     *
+     * So the workflow for outbox's refresh UI display is as follows:
+     *
+     * 1. The user taps the "refresh" button. In response:
+     *
+     *    1a. Immediately make all visible refresh icons start spinning.
+     *
+     *    1b. Immediately kick off a 'sendOutboxMessages' job.
+     *
+     * 2. We will start to see send status notifications, in this
+     *    class's onBackgroundSendStatus notification. We listen to
+     *    these events as they come in, and wait until we see a
+     *    notification with state === 'syncDone'. We'll keep the main
+     *    refresh icon spinning throughout this process.
+     *
+     * 3. As messages send or error out, we will receive slice
+     *    notifications for each message (handled here in `messages_change`).
+     *    Since each message holds its own status as `header.sendProblems`,
+     *    we don't need to do anything special; the normal rendering logic
+     *    will reset each message's status icon to the appropriate state.
+     *
+     * But don't take my word for it; see `jobs/outbox.js` and
+     * `jobmixins.js` in GELAM for backend-centric descriptions of how
+     * the outbox sending process works.
+     */
+//todo: move to msg_vscroll?
+    toggleOutboxSyncingDisplay: function(syncing) {
+      // Use an internal guard so that we only trigger changes to the UI
+      // when necessary, rather than every time, which could break animations.
+      if (syncing === this._outboxSyncing) {
         return;
       }
 
-      // Safely clone the node so we can mutate the tree to cut out the parts
-      // we do not want/need.
-      var cacheNode =
-            htmlCache.cloneAsInertNodeAvoidingCustomElementHorrors(this);
+      this._outboxSyncing = syncing;
 
-      // Make sure toolbar is visible, could be hidden by drawer
-      cacheNode.querySelector('menu[type="toolbar"]')
-               .classList.remove('transparent');
+//todo: would be good to avoid reaching into vscroll for this.
+      var i;
+      var items = this.msgVScrollContainer.msgVScroll.getElementsByClassName(
+        'msg-message-syncing-section');
 
-      // Hide search field as it will not operate and gets scrolled out
-      // of view after real load.
-      var removableCacheNode = cacheNode.querySelector('.msg-search-tease-bar');
-      if (removableCacheNode) {
-        removableCacheNode.classList.add('collapsed');
+      if (syncing) {
+        // For maximum perceived responsiveness, show the spinning icons
+        // next to each message immediately, rather than waiting for the
+        // backend to actually start sending each message. When the
+        // backend reports back with message results, it'll update the
+        // icon to reflect the proper result.
+        for (i = 0; i < items.length; i++) {
+          items[i].classList.add('msg-message-syncing-section-syncing');
+          items[i].classList.remove('msg-message-syncing-section-error');
+        }
+
+        this.editBtn.disabled = true;
+      } else {
+        // After sync, the edit button should remain disabled only if
+        // the list is empty.
+//todo: would be good to avoid reaching into vscroll for this.
+        this.editBtn.disabled = this.msgVScrollContainer.msgVScroll.isEmpty();
+
+        // Similarly, we must stop the refresh icons for each message
+        // from rotating further. For instance, if we are offline, we
+        // won't actually attempt to send any of those messages, so
+        // they'll still have a spinny icon until we forcibly remove it.
+        for (i = 0; i < items.length; i++) {
+          items[i].classList.remove('msg-message-syncing-section-syncing');
+        }
       }
 
-      // Hide "new mail" topbar too
-      removableCacheNode = cacheNode.querySelector('.message-list-topbar');
-      if (removableCacheNode) {
-        this._topBar.resetNodeForCache(removableCacheNode);
-      }
-
-      // Hide the last sync number
-      var tempNode = cacheNode.querySelector('.msg-last-synced-label');
-      if (tempNode) {
-        tempNode.classList.add('collapsed');
-      }
-      tempNode = cacheNode.querySelector('.msg-last-synced-value');
-      if (tempNode) {
-        tempNode.innerHTML = '';
-      }
-
-      // Trim vScroll containers that are not in play
-      VScroll.trimMessagesForCache(
-        cacheNode.querySelector('.msg-vscroll-container'),
-        this._cacheListLimit
-      );
-
-      htmlCache.saveFromNode(module.id, cacheNode);
+//todo: this is not needed/valid any more?
+      this.setRefreshState(syncing);
     },
 
-    /**
-     * Considers a DOM cache, but only if it meets the criteria for what
-     * should be saved in the cache, and if a save is not already scheduled.
-     * @param  {Number} index the index of the message that triggered
-     *                  this call.
-     */
-    _considerCacheDom: function(index) {
-      // Only bother if not already waiting to update cache and
-      if (!this._cacheDomTimeoutId &&
-          // card visible state is appropriate
-          this._isCacheableCardState() &&
-          // if the scroll area is at the top (otherwise the
-          // virtual scroll may be showing non-top messages)
-          this.msgVScroll.vScroll.firstRenderedIndex === 0 &&
-          // if actually got a numeric index and
-          (index || index === 0) &&
-          // if it affects the data we cache
-          index < this._cacheListLimit) {
-        this._cacheDomTimeoutId = setTimeout(this._cacheDom.bind(this), 600);
-      }
-    },
+    messagesChange: function(event) {
+      var { message, index } = event;
 
-    /**
-     * Clears out the messages HTML in messageContainer from using the cached
-     * nodes that were picked up when the HTML cache of this list was used
-     * (which is indicated by usingCachedNode being true). The cached HTML
-     * needs to be purged when the real data is finally available and will
-     * replace the cached state. A more sophisticated approach would be to
-     * compare the cached HTML to what would be inserted in its place, and
-     * if no changes, skip this step, but that comparison operation could get
-     * tricky, and it is cleaner just to wipe it and start fresh. Once the
-     * cached HTML has been cleared, then usingCachedNode is set to false
-     * to indicate that the main piece of content in the card, the message
-     * list, is no longer from a cached node.
-     */
-    _clearCachedMessages: function() {
-      if (this.usingCachedNode) {
-        this.msgVScroll.removeMessagesHtml();
-        this.usingCachedNode = false;
-      }
-    },
-
-    onMessagesChange: function(message, index) {
       this.updateMessageDom(message);
 
       // Since the DOM change, cache may need to change.
-      this._considerCacheDom(index);
+      this._considerCacheDom(index, module.id);
     },
 
     /**
@@ -638,8 +482,7 @@ return [
       // If the placeholder data, indicate that in case VScroll
       // wants to go back and fix later.
       var classAction = message.isPlaceholderData ? 'add' : 'remove';
-      var defaultDataClass = this.msgVScroll.vScroll.itemDefaultDataClass;
-      msgNode.classList[classAction](defaultDataClass);
+      msgNode.classList[classAction]('default-data');
 
       // ID is stored as a data- attribute so that it can survive
       // serialization to HTML for storing in the HTML cache, and
@@ -748,222 +591,7 @@ return [
       this.updateDomSelectState(msgNode, message);
     },
 
-    /**
-     * Called when the folder picker is animating to close. Need to
-     * listen for it so this card can animate fading in the header menu.
-     */
-    onFolderPickerClosing: function() {
-      this.headerMenuNode.classList.remove('transparent');
-    },
-
-    /**
-     * Listener called when a folder is shown. The listener emits an
-     * 'inboxShown' for the current account, if the inbox is really being shown
-     * and the app is visible. Useful if periodic sync is involved, and
-     * notifications need to be closed if the inbox is visible to the user.
-     */
-    onFolderShown: function() {
-      var model = this.model,
-          account = model.account,
-          folders = account.folders;
-
-      // The extra checks here are to allow for lazy startup when we might have
-      // a card instance but not a full model available. Once the model is
-      // available though, this method will get called again, so the event
-      // emitting is still correctly done in the lazy startup case.
-      if (!document.hidden && account && folders && this.curFolder) {
-        var inboxFolder = folders.getFirstFolderWithType('inbox');
-        if (inboxFolder === this.curFolder) {
-          evt.emit('inboxShown', account.id);
-        }
-
-        // If user tapped in search box on message_list before the JS for the
-        // card is attached, then treat that as the signal to go to search. Only
-        // do this when first starting up though.
-        if (document.activeElement === this.searchTextTease) {
-          this.onSearchButton();
-        }
-      }
-    },
-
-    /**
-     * An API method for the cards infrastructure, that Cards will call when the
-     * page visibility changes and this card is the currently displayed card.
-     */
-    onCurrentCardDocumentVisibilityChange: function(hidden) {
-      if (!hidden) {
-        this.onFolderShown();
-      }
-    },
-
-    /**
-     * Called by Cards when the instance of this card type is the
-     * visible card.
-     */
-    onCardVisible: function() {
-      if (this._whenVisible) {
-        var fn = this._whenVisible;
-        this._whenVisible = null;
-        fn();
-      }
-
-      // In case the vScroll was initialized when the card was not visible, like
-      // in an activity/notification flow when this card is created in the
-      // background behind the compose/reader card, let it know it is visible
-      // now in case it needs to finish initializing and initial display.
-      this.msgVScroll.vScroll.nowVisible();
-
-      // On first construction, or if done in background,
-      // this card would not be visible to do the last sync
-      // sizing so be sure to check it now.
-      this.sizeLastSync();
-    },
-
-    /**
-     * The outbox has a special role in the message_list, compared to
-     * other folders. We don't expect to synchronize the outbox with the
-     * server, but we do allow the user to use the refresh button to
-     * trigger all of the outbox messages to send.
-     *
-     * While they're sending, we need to display several spinny refresh
-     * icons: One next to each message while it's queued for sending,
-     * and also the main refresh button.
-     *
-     * However, the outbox send operation doesn't happen all in one go;
-     * the backend only fires one 'sendOutboxMessages' at a time,
-     * iterating through the pending messages. Fortunately, it notifies
-     * the frontend (via `onBackgroundSendStatus`) whenever the state of
-     * any message changes, and it provides a flag to let us know
-     * whether or not the outbox sync is fully complete.
-     *
-     * So the workflow for outbox's refresh UI display is as follows:
-     *
-     * 1. The user taps the "refresh" button. In response:
-     *
-     *    1a. Immediately make all visible refresh icons start spinning.
-     *
-     *    1b. Immediately kick off a 'sendOutboxMessages' job.
-     *
-     * 2. We will start to see send status notifications, in this
-     *    class's onBackgroundSendStatus notification. We listen to
-     *    these events as they come in, and wait until we see a
-     *    notification with state === 'syncDone'. We'll keep the main
-     *    refresh icon spinning throughout this process.
-     *
-     * 3. As messages send or error out, we will receive slice
-     *    notifications for each message (handled here in `messages_change`).
-     *    Since each message holds its own status as `header.sendProblems`,
-     *    we don't need to do anything special; the normal rendering logic
-     *    will reset each message's status icon to the appropriate state.
-     *
-     * But don't take my word for it; see `jobs/outbox.js` and
-     * `jobmixins.js` in GELAM for backend-centric descriptions of how
-     * the outbox sending process works.
-     */
-    toggleOutboxSyncingDisplay: function(syncing) {
-      // Use an internal guard so that we only trigger changes to the UI
-      // when necessary, rather than every time, which could break animations.
-      if (syncing === this._outboxSyncing) {
-        return;
-      }
-
-      this._outboxSyncing = syncing;
-
-      var i;
-      var items = this.msgVScroll.getElementsByClassName(
-        'msg-message-syncing-section');
-
-      if (syncing) {
-        // For maximum perceived responsiveness, show the spinning icons
-        // next to each message immediately, rather than waiting for the
-        // backend to actually start sending each message. When the
-        // backend reports back with message results, it'll update the
-        // icon to reflect the proper result.
-        for (i = 0; i < items.length; i++) {
-          items[i].classList.add('msg-message-syncing-section-syncing');
-          items[i].classList.remove('msg-message-syncing-section-error');
-        }
-
-        this.editBtn.disabled = true;
-      } else {
-        // After sync, the edit button should remain disabled only if
-        // the list is empty.
-        this.editBtn.disabled = this.msgVScroll.isEmpty();
-
-        // Similarly, we must stop the refresh icons for each message
-        // from rotating further. For instance, if we are offline, we
-        // won't actually attempt to send any of those messages, so
-        // they'll still have a spinny icon until we forcibly remove it.
-        for (i = 0; i < items.length; i++) {
-          items[i].classList.remove('msg-message-syncing-section-syncing');
-        }
-      }
-//todo: this is not needed/valid any more?
-      this.setRefreshState(syncing);
-    },
-
-    onRefresh: function() {
-      var listCursor = this.listCursor;
-
-      if (!listCursor.list) {
-        return;
-      }
-
-      // If this is the outbox, refresh has a different meaning.
-      if (this.curFolder.type === 'outbox') {
-        // Rather than refreshing the folder, we'll send the pending
-        // outbox messages, and spin the refresh icon while doing so.
-        this.toggleOutboxSyncingDisplay(true);
-      } else {
-        // Normal folder.
-
-        var status = this.curFolder.syncStatus;
-        if (status !== 'pending' && status !== 'active') {
-          listCursor.list.refresh();
-        }
-//todo: revist once folder.syncBlocked is available
-        // If we failed to talk to the server, then let's only do a refresh if
-        // we know about any messages.  Otherwise let's just create a new slice
-        // by forcing reentry into the folder.
-        // case 'syncfailed':
-        //   if (listCursor.list.items.length) {
-        //     listCursor.list.refresh();
-        //   } else {
-        //     this.showFolder(this.curFolder, /* force new slice */ true);
-        //   }
-        //   break;
-        // }
-      }
-
-      // Even if we're not actually viewing the outbox right now, we
-      // should still attempt to sync any pending messages. It's fairly
-      // harmless to kick off this job here, but it could also make
-      // sense to do this at the backend level. There are a number of
-      // cases where we might also want to  sendOutboxMessages() if
-      // we follow up with a more comprehensive sync setting -- e.g. on
-      // network change, on app startup, etc., so it's worth revisiting
-      // this and how coupled we want incoming vs outgoing sync to be.
-      this.model.api.sendOutboxMessages(this.model.account);
-    },
-
-    _folderChanged: function(folder) {
-      // Folder could have changed because account changed. Make sure
-      // the cacheableFolderId is still set correctly.
-      var model = this.model;
-      var inboxFolder = model.account.folders.getFirstFolderWithType('inbox');
-      this.cacheableFolderId =
-                          model.account === model.accounts.defaultAccount ?
-                          inboxFolder.id : null;
-
-      if (this.showFolder(folder)) {
-        this.freshMessagesList();
-        this._hideSearchBoxByScrolling();
-      }
-    },
-
     release: function() {
-      this.msgVScroll.release();
-
       if (this.listCursor) {
         this.listCursor.die();
       }

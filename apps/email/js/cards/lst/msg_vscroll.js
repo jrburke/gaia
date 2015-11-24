@@ -1,11 +1,9 @@
+define(function(require) {
 'use strict';
-
-define(function(require, exports) {
 
 var cards = require('cards'),
     containerListen = require('container_listen'),
     mozL10n = require('l10n!'),
-    msgMessageItemNode = require('tmpl!../msg/message_item.html'),
     VScroll = require('vscroll');
 
 /**
@@ -28,7 +26,7 @@ return [
       mozL10n.setAttributes(this.messageEmptyText, this.dataset.emptyL10nId);
 
       containerListen(this.vScrollContainer, 'click',
-                      this.onClickMessage.bind(this));
+                      this.messageClick.bind(this));
     },
 
     /**
@@ -60,10 +58,11 @@ return [
       this.waitingOnChunk = true;
       this._loadNextChunkArgs = null;
       this._needVScrollData = false;
+
       this.vScroll = new VScroll(
         this.vScrollContainer,
         this.scrollContainer,
-        templateNode || msgMessageItemNode,
+        templateNode,
         defaultVScrollData
       );
 
@@ -138,7 +137,7 @@ return [
       this.vScrollContainer.innerHTML = '';
     },
 
-    onClickMessage: function(node, event) {
+    messageClick: function(node) {
       this.emitDomEvent('messageClick', node);
     },
 
@@ -193,7 +192,7 @@ return [
      */
     showEmptyLayout: function() {
       this.messageEmptyContainer.classList.remove('collapsed');
-      this.emit('emptyLayoutShown');
+      this.emitDomEvent('emptyLayoutShown');
     },
     /**
      * Show buttons we hid in `showEmptyLayout` and hide the "empty folder"
@@ -201,7 +200,7 @@ return [
      */
     hideEmptyLayout: function() {
       this.messageEmptyContainer.classList.add('collapsed');
-      this.emit('emptyLayoutHidden');
+      this.emitDomEvent('emptyLayoutHidden');
     },
 
 //todo: revisit once syncBlocked available, and when grow state goes elsewhere.
@@ -268,7 +267,7 @@ return [
     },
 
     // A listener for list 'seek' events in the list cursor.
-    onWinListSeeked: function(whatChanged) {
+    onWinListSeeked: function() {
       var list = this.listCursor.list,
           index = list.offset,
           items = list.items;
@@ -288,7 +287,11 @@ return [
       console.log('MSG_VSCROLL onWinListSeeked: ' +
                   items.length + ' at ' + index);
 
-      this.emit('messagesSpliceStart', whatChanged);
+      var eventDetail = {
+        index,
+        totalCount: list.totalCount
+      };
+      this.emitDomEvent('messagesSeekStart', eventDetail);
 
       if (this._needVScrollData) {
         this.vScroll.setData(this.listFunc);
@@ -297,7 +300,7 @@ return [
 
       this.vScroll.updateDataBind(index, items, 0);
 
-      this.emit('messagesSpliceEnd', whatChanged);
+      this.emitDomEvent('messagesSeekEnd', eventDetail);
     },
 
 //todo: asuth doesn't know whether the above or below idiom should be used, so
@@ -310,7 +313,7 @@ return [
     // The funny name because it is auto-bound as a listener for
     // list events in listCursor using a naming convention.
     messages_change: function(message, index) {
-      this.emit('messagesChange', message, index);
+      this.emitDomEvent('messagesChange', { message, index });
     },
 
     /**
@@ -394,12 +397,14 @@ return [
       }
     },
 
-    release: function() {
+    detachedCallback: function() {
       if (this.model) {
         this.model.removeObjectListener(this);
       }
       this.releaseFromListCursor();
-      this.vScroll.destroy();
+      if (this.vScroll) {
+        this.vScroll.destroy();
+      }
     }
   }
 ];

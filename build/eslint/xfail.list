@@ -96,6 +96,7 @@ apps/email/build/gelam_worker.build.js # line 3, col 10, Error - Unexpected toke
 apps/email/build/main-frame-setup.build.js # line 3, col 6, Error - Unexpected token  (this is a JSON file)
 apps/email/js/ext/ext/bleach.js/index.js # line 8, col 5, Error - Unsafe assignment to innerHTML (no-unsafe-innerhtml/no-unsafe-innerhtml)
 apps/email/js/html_cache_restore.js # line 397, col 5, Error - Unsafe assignment to innerHTML (no-unsafe-innerhtml/no-unsafe-innerhtml)
+apps/email/js/htemplate.js # line 50, col 7, Error - Unsafe assignment to innerHTML (no-unsafe-innerhtml/no-unsafe-innerhtml)
 apps/email/js/template.js # line 177, col 9, Error - Unsafe assignment to innerHTML (no-unsafe-innerhtml/no-unsafe-innerhtml)
 apps/email/js/template.js # line 50, col 7, Error - Unsafe assignment to innerHTML (no-unsafe-innerhtml/no-unsafe-innerhtml)
 apps/email/js/tmpl.js # line 8, col 9, Error - Unsafe assignment to innerHTML (no-unsafe-innerhtml/no-unsafe-innerhtml)

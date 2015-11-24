@@ -92,8 +92,8 @@ define(function(require, exports, module) {
     // Allow a top level of a mixin to be an array of other
     // mixins.
     if (Array.isArray(mixin)) {
-      mixin.forEach(function(mixin) {
-        mix(proto, mixin);
+      mixin.forEach(function(mxn) {
+        mix(proto, mxn);
       });
       return;
     }
@@ -137,7 +137,7 @@ define(function(require, exports, module) {
         // document.register itself, then do not bother with the
         // other work.
         if (config.isBuild || !mod || typeof mod === 'function') {
-          return onload();
+          return onload(mod);
         }
 
         // Create the prototype for the custom element.
@@ -186,9 +186,17 @@ define(function(require, exports, module) {
         // names to dashes
         var tagId = idToTag(id);
 
-        onload(document.registerElement(tagId, {
-          prototype: proto
-        }));
+        var depLoadCb = function() {
+          onload(document.registerElement(tagId, {
+            prototype: proto
+          }));
+        };
+
+        if (proto.elementParseDeps) {
+          proto.elementParseDeps(req, depLoadCb);
+        } else {
+          depLoadCb();
+        }
       });
     }
   };

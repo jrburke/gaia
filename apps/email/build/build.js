@@ -1,9 +1,8 @@
 'use strict';
-
 /* jshint node: true, evil: true */
-
 var utils = require('../../build/utils');
 var esomin = require('../../build/esomin');
+var elementDeps = require('../../apps/email/js/element_deps');
 var { Cc, Ci } = require('chrome');
 var converter =
       Cc['@mozilla.org/intl/scriptableunicodeconverter'].
@@ -268,9 +267,45 @@ function optimize(options, r) {
     return runOptimizer(mainFrameOptions, r);
   })
   .then(function() {
+
+    elementDeps.tagToId = function(tag) {
+      'use strict';
+       return tag.replace(/^cards-/, 'cards/')
+              .replace(/^fld-/, 'cards/fld/')
+              .replace(/^lst-/, 'cards/lst/')
+              .replace(/^msg-/, 'cards/msg/')
+              .replace(/^cmp-/, 'cards/cmp/')
+              .replace(/-/g, '_');
+    };
+
     // Now the rest of the gaia app optimization. This build run explicitly
     // ignores the ext directory.
-    return runOptimizer([appConfigFile.path], r);
+    var appConfig = eval('(' +
+                    utils.getFileContent(appConfigFile) +
+                    ')');
+    // Up the log level so we can see what was built. By default, passing object
+    // args to r.js will run it in silent mode.
+    appConfig.logLevel = 0;
+
+    appConfig.appDir = utils.getFile(options.APP_DIR).path;
+    appConfig.baseUrl = 'js';
+
+    appConfig.dir = utils.getFile(options.APP_DIR,
+                    '..', '..', 'build_stage', 'email').path;
+    appConfig.mainConfigFile = utils.getFile(options.APP_DIR,
+                               'js', 'config.js').path;
+
+    appConfig.fileExclusionRegExp = '^\\.|^test$|^build$|^docs$|^ext$|^services.js$';
+
+    appConfig.onBuildRead = function(id, url, contents) {
+      if (id.indexOf('cards/') !== 0) {
+        return contents;
+      }
+
+      return elementDeps.injectDepsInSource(contents);
+    };
+
+    return runOptimizer(appConfig, r);
   });
 }
 

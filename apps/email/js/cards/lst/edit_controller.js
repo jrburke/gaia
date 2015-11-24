@@ -1,6 +1,6 @@
-'use strict';
+define(function(require) {
+  'use strict';
 
-define(function(require, exports) {
   // var folderSelector = require('folder_selector'),
   var ConfirmDialog = require('confirm_dialog'),
       deleteConfirmMsgNode = require('tmpl!../msg/delete_confirm.html'),
@@ -27,8 +27,6 @@ define(function(require, exports) {
     // This function is called from setEditMode() after ensuring that
     // the backend is in a state where we can safely use edit mode.
     _setEditMode: function(editMode) {
-      var i;
-
       this.editMode = editMode;
 
       if (editMode) {
@@ -44,8 +42,9 @@ define(function(require, exports) {
       }
 
       // Reset checked mode for all message items.
-      var msgNodes = this.msgVScroll.querySelectorAll('.msg-message-item');
-      for (i = 0; i < msgNodes.length; i++) {
+      var msgNodes = this.msgVScrollContainer
+                         .querySelectorAll('.msg-message-item');
+      for (var i = 0; i < msgNodes.length; i++) {
         this.updateDomMessageChecked(msgNodes[i], false);
       }
 

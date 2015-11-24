@@ -1,14 +1,12 @@
 /*global FontSizeUtils, requestAnimationFrame */
+
+define(function(require) {
 'use strict';
 
-define(function(require, exports) {
-
 var cards = require('cards'),
-    convMessageItemNode = require('tmpl!./msg/conv_message_item.html'),
+    itemTemplateNode = require('tmpl!./msg/conv_message_item.html'),
     date = require('date'),
-    defaultVScrollData = require('./lst/default_vscroll_data'),
     ListCursor = require('list_cursor'),
-    MessageListTopBar = require('message_list_topbar'),
     messageDisplay = require('message_display'),
     mozL10n = require('l10n!'),
     updatePeepDom = require('./lst/peep_dom').update;
@@ -20,38 +18,8 @@ return [
   {
     createdCallback: function() {
       // Binding "this" to some functions as they are used for event listeners.
-      this.msgVScroll.on('messageClicked', this.onClickMessage.bind(this));
       this.advanceMessagesListCursor = this.advanceMessagesListCursor
                                        .bind(this);
-
-      this.msgVScroll.on('emptyLayoutShown', this, function() {
-        this.editBtn.disabled = true;
-      });
-
-      this.msgVScroll.on('emptyLayoutHidden', this, function() {
-        this.editBtn.disabled = false;
-      });
-
-      this.msgVScroll.on('messagesChange', this, function(message, index) {
-        this.updateMessageDom(message);
-      });
-
-      var vScrollBindData = (model, node) => {
-        model.element = node;
-        node.message = model;
-        this.updateMessageDom(model);
-      };
-      this.msgVScroll.init(this.scrollContainer,
-                           vScrollBindData,
-                           defaultVScrollData,
-                           convMessageItemNode);
-
-
-      this._topBar = new MessageListTopBar(
-        this.querySelector('.message-list-topbar')
-      );
-      this._topBar.bindToElements(this.scrollContainer,
-                                  this.msgVScroll.vScroll);
     },
 
     onArgs: function(args) {
@@ -60,6 +28,26 @@ return [
       if (args.onBack) {
         this.onBack = args.onBack;
       }
+    },
+
+    itemTemplateNode,
+
+    emptyListL10nId: 'messages-conversation-empty',
+
+    // Listener for msg_vscroll event.
+    emptyLayoutShown: function() {
+      this.editBtn.disabled = true;
+    },
+
+    // Listener for msg_vscroll event.
+    emptyLayoutHidden: function() {
+      this.editBtn.disabled = false;
+    },
+
+    // Listener for msg_vscroll event.
+    messagesChange: function(event) {
+      var { message } = event;
+      this.updateMessageDom(message);
     },
 
     /**
@@ -74,22 +62,11 @@ return [
 
       this.updateTitle(mailConversation);
 
-      this.msgVScroll.setListCursor(listCursor, this.model);
-
-      // Now that a folder is available, enable edit mode toggling.
-      this.editModeEnabled = true;
-
+      this.msgVScrollContainer.emit('listCursor', listCursor);
 
       // Now that a folder is available, enable edit mode toggling.
       this.editModeEnabled = true;
       this.editToolbar.folderType = null;
-
-      this.msgVScroll._needVScrollData = true;
-      this.msgVScroll.hideEmptyLayout();
-
-      // We are creating a new slice, so any pending snippet requests are
-      // moot.
-      this.msgVScroll._snippetRequestPending = false;
 
       if (mailConversation) {
         listCursor.bindToList(mailConversation.viewMessages());
@@ -112,7 +89,7 @@ return [
      *
      * @param {Event} event previous arrow click event.
      */
-    onPrevious: function(event) {
+    onPrevious: function() {
       this.readerAdvance('previous');
     },
 
@@ -121,12 +98,8 @@ return [
      *
      * @param {Event} event next arrow click event.
      */
-    onNext: function(event) {
+    onNext: function() {
       this.readerAdvance('next');
-    },
-
-    onCardVisible: function() {
-      this.msgVScroll.vScroll.nowVisible();
     },
 
     advanceMessagesListCursor: function(direction) {
@@ -136,7 +109,7 @@ return [
     /**
      * This overrides the pushCardForItem in msg_click.
      */
-    pushCardForItem: function(message) {
+    pushCardForItem: function() {
       cards.add('animate', 'message_reader', {
         model: this.model,
         listCursor: this.listCursor,
@@ -190,8 +163,7 @@ return [
       // If the placeholder data, indicate that in case VScroll
       // wants to go back and fix later.
       var classAction = message.isPlaceholderData ? 'add' : 'remove';
-      var defaultDataClass = this.msgVScroll.vScroll.itemDefaultDataClass;
-      msgNode.classList[classAction](defaultDataClass);
+      msgNode.classList[classAction]('default-data');
 
       // ID is stored as a data- attribute so that it can survive
       // serialization to HTML for storing in the HTML cache, and

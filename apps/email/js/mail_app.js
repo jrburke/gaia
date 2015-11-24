@@ -3,9 +3,9 @@
  * startup and mozSetMessageHandler message listening.
  **/
  /*global globalOnAppMessage */
-'use strict';
 
-define(function(require, exports, module) {
+define(function(require) {
+'use strict';
 
 window.emailVersion = '0.0.1-conversations';
 
@@ -21,6 +21,7 @@ var mozL10n = require('l10n!'),
     toaster = require('toaster'),
     activityCallback;
 
+require('update_pretty_date');
 require('font_size_utils');
 require('metrics');
 require('wake_locks');
