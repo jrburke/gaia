@@ -8,7 +8,7 @@ define(function(require, exports) {
     require('../base')(require('template!./edit_toolbar.html')),
     require('../mixins/dom_evt'),
     {
-      updateDomFolderType: function(folderType) {
+      updateDomFolderType: function(folderType, allowsArchive) {
         // You can't move messages in localdrafts or the outbox.
         this.moveBtn.classList.toggle('collapsed',
                                               folderType === 'localdrafts' ||
@@ -18,6 +18,13 @@ define(function(require, exports) {
                                               folderType === 'outbox');
         this.readBtn.classList.toggle('collapsed',
                                               folderType === 'outbox');
+
+        var useArchive = !!(allowsArchive && folderType !== 'localdrafts' &&
+                         folderType !== 'outbox');
+
+        this.deleteBtn.classList.toggle('archive', useArchive);
+        this.deleteBtn.dataset.domevtName = useArchive ? 'onArchiveMessages' :
+                                            'onDeleteMessages';
       },
 
       // If true, show the star button, otherwise show unstar button.

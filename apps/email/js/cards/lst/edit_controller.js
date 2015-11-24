@@ -5,6 +5,7 @@ define(function(require, exports) {
   var ConfirmDialog = require('confirm_dialog'),
       deleteConfirmMsgNode = require('tmpl!../msg/delete_confirm.html'),
       mozL10n = require('l10n!'),
+      notImplemented = require('not_implemented'),
       toaster = require('toaster');
 
   return {
@@ -136,6 +137,11 @@ define(function(require, exports) {
       // Mark read if everything is unread, otherwise unread
       this.setAsRead = (!!this.selectedMessages.length && numRead === 0);
       this.editToolbar.updateDomReadButton(numRead > 0);
+    },
+
+    //todo: wire up archiving.
+    onArchiveMessages: function() {
+      notImplemented('Archive');
     },
 
     onDeleteMessages: function() {
