@@ -375,7 +375,8 @@ return [
 
       this.msgVScroll.hideEmptyLayout();
 
-      this.editToolbar.updateDomFolderType(folder.type);
+      this.editToolbar.updateDomFolderType(folder.type,
+                                           this.model.accountUsesArchive());
 
       this.onFolderShown();
 

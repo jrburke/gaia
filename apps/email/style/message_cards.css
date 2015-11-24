@@ -793,6 +793,10 @@ lst-msg-vscroll,
   background-image: url("images/icons/delete.png");
 }
 
+.bb-tablist .msg-delete-btn.archive {
+  background-image: url("images/icons/archive.png");
+}
+
 .bb-tablist .msg-edit-draft-btn {
   background-image: url("images/icons/edit.svg");
   opacity: 0.6;

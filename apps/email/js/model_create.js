@@ -137,6 +137,14 @@ define(function(require) {
       return count;
     },
 
+    //todo: revisit this logic. Ideally check a property on the account. This is
+    //just a temporary measure to get the UI logic sorted out.
+    accountUsesArchive: function() {
+      // tried using firstFolder.syncGranularity === 'account', but it is not
+      // set in time for the first time this called.
+      return this.account.username.indexOf('@gmail.com') !== -1;
+    },
+
     /**
      * Call this to initialize the model. It is *not* called by default in this
      * module to allow for lazy startup, and for cases like unit tests that may

@@ -10,6 +10,7 @@ var cards = require('cards'),
                          require('tmpl!./attachment_disabled_confirm.html'),
     msgDeleteConfirmNode = require('tmpl!./delete_confirm.html'),
     msgReplyMenuNode = require('tmpl!./reply_menu.html'),
+    notImplemented = require('not_implemented'),
     setStatusColor = require('set_status_color'),
     toaster = require('toaster');
 
@@ -25,6 +26,9 @@ return [
       this.disabled = false;
 
       this.classList.toggle('draft', message.isDraft);
+
+      this.useArchive = model.accountUsesArchive() && !message.isDraft;
+      this.deleteBtn.classList.toggle('archive', this.useArchive);
 
       if (!message.isDraft) {
         // - mark message read (if it is not already)
@@ -186,6 +190,11 @@ return [
     },
 
     onDelete: function() {
+      if (this.useArchive) {
+        notImplemented('Archive');
+        return;
+      }
+
       var dialog = msgDeleteConfirmNode.cloneNode(true);
       var content = dialog.getElementsByTagName('p')[0];
       var l10nId = this.message.isDraft ?
