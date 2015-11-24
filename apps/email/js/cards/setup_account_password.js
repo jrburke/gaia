@@ -43,8 +43,13 @@ return [
       // account. Send a new object for sanitation, avoid state modifications
       // downstream.
       cards.add('animate', 'setup_progress', Object.assign({
-        callingCard: this
+        // (passed for cancellation purposes)
+        setupController: this.args.setupController
       }, this.args));
+      // asuth unsure not: it seems like setup_progress usage from oauth no
+      // longer wants/expects setup_progress to trigger this.  Instead we want
+      // to trigger and the setup controller takes care of everything.
+      this.args.setupController.tryCreate(this.args);
     },
 
     onInfoInput: function(event) {

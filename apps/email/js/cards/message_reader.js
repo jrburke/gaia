@@ -165,11 +165,9 @@ return [
     },
 
     bodyChanged: function(event) {
-      var message = event.detail.message,
-          changeDetails = event.detail.changeDetails;
+      var message = event.detail.message;
 
-      this.attachmentsContainer.setAttachments(message.attachments,
-                                               changeDetails);
+      this.attachmentsContainer.setAttachments(message.attachments);
       this.readerToolbar.setState(this.model, this.message, message);
 
       // Inform that content is ready. Done here because reply is only enabled
