@@ -50,8 +50,10 @@ return [
       // hold HTML email content.
       this.htmlBodyNodes = [];
 
-      // whether or not we've built the body DOM the first time
-      this._builtBodyDom = false;
+      // Have we done our lazy-load of iframe helpers?
+      this._bootstrappedIframe = false;
+      // whether or not we've fully instantiated the body
+      this._fullyBuiltBody = false;
     },
 
     clear: function() {
@@ -71,6 +73,11 @@ return [
 
     handleBodyChange: function() {
       this.buildBodyDom();
+      this.dispatchEvent(new CustomEvent('bodyChanged', {
+        detail: {
+          message: this.message
+        }
+      }));
     },
 
     setState: function (model, message) {
@@ -82,17 +89,24 @@ return [
       this.model = model;
       this.message = message;
 
-      if (message.bodyRepsDownloaded) {
-console.log('msg/body bodyRepsDownloaded, so going to buildBodyDom');
-        this.buildBodyDom();
-      } else {
-console.log('msg/body CALLING downloadBodyReps');
-        message.on('change', this, 'handleBodyChange');
+      message.on('change', this, 'handleBodyChange');
+      // XXX the attachments UI needs us to generate an event in the base case,
+      // so always generate one.  This also causes buildBodyDom to be invoked.
+      this.handleBodyChange();
+      if (!message.bodyRepsDownloaded) {
         message.downloadBodyReps();
       }
     },
 
     buildBodyDom: function() {
+      // Fast-path out once all body parts have already been downloaded and
+      // reflected into the DOM.  This is safe because body parts do not change
+      // for a (non-draft) message.  This is advisable because body-building
+      // does have non-trivial costs.
+      if (this._fullyBuiltBody) {
+        return;
+      }
+
       var message = this.message;
 
       var rootBodyNode = this.rootBodyNode,
@@ -100,12 +114,12 @@ console.log('msg/body CALLING downloadBodyReps');
 
 
       // The first time we build the body DOM, do one-time bootstrapping:
-      if (!this._builtBodyDom) {
+      if (!this._bootstrappedIframe) {
         iframeShims.bindSanitizedClickHandler(rootBodyNode,
                                               this.onHyperlinkClick.bind(this),
                                               rootBodyNode,
                                               null);
-        this._builtBodyDom = true;
+        this._bootstrappedIframe = true;
       }
 
       // If we have fully downloaded one body part, the user has
@@ -142,11 +156,8 @@ console.log('msg/body CALLING downloadBodyReps');
         }
       });
 
-      this.dispatchEvent(new CustomEvent('bodyChanged', {
-        detail: {
-          message: this.message
-        }
-      }));
+      // true iff all parts have been downloaded.
+      this._fullyBuiltBody = message.bodyRepsDownloaded;
     },
 
     displayBlobHtml: function(rep, repNode) {

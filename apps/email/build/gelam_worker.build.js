@@ -58,9 +58,6 @@
         // Searches can happen offline.
         'searchfilter',
 
-        // Job/operations are currently not gated, although they could be...
-        'jobs/outbox',
-
         // Common account logic is required for everything.
         'accountmixins',
 

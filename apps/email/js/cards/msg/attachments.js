@@ -73,6 +73,8 @@ return [
 
           if (attachment.isDownloaded) {
             state = 'downloaded';
+          } else if (attachment.isDownloading) {
+            state = 'downloading';
           } else if (!attachment.isDownloadable) {
             state = 'nodownload';
             attachmentDownloadable = false;
@@ -112,21 +114,11 @@ return [
     },
 
     onDownloadAttachmentClick: function(node, attachment) {
+      // The download will generate a 'change' on the message that propagates
+      // through to us, so we don't really need to be doing this, but this
+      // helps debounce things.
       node.setAttribute('state', 'downloading');
-      // We register all downloads with the download manager.  Previously we had
-      // thought about only registering non-media types because the media types
-      // were already covered by built-in apps.  But we didn't have a good
-      // reason for that; perhaps risk avoidance?  So everybody gets logged!
-      // Note that POP3 also does this, but that happens in pop3/sync.js in
-      // the back-end and the front-end has no control over that.
-      var registerWithDownloadManager = true;
-      attachment.download(function downloaded() {
-        if (!attachment._file) {
-          return;
-        }
-
-        node.setAttribute('state', 'downloaded');
-      }, null, registerWithDownloadManager);
+      attachment.download();
     },
 
     onViewAttachmentClick: function(node, attachment) {
@@ -137,7 +129,7 @@ return [
       }
 
       if (attachment.isDownloaded) {
-        this.getAttachmentBlob(attachment, function(blob) {
+        attachment.getDownloadedBlob().then(function(blob) {
           try {
             // Now that we have the file, use an activity to open it
             if (!blob) {
@@ -249,30 +241,6 @@ return [
         });
       }
     },
-
-    getAttachmentBlob: function(attachment, callback) {
-      try {
-        // Get the file contents as a blob, so we can open the blob
-        var storageType = attachment._file[0];
-        var filename = attachment._file[1];
-        var storage = navigator.getDeviceStorage(storageType);
-        var getreq = storage.get(filename);
-
-        getreq.onerror = function() {
-          console.warn('Could not open attachment file: ', filename,
-                       getreq.error.name);
-        };
-
-        getreq.onsuccess = function() {
-          // Now that we have the file, return the blob within callback function
-          var blob = getreq.result;
-          callback(blob);
-        };
-      } catch (ex) {
-        console.warn('Exception getting attachment from device storage:',
-                     attachment._file, '\n', ex, '\n', ex.stack);
-      }
-    }
   }
 ];
 
