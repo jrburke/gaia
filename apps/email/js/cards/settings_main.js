@@ -2,18 +2,17 @@
 'use strict';
 define(function(require) {
 
-var tngAccountItemNode = require('tmpl!./tng/account_item.html'),
-    cards = require('cards');
+var cards = require('cards'),
+    htemplate = require('htemplate');
 
 return [
-  require('./base_card')(require('template!./settings_main.html')),
+  require('./base_card')(),
+  require('htemplate_event'),
   require('./mixins/model_render')('accounts'),
   {
     createdCallback: function() {
       this._secretButtonClickCount = 0;
       this._secretButtonTimer = null;
-
-      this.secretButton.textContent = 'v' + window.emailVersion;
     },
 
     extraClasses: ['anim-fade', 'anim-overlay'],
@@ -22,33 +21,58 @@ return [
       cards.back('animate');
     },
 
-    render: function() {
-      // Just rerender the whole account list.
-      var accountsContainer = this.accountsContainer;
-      accountsContainer.innerHTML = '';
+    render: htemplate(function (h) {
+      h`
+      <!-- Main settings menu, root of all (mail) settings -->
+      <!-- need this section element to keep building blocks happy. Too bad it
+        expects a section element -->
+      <section class="skin-organic bbshim" role="region">
+        <header class="tng-main-header">
+          <menu data-event="click:onClose" type="toolbar" class="tng-close-btn">
+            <button data-l10n-id="settings-done"></button>
+          </menu>
+          <h1 class="tng-main-header-label"
+              data-l10n-id="settings-main-header"></h1>
+        </header>
+        <section class="scrollregion-below-header skin-organic" role="region">
+          <header class="collapsed"></header>
+          <header class="tng-main-accounts-label">
+            <h2 data-l10n-id="settings-account-section"></h2>
+          </header>
+          <ul class="tng-accounts-container"
+              data-l10n-id="settings-account-listbox" role="listbox">
+          `;
 
-      if (!this.state.accounts.items.length) {
-        return;
-      }
-
-      this.state.accounts &&
-      this.state.accounts.items.forEach((account, index) => {
-        var insertBuddy = (index >= accountsContainer.childElementCount) ?
-                          null : accountsContainer.children[index];
-        var accountNode = tngAccountItemNode.cloneNode(true);
-        var accountLabel =
-          accountNode.querySelector('.tng-account-item-label');
-
-        accountLabel.textContent = account.name;
-        accountNode.setAttribute('aria-label', account.name);
+            if (this.state.accounts) {
+              this.state.accounts.items.forEach((account, index) => {
+                h`
+                <li aria-label="${account.name}"
+                    class="tng-account-item item-with-children" role="option">
+                <a href="#" class="tng-account-item-label list-text">
+                  ${account.name}
+                </a>
+                </li>`;
+              });
+//todo:
         // Attaching a listener to account node with the role="option" to
         // enable activation with the screen reader.
-        accountNode.addEventListener('click',
-          this.onClickEnterAccount.bind(this, account), false);
+        // accountNode.addEventListener('click',
+        //   this.onClickEnterAccount.bind(this, account), false);
+            }
 
-        accountsContainer.insertBefore(accountNode, insertBuddy);
-      });
-    },
+          h`
+          </ul>
+          <button data-event="click:onClickAddAccount"
+                  href="#" data-l10n-id="settings-account-add"
+                  class="tng-account-add"></button>
+          <a data-event="click:onClickSecretButton"
+             class="tng-email-lib-version list-text">${window.emailVersion}</a>
+        </section>
+      </section>
+      `;
+
+      return h();
+    }),
 
     onClickAddAccount: function() {
       cards.add('animate', 'setup_account_info', {
