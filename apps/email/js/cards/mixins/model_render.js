@@ -2,13 +2,15 @@
 define(function () {
   function callRender(element) {
     element.render();
-    if (element.afterRender) {
-      element.afterRender();
+    if (element.renderEnd) {
+      element.renderEnd();
     }
   }
 
   return function modelRender(modelIds) {
-    if (!Array.isArray(modelIds)) {
+    if (!modelIds) {
+      modelIds = [];
+    } else if (!Array.isArray(modelIds)) {
       modelIds = [modelIds];
     }
 

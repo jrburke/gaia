@@ -1,52 +1,25 @@
 'use strict';
 define(function(require) {
 
-var dataProp = require('./mixins/data-prop'),
-    cards = require('cards'),
-    containerListen = require('container_listen'),
+var cards = require('cards'),
+    dataEvent = require('./mixins/data-event'),
     evt = require('evt'),
+    htemplate = require('htemplate'),
     transitionEnd = require('transition_end');
 
 require('css!style/folder_cards');
 
+// Custom elements used in the template.
+require('element!./fld/accounts-folders');
+
 return [
   require('./base_card')(),
   require('htemplate/hclick'),
-  require('./mixins/model_render')(['accounts', 'folders']),
+  require('./mixins/model_render')(),
 
   {
     createdCallback: function() {
       transitionEnd(this, this.onTransitionEnd.bind(this));
-    },
-
-    measureAccountDisplay: function() {
-      // Do not bother if the accountHeader is hidden with no height, need it
-      // to be visible before calculations will work. So this method should be
-      // called both on state changes and once it is known accountHeader is
-      // visible enough to calculate correctly.
-      if (this.accountHeader && !this.accountHeaderHeight) {
-        this.accountHeaderHeight = this.accountHeader.getBoundingClientRect()
-                                   .height;
-        if (!this.accountHeaderHeight) {
-          return;
-        }
-      }
-
-      // If more than one account, need to show the account dropdown
-      var accountCount = this.renderModel.getAccountCount();
-
-      if (accountCount > 1) {
-        // Use the accountHeader as a unit of height and multiple by the number
-        // of children, to get total height needed for all accounts. Doing this
-        // instead of measuring the height of all accounts, since to get a good
-        // measurement needs to not be display none, which could introduce a
-        // flash of seeing the element.
-        this.currentAccountContainerHeight = this.accountHeaderHeight *
-                                             accountCount;
-
-        this.accountContainer.classList.remove('collapsed');
-        this.hideAccounts();
-      }
     },
 
     extraClasses: ['anim-vertical', 'anim-overlay', 'one-account'],
@@ -58,109 +31,73 @@ return [
     },
 
     /**
-     * Tapping a different account will jump to the inbox for that
-     * account, but only do the jump if a new account selection,
-     * and only after hiding the folder_picker.
+     * Triggered by the accounts_folders component.
      */
-    onClickAccount: function(event, hclickNode) {
-      containerListen.handleEvent(hclickNode, (accountNode) => {
-        var oldAccountId = this.renderModel.account.id,
-            accountId = accountNode.dataset.accountId;
+    accountSelected: function(event) {
+      var accountId = event.detail.accountId;
 
-        if (oldAccountId !== accountId) {
-          // Store the ID and wait for the closing animation to finish
-          // for the card before switching accounts, so that the
-          // animations are smoother and have fewer jumps.
-          this._waitingAccountId = accountId;
-          this._closeCard();
-        }
-      }, event);
+      // Store the ID and wait for the closing animation to finish
+      // for the card before switching accounts, so that the
+      // animations are smoother and have fewer jumps.
+      this._waitingAccountId = accountId;
+      this._closeCard();
     },
 
-    toggleAccounts: function() {
-      // During initial setup, to get the sizes right for animation later,
-      // the translateY was modified. During that time, do not want animation,
-      // but now for toggling the display/hiding based on user action, enable
-      // it.
-      var hadAnimated = this.fldAcctContainer.classList.contains('animated');
-      if (!hadAnimated) {
-        this.fldAcctContainer.classList.add('animated');
-        // Trigger acknowledgement of the transition by causing a reflow
-        // for account container element.
-        this.fldAcctContainer.clientWidth;
-      }
 
-      if (this.accountHeader.classList.contains('closed')) {
-        this.showAccounts();
-      } else {
-        this.hideAccounts();
-      }
+    folderSelected: function(event) {
+      var folder = event.detail.folder;
+      this.renderModel.changeFolder(folder);
+      this._closeCard();
     },
 
-    /**
-     * Use a translateY transition to show accounts. But to do that correctly,
-     * need to use the height of the account listing. The scroll inner needs
-     * to be updated too, so that it does not cut off some of the folders.
-     */
-    showAccounts: function() {
-      var height = this.currentAccountContainerHeight;
-      this.fldAcctScrollInner.style.height = (height +
-                   this.foldersContainer.getBoundingClientRect().height) + 'px';
-      this.fldAcctContainer.style.transform = 'translateY(0)';
+    render: htemplate(function(h) {
+      h`
+      <!-- Our card does not have a header of its own; it reuses the
+           message_list header.  We want to steal clicks on its menu button too,
+           hence this node and fld-header-back which is a transparent button
+           that overlays the menu button. -->
+      <div class="fld-header-placeholder" data-statuscolor="default">
+        <!-- Unlike a generic back button that navigates to a different screen,
+             folder picker header button triggers the folders and settings
+             overlay closure. Thus the screen reader user requires more context
+             as to what activating the button would do. -->
+        <button aria-expanded="true" aria-controls="cards-folder-picker"
+                data-l10n-id="message-list-menu"
+                data-hclick="_closeCard"
+                class="fld-header-back"></button>
+      </div>
+      <!-- Backing semi-opaque layer for everything below the header so that
+           anything that the folder drawer does not cover looks inactive-ish.
+           Clicking on this makes the drawer go away. -->
+      <div data-hclick="_closeCard" class="fld-shield"></div>
+      <!-- This exists to clip fld-content so that when it animates in/out using
+           translateY it does not paint over-top of the header. -->
+      <div class="fld-content-container">
+        <!-- This is the actual drawer thing that slides up/down using
+             translateY. -->
+        <div class="fld-content">
+          <!-- Scrollable container holds everything but the non-scrolling
+               settings button. -->
+          <cards-fld-accounts-folders class="fld-acct-scrollouter"
+                 data-event="folderSelected,accountSelected">
+          </cards-fld-accounts-folders>
+          <!-- settings button; always present; does not scroll -->
+          <a data-hclick="onShowSettings"
+             class="fld-nav-toolbar bottom-toolbar">
+            <span class="fld-settings-link"
+                  data-l10n-id="drawer-settings-link"></span>
+          </a>
+        </div>
+      </div>
+      `;
+    }),
 
-      this.accountHeader.classList.remove('closed');
-    },
-
-    /**
-     * Use a translateY transition to hide accounts. But to do that correctly,
-     * need to use the height of the account listing. The scroll inner needs to
-     * be updated too, so that it form-fits over the folder list.
-     */
-    hideAccounts: function() {
-      if (!this.currentAccountContainerHeight) {
-        return;
-      }
-
-      var foldersHeight = this.foldersContainer.getBoundingClientRect().height;
-      if (foldersHeight) {
-        this.fldAcctScrollInner.style.height = foldersHeight + 'px';
-      }
-      this.fldAcctContainer.style.transform = 'translateY(-' +
-                           this.currentAccountContainerHeight +
-                           'px)';
-
-      this.accountHeader.classList.add('closed');
-    },
-
-    afterRender: function() {
-      // Wires up the data-prop properties.
-      dataProp.templateInsertedCallback.call(this);
-
-      // Since the number of accounts could have changed, redo calculations
-      // around the size of the accounts and transform offsets needed.
-      this.measureAccountDisplay();
-
-      // If more than one account, need to show the account dropdown
-      var accountCount = this.renderModel.getAccountCount();
-
-      if (accountCount > 1) {
-        this.hideAccounts();
-      }
-    },
-
-    render: require('./folder_picker_render'),
-
-    onClickFolder: function(event, hclickNode) {
-      containerListen.handleEvent(hclickNode, (folderNode) => {
-        var folder = this.renderModel.getFolder(folderNode.dataset.folderId);
-        if (!folder.selectable) {
-          return;
-        }
-
-        this.renderModel.changeFolder(folder);
-
-        this._closeCard();
-      }, event);
+    renderEnd: function() {
+      dataEvent.templateInsertedCallback.call(this);
+      //todo: hack:
+      this.querySelector('cards-fld-accounts-folders').onArgs({
+        model: this.renderModel
+      });
     },
 
     onTransitionEnd: function(event) {
@@ -185,17 +122,14 @@ return [
       } else {
         // Now that the card is fully opened, measure account display, since
         // size measurement will work now.
-        this.measureAccountDisplay();
+        this.querySelector('cards-fld-accounts-folders')
+            .measureAccountDisplay();
       }
     },
 
     // Closes the card. Relies on onTransitionEnd to do the
     // final close, this just sets up the closing transition.
     _closeCard: function() {
-      // Stop listening to model changes, do not want account/folder changes
-      // triggering rendering.
-      this.removeModelRenderListeners();
-
       evt.emit('folderPickerClosing');
       this.classList.remove('opened');
     },

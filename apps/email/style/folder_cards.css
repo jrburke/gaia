@@ -32,12 +32,12 @@ cards-folder-picker .fld-acct-header {
   border-bottom: 0.1rem solid #dfdfdf;
 }
 
-cards-folder-picker.one-account .fld-acct-header,
-cards-folder-picker.one-account .fld-accountlist-container {
+cards-folder-picker .one-account .fld-acct-header,
+cards-folder-picker .one-account .fld-accountlist-container {
   display: none;
 }
 
-cards-folder-picker.one-account .fld-folders-container {
+cards-folder-picker .one-account .fld-folders-container {
   border-top: 0;
 }
 
@@ -98,6 +98,7 @@ cards-folder-picker.opened .fld-shield {
 
 cards-folder-picker .fld-acct-scrollouter {
   position: relative;
+  display: block;
   overflow-x: hidden;
   overflow-y: auto;
   /* Like with .fld-content-container, be short enough to show the bottom
@@ -146,7 +147,7 @@ cards-folder-picker .fld-acct-scrollouter {
   transform: translateY(0);
 }
 */
-cards-folder-picker.one-account .fld-folders-container {
+cards-folder-picker .one-account .fld-folders-container {
   padding-top: 0;
 }
 
