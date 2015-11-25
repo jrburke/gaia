@@ -5,19 +5,25 @@ define(function() {
    * on a descendant, walks up the tree to find the immediate child of the
    * container and tells us what the click was on.
    */
-  return function containerListen(containerNode, eventName, func) {
-    containerNode.addEventListener(eventName, function(event) {
-      var node = event.target;
-      // bail if they clicked on the container and not a child...
-      if (node === containerNode) {
-        return;
-      }
-      while (node && node.parentNode !== containerNode) {
-        node = node.parentNode;
-      }
-      if (node) {
-        func(node, event);
-      }
-    }, false);
+  function containerListen(containerNode, eventName, func) {
+    containerNode.addEventListener(eventName,
+                  containerListen.handleEvent.bind(null, containerNode, func),
+                  false);
+  }
+
+  containerListen.handleEvent = function(containerNode, func, event) {
+    var node = event.target;
+    // bail if they clicked on the container and not a child...
+    if (node === containerNode) {
+      return;
+    }
+    while (node && node.parentNode !== containerNode) {
+      node = node.parentNode;
+    }
+    if (node) {
+      func(node, event);
+    }
   };
+
+  return containerListen;
 });

@@ -1,10 +1,13 @@
 'use strict';
 define(function() {
 
+// Keep this constructor private, do not expose it directly to require creation
+// of instances via the esc API.
 function EscapedValue(value) {
   this.escapedValue = value;
 }
 
+// Functions to properly escape string contents. Default one escapes HTML.
 function esc(value) {
   return value.replace(/&/g, '&amp;')
               .replace(/=/g, '&eq;')
@@ -24,12 +27,15 @@ esc.yesThisIsDangerousRaw = function(value) {
 function htemplate(renderFn) {
   return function renderToDom() {
     //todo: how to do things like data-event? need to only bind once.
-    var innerHtml = renderFn.call(this, htemplate.makeTagged(), esc);
+    var taggedFn = htemplate.makeTagged();
+    renderFn.call(this, taggedFn, esc);
+    var innerHtml = taggedFn();
     this.innerHTML = innerHtml;
   };
 }
 
 htemplate.esc = esc;
+
 htemplate.makeTagged = function() {
   var parts = [];
 

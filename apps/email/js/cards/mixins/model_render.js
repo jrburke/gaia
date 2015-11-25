@@ -1,5 +1,12 @@
 'use strict';
 define(function () {
+  function callRender(element) {
+    element.render();
+    if (element.afterRender) {
+      element.afterRender();
+    }
+  }
+
   return function modelRender(modelIds) {
     if (!Array.isArray(modelIds)) {
       modelIds = [modelIds];
@@ -26,20 +33,24 @@ define(function () {
           // listeners tied to this object via removeObjectListener.
           this.renderModel.on(modelId, this, (modelValue) => {
             this.state[modelId] = modelValue;
-            this.render();
+            callRender(this);
           });
 
           this.state[modelId] = this.renderModel[modelId];
         });
 
-        this.render();
+        callRender(this);
+      },
+
+      removeModelRenderListeners: function() {
+        if (this.renderModel) {
+          this.renderModel.removeObjectListener(this);
+        }
       },
 
       // Custom element lifecycle method, called when removed from the DOM.
       detachedCallback: function() {
-        if (this.renderModel) {
-          this.renderModel.removeObjectListener(this);
-        }
+        this.removeModelRenderListeners();
       }
     };
   };

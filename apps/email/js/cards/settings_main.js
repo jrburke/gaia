@@ -7,7 +7,7 @@ var cards = require('cards'),
 
 return [
   require('./base_card')(),
-  require('htemplate_event'),
+  require('htemplate/hclick'),
   require('./mixins/model_render')('accounts'),
   {
     createdCallback: function() {
@@ -17,10 +17,6 @@ return [
 
     extraClasses: ['anim-fade', 'anim-overlay'],
 
-    onClose: function() {
-      cards.back('animate');
-    },
-
     render: htemplate(function (h) {
       h`
       <!-- Main settings menu, root of all (mail) settings -->
@@ -28,7 +24,7 @@ return [
         expects a section element -->
       <section class="skin-organic bbshim" role="region">
         <header class="tng-main-header">
-          <menu data-event="click:onClose" type="toolbar" class="tng-close-btn">
+          <menu data-hclick="onBack" type="toolbar" class="tng-close-btn">
             <button data-l10n-id="settings-done"></button>
           </menu>
           <h1 class="tng-main-header-label"
@@ -43,35 +39,30 @@ return [
               data-l10n-id="settings-account-listbox" role="listbox">
           `;
 
-            if (this.state.accounts) {
+            if (this.state.accounts && this.state.accounts.items) {
               this.state.accounts.items.forEach((account, index) => {
                 h`
                 <li aria-label="${account.name}"
                     class="tng-account-item item-with-children" role="option">
-                <a href="#" class="tng-account-item-label list-text">
+                <a href="#" class="tng-account-item-label list-text"
+                   data-account-id="${account.id}"
+                   data-hclick="onClickEnterAccount">
                   ${account.name}
                 </a>
                 </li>`;
               });
-//todo:
-        // Attaching a listener to account node with the role="option" to
-        // enable activation with the screen reader.
-        // accountNode.addEventListener('click',
-        //   this.onClickEnterAccount.bind(this, account), false);
             }
 
           h`
           </ul>
-          <button data-event="click:onClickAddAccount"
+          <button data-hclick="onClickAddAccount"
                   href="#" data-l10n-id="settings-account-add"
                   class="tng-account-add"></button>
-          <a data-event="click:onClickSecretButton"
+          <a data-hclick="onClickSecretButton"
              class="tng-email-lib-version list-text">${window.emailVersion}</a>
         </section>
       </section>
       `;
-
-      return h();
     }),
 
     onClickAddAccount: function() {
@@ -80,7 +71,13 @@ return [
       });
     },
 
-    onClickEnterAccount: function(account) {
+    onClickEnterAccount: function(evt) {
+      var accountId = evt.target.dataset.accountId;
+      if (!accountId) {
+        return;
+      }
+
+      var account = this.renderModel.getAccount(accountId);
       cards.add('animate', 'settings_account', {
         account: account
       });

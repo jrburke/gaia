@@ -270,6 +270,19 @@ define(function(require) {
       return newAccount;
     },
 
+    getFolder: function(folderId) {
+      var items = this.folders.items;
+      var folder;
+      items.some(function(f) {
+        if (f.id === folderId) {
+          folder = f;
+          return true;
+        }
+      });
+
+      return folder;
+    },
+
     /**
      * Just changes the folder property tracked by the model.
      * Assumes the folder still belongs to the currently tracked
