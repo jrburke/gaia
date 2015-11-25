@@ -24,7 +24,7 @@ return [
       // to be visible before calculations will work. So this method should be
       // called both on state changes and once it is known accountHeader is
       // visible enough to calculate correctly.
-      if (!this.accountHeaderHeight) {
+      if (this.accountHeader && !this.accountHeaderHeight) {
         this.accountHeaderHeight = this.accountHeader.getBoundingClientRect()
                                    .height;
         if (!this.accountHeaderHeight) {
@@ -43,6 +43,9 @@ return [
         // flash of seeing the element.
         this.currentAccountContainerHeight = this.accountHeaderHeight *
                                              accountCount;
+
+        this.accountContainer.classList.remove('collapsed');
+        this.hideAccounts();
       }
     },
 
@@ -114,6 +117,10 @@ return [
      * be updated too, so that it form-fits over the folder list.
      */
     hideAccounts: function() {
+      if (!this.currentAccountContainerHeight) {
+        return;
+      }
+
       var foldersHeight = this.foldersContainer.getBoundingClientRect().height;
       if (foldersHeight) {
         this.fldAcctScrollInner.style.height = foldersHeight + 'px';

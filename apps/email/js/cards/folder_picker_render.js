@@ -70,7 +70,9 @@ return require('htemplate')(function(h) {
                when we do not want to be displaying it. -->
           <div data-prop="fldAcctContainer" class="fld-acct-container">
             <!-- The list of accounts -->
-            <div class="fld-accountlist-container">
+            <div data-prop="accountContainer"
+                 data-hclick="onClickAccount"
+                 class="fld-accountlist-container collapsed">
             `;
 
             // Add DOM for each account.
