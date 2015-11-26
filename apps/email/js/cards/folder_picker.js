@@ -24,32 +24,6 @@ return [
 
     extraClasses: ['anim-vertical', 'anim-overlay', 'one-account'],
 
-    onShowSettings: function(event) {
-      cards.add('animate', 'settings_main', {
-        model: this.renderModel
-      });
-    },
-
-    /**
-     * Triggered by the accounts_folders component.
-     */
-    accountSelected: function(event) {
-      var accountId = event.detail.accountId;
-
-      // Store the ID and wait for the closing animation to finish
-      // for the card before switching accounts, so that the
-      // animations are smoother and have fewer jumps.
-      this._waitingAccountId = accountId;
-      this._closeCard();
-    },
-
-
-    folderSelected: function(event) {
-      var folder = event.detail.folder;
-      this.renderModel.changeFolder(folder);
-      this._closeCard();
-    },
-
     render: htemplate(function(h) {
       h`
       <!-- Our card does not have a header of its own; it reuses the
@@ -79,7 +53,8 @@ return [
           <!-- Scrollable container holds everything but the non-scrolling
                settings button. -->
           <cards-fld-accounts-folders class="fld-acct-scrollouter"
-                 data-event="folderSelected,accountSelected">
+                 data-event="folderSelected,accountSelected"
+                 data-hfn-onArgs="${{model: this.renderModel}}">
           </cards-fld-accounts-folders>
           <!-- settings button; always present; does not scroll -->
           <a data-hclick="onShowSettings"
@@ -94,10 +69,32 @@ return [
 
     renderEnd: function() {
       dataEvent.templateInsertedCallback.call(this);
-      //todo: hack:
-      this.querySelector('cards-fld-accounts-folders').onArgs({
+    },
+
+    onShowSettings: function(event) {
+      cards.add('animate', 'settings_main', {
         model: this.renderModel
       });
+    },
+
+    /**
+     * Triggered by the accounts_folders component.
+     */
+    accountSelected: function(event) {
+      var accountId = event.detail.accountId;
+
+      // Store the ID and wait for the closing animation to finish
+      // for the card before switching accounts, so that the
+      // animations are smoother and have fewer jumps.
+      this._waitingAccountId = accountId;
+      this._closeCard();
+    },
+
+
+    folderSelected: function(event) {
+      var folder = event.detail.folder;
+      this.renderModel.changeFolder(folder);
+      this._closeCard();
     },
 
     onTransitionEnd: function(event) {
