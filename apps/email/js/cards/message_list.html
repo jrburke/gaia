@@ -19,13 +19,8 @@
         <span class="icon icon-compose"></span>
       </a>
     </menu>
-    <h1 data-prop="folderLabel"
-        class="msg-list-header-folder-label header-label">
-      <span data-prop="folderNameNode"
-            dir="auto"
-            class="msg-list-header-folder-name"></span>
-      <span data-prop="folderUnread"
-            class="msg-list-header-folder-unread collapsed"></span>
+    <h1 class="msg-list-header-folder-label header-label">
+      <lst-folder-title data-model-args></lst-folder-title>
     </h1>
   </header>
 </section>
@@ -64,17 +59,11 @@
 <ul data-prop="normalToolbar" class="bb-tablist msg-list-action-toolbar"
     role="toolbar">
   <li role="presentation">
-    <button data-prop="refreshBtn" data-event="click:onRefresh"
-            class="icon msg-refresh-btn" data-state="synchronized"
-            data-l10n-id="messages-refresh-button">
-    </button>
+    <lst-sync-button data-model-args></lst-sync-button>
   </li>
   <li role="status" class="msg-last-sync">
-    <span data-prop="lastSyncedLabel"
-          class="msg-last-synced-label"
-          data-l10n-id="folder-last-synced-label"></span>
-    <span data-prop="lastSyncedAtNode"
-          class="msg-last-synced-value"></span>
+    <lst-last-synced data-prop="lastSynced"
+                           data-model-args></lst-last-synced>
   </li>
   <li role="presentation">
     <button data-prop="editBtn" data-event="click:setEditModeStart"
@@ -86,4 +75,3 @@
                   data-event="onArchiveMessages,onDeleteMessages,onStarMessages,
                               onMarkMessagesRead,onMoveMessages">
 </lst-edit-toolbar>
-

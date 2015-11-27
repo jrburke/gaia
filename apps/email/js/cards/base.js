@@ -1,7 +1,5 @@
 'use strict';
 define(function(require) {
-  var Emitter = require('evt').Emitter;
-
   /**
    * Returns an array of objects that can be fed to the 'element' module to
    * create a prototype for a custom element. It takes an optional
@@ -21,6 +19,8 @@ define(function(require) {
   return function base(templateMixins) {
     // Set up the base mixin
     return [
+      require('./base_event'),
+
       // Mix in the template first, so that its createdCallback is
       // called before the other createdCallbacks, so that the
       // template is there for things like l10n mixing and node
@@ -29,38 +29,7 @@ define(function(require) {
 
       // Wire up support for auto-node binding
       require('./mixins/data-prop'),
-      require('./mixins/data-event'),
-
-      // Every custom element is an evt Emitter!
-      Emitter.prototype,
-
-      {
-        createdCallback: function() {
-          // Mark the email custom elements that are generated in this fashion
-          // with a specific class. This allows much more efficient query
-          // selector calls to grab them all vs using something like '*' and
-          // then filtering out the custom elements based on nodeName.
-          this.classList.add('email-ce');
-
-          Emitter.call(this);
-        },
-
-        /**
-         * Shortcut for triggering a DOM custom event with a detail object. Use
-         * this instead of evt when dealing with a custom element that wants to
-         * communicate with ancestor elements about an event (so therefore could
-         * bubble) that was based on a plain DOM event that happened inside the
-         * custom element.
-         *
-         * @param  {String} eventName The event name
-         * @param  {Object} detail    The state info passed in event.detail
-         */
-        emitDomEvent: function(eventName, detail) {
-          this.dispatchEvent(new CustomEvent(eventName, {
-            detail: detail
-          }));
-        }
-      }
+      require('./mixins/data-event')
     ];
   };
 });

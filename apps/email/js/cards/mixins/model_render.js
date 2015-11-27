@@ -34,7 +34,22 @@ define(function () {
           // Using the `this` form of on() so that it is easy to remove all
           // listeners tied to this object via removeObjectListener.
           this.renderModel.on(modelId, this, (modelValue) => {
+            var oldValue = this.state[modelId];
+
+            // Remove old change event listener.
+            if (oldValue && oldValue.removeObjectListener) {
+              oldValue.removeObjectListener(this);
+            }
+
             this.state[modelId] = modelValue;
+
+            // Listen for change events.
+            if (modelValue && modelValue.removeObjectListener) {
+              modelValue.on('change', this, () => {
+                callRender(this);
+              });
+            }
+
             callRender(this);
           });
 

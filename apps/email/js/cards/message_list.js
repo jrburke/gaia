@@ -62,12 +62,9 @@ return [
   require('./base_card')(require('template!./message_list.html')),
   require('./lst/edit_controller'),
   require('./lst/msg_click'),
+  require('./mixins/data-model-args'),
   {
     createdCallback: function() {
-      // Sync display
-      this._needsSizeLastSync = true;
-      this.updateLastSynced();
-
       this.curFolder = null;
       this.isIncomingFolder = true;
       this._emittedContentEvents = false;
@@ -124,11 +121,6 @@ return [
       this.msgVScroll.on('emptyLayoutShown', this, function() {
         this._clearCachedMessages();
 
-        // The outbox can't refresh anything if there are no messages.
-        if (this.curFolder.type === 'outbox') {
-          this.refreshBtn.disabled = true;
-        }
-
         this.editBtn.disabled = true;
 
         this._hideSearchBoxByScrolling();
@@ -136,7 +128,6 @@ return [
       });
       this.msgVScroll.on('emptyLayoutHidden', this, function() {
         this.editBtn.disabled = false;
-        this.refreshBtn.disabled = false;
       });
 
       var vScrollBindData = (model, node) => {
@@ -262,72 +253,13 @@ return [
       });
     },
 
-    /**
-     * If the last synchronised label is more than half the length
-     * of its display area, set a "long" style on it that allows
-     * different styling. But only do this once per card instance,
-     * the label should not change otherwise.
-     * TODO though, once locale changing in app is supported, this
-     * should be revisited.
-     */
-    sizeLastSync: function() {
-      if (this._needsSizeLastSync && this.lastSyncedLabel.scrollWidth) {
-        var label = this.lastSyncedLabel;
-        var overHalf = label.scrollWidth > label.parentNode.clientWidth / 2;
-        label.parentNode.classList[(overHalf ? 'add' : 'remove')]('long');
-        this._needsSizeLastSync = false;
-      }
-    },
-
-    updateLastSynced: function(value) {
-      var method = value ? 'remove' : 'add';
-      this.lastSyncedLabel.classList[method]('collapsed');
-      date.setPrettyNodeDate(this.lastSyncedAtNode, value);
-      this.sizeLastSync();
-    },
-
-    updateUnread: function(num) {
-      var content = '';
-      if (num > 0) {
-        content = num > 999 ? mozL10n.get('messages-folder-unread-max') : num;
-      }
-
-      this.folderUnread.textContent = content;
-      this.folderUnread.classList.toggle('collapsed', !content);
-      this.callHeaderFontSize();
-    },
-
-    /**
-     * A workaround for font_size_utils not recognizing child node content
-     * changing, and if it did, it would be noisy/extra work if done
-     * generically. Using a rAF call to not slow down the rest of card updates,
-     * it is something that can happen lazily on another turn.
-     */
-    callHeaderFontSize: function(node) {
-      requestAnimationFrame(() => {
-        FontSizeUtils._reformatHeaderText(this.folderLabel);
-      });
-    },
-
     onFolderPropsChange: function() {
       var folder = this.curFolder;
 
-      this.folderNameNode.textContent = folder.name;
-      this.updateUnread(folder.localUnreadConversations);
       this.msgVScroll.setAttribute('aria-label', folder.name);
 
-      this.updateLastSynced(folder.lastSuccessfulSyncAt);
-
-      // You can't refresh messages in the localdrafts folder.
-      this.refreshBtn.classList.toggle('collapsed',
-                                               folder.type === 'localdrafts');
-
       // Update refresh icon.
-      //todo: consder effects of .syncBlocked when implemented on back end.
-      if (folder.syncStatus === 'pending' || folder.syncStatus === 'active') {
-        this.setRefreshState(true);
-      } else {
-        this.setRefreshState(false);
+      if (folder.syncStatus !== 'pending' && folder.syncStatus !== 'active') {
         this._manuallyTriggeredSync = false;
       }
     },
@@ -415,21 +347,6 @@ return [
         });
       } else {
         this._setEditMode(editMode);
-      }
-    },
-
-    /**
-     * Set the refresh button state based on the new message status.
-     */
-    setRefreshState: function(syncing) {
-      if (syncing) {
-          this.refreshBtn.dataset.state = 'synchronizing';
-          this.refreshBtn.setAttribute('role', 'progressbar');
-          mozL10n.setAttributes(this.refreshBtn, 'messages-refresh-progress');
-      } else {
-        this.refreshBtn.dataset.state = 'synchronized';
-        this.refreshBtn.removeAttribute('role');
-        mozL10n.setAttributes(this.refreshBtn, 'messages-refresh-button');
       }
     },
 
@@ -784,10 +701,7 @@ return [
       // now in case it needs to finish initializing and initial display.
       this.msgVScroll.vScroll.nowVisible();
 
-      // On first construction, or if done in background,
-      // this card would not be visible to do the last sync
-      // sizing so be sure to check it now.
-      this.sizeLastSync();
+      this.lastSynced.nowVisible();
     },
 
     /**
@@ -831,6 +745,7 @@ return [
      * `jobmixins.js` in GELAM for backend-centric descriptions of how
      * the outbox sending process works.
      */
+//todo: move to msg_vscroll?
     toggleOutboxSyncingDisplay: function(syncing) {
       // Use an internal guard so that we only trigger changes to the UI
       // when necessary, rather than every time, which could break animations.
@@ -869,53 +784,6 @@ return [
           items[i].classList.remove('msg-message-syncing-section-syncing');
         }
       }
-//todo: this is not needed/valid any more?
-      this.setRefreshState(syncing);
-    },
-
-    onRefresh: function() {
-      var listCursor = this.listCursor;
-
-      if (!listCursor.list) {
-        return;
-      }
-
-      // If this is the outbox, refresh has a different meaning.
-      if (this.curFolder.type === 'outbox') {
-        // Rather than refreshing the folder, we'll send the pending
-        // outbox messages, and spin the refresh icon while doing so.
-        this.toggleOutboxSyncingDisplay(true);
-      } else {
-        // Normal folder.
-
-        var status = this.curFolder.syncStatus;
-        if (status !== 'pending' && status !== 'active') {
-          this._manuallyTriggeredSync = true;
-          listCursor.list.refresh();
-        }
-//todo: revist once folder.syncBlocked is available
-        // If we failed to talk to the server, then let's only do a refresh if
-        // we know about any messages.  Otherwise let's just create a new slice
-        // by forcing reentry into the folder.
-        // case 'syncfailed':
-        //   if (listCursor.list.items.length) {
-        //     listCursor.list.refresh();
-        //   } else {
-        //     this.showFolder(this.curFolder, /* force new slice */ true);
-        //   }
-        //   break;
-        // }
-      }
-
-      // Even if we're not actually viewing the outbox right now, we
-      // should still attempt to sync any pending messages. It's fairly
-      // harmless to kick off this job here, but it could also make
-      // sense to do this at the backend level. There are a number of
-      // cases where we might also want to  sendOutboxMessages() if
-      // we follow up with a more comprehensive sync setting -- e.g. on
-      // network change, on app startup, etc., so it's worth revisiting
-      // this and how coupled we want incoming vs outgoing sync to be.
-      this.model.api.sendOutboxMessages(this.model.account);
     },
 
     _folderChanged: function(folder) {

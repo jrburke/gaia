@@ -34,6 +34,9 @@ if (typeof TestUrlResolver === 'undefined') {
         deps: ['l10nbase'],
         exports: 'mozIntl'
       },
+      font_size_utils: {
+        exports: 'FontSizeUtils'
+      },
       'shared/js/mime_mapper': {
         exports: 'MimeMapper'
       },

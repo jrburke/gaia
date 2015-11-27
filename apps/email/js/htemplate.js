@@ -10,13 +10,23 @@ function EscapedValue(value) {
   this.escapedValue = value;
 }
 
+// Taken from shared/js/sanitizer.
+var entityRegExp = /[&<>"'/]/g;
+var entities = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  '\'': '&apos;',
+  '/': '&#x2F;'
+};
+function getEntity(s) {
+  return entities[s];
+}
+
 // Functions to properly escape string contents. Default one escapes HTML.
 function esc(value) {
-  return value.replace(/&/g, '&amp;')
-              .replace(/=/g, '&eq;')
-              .replace(/</g, '&lt;')
-              .replace(/>/g, '&gt;')
-              .replace(/"/g, '&quot;');
+  return value.replace(entityRegExp, getEntity);
 }
 
 esc.html = function(value) {
