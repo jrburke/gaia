@@ -44,24 +44,30 @@ function htemplate(renderFn) {
     renderFn.call(this, taggedFn, esc);
     var tagResult = taggedFn();
 
-    this.innerHTML = tagResult.text;
+    // If there is no result text, but this is a custom element upgraded from
+    // cached HTML, then do not mess with the innerHTML.
+    if (tagResult.text || this.dataset.cached !== 'cached' ||
+        !this.htemplateIgnoreEmptyRender) {
+      this.innerHTML = tagResult.text;
 
-    var bindingId = tagResult.bindingId;
-    if (bindingId) {
-      [...this.querySelectorAll('[data-hbinding-' + bindingId + ']')]
-      .forEach(function(node) {
-        var fnId = node.dataset['hbinding-' + bindingId],
-            binding = tagResult.bindings[fnId];
+      var bindingId = tagResult.bindingId;
+      if (bindingId) {
+        [...this.querySelectorAll('[data-hbinding-' + bindingId + ']')]
+        .forEach(function(node) {
+          var fnId = node.dataset['hbinding-' + bindingId],
+              binding = tagResult.bindings[fnId];
 
-        if (!binding) {
-          console.error('Cound not find binding ' + fnId);
-          return;
-        }
+          if (!binding) {
+            console.error('Cound not find binding ' + fnId);
+            return;
+          }
 
-        if (binding.fn) {
-          node[binding.fn](binding.value);
-        }
-      });
+          if (binding.fn) {
+            node[binding.fn](binding.value);
+          }
+        });
+      }
+
     }
   };
 }

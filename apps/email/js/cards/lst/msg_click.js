@@ -12,22 +12,6 @@ var cards = require('cards');
  */
 
 return {
-//todo: test this, might need to do more here. Binds to
-//this.listCursor.on('messageSuidNotFound', this.listNavOnMessageSuidNotFound);
-  listNavOnMessageSuidNotFound: function(messageSuid) {
-    // If no message was found, then go back. This card
-    // may have been created from obsolete data, like an
-    // old notification for a message that no longer exists.
-    // This stops atTop since the most likely case for this
-    // entry point is either clicking on a message that is
-    // at the top of the inbox in the HTML cache, or from a
-    // notification for a new message, which would be near
-    // the top.
-    if (this.messageSuid === messageSuid) {
-      this.onBack();
-    }
-  },
-
   pushCardForItem: function(mailConversation) {
     cards.add('animate', 'item_detail', {
       model: this.model,

@@ -4,7 +4,7 @@ define(function (require, exports) {
   var logic = require('logic');
   // XXX proper logging configuration for the front-end too once things start
   // working happily.
-  logic.realtimeLogEverything = true;
+//  logic.realtimeLogEverything = true;
 
   // Use a relative link so that consumers do not need to create
   // special config to use main-frame-setup.

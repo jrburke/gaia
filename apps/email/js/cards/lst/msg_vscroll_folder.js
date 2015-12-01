@@ -1,0 +1,402 @@
+'use strict';
+define(function(require) {
+
+var date = require('date'),
+    dataEvent = require('../mixins/data-event'),
+    dataProp = require('../mixins/data-prop'),
+    defaultVScrollData = require('./default_vscroll_data'),
+    evt = require('evt'),
+    ListCursor = require('list_cursor'),
+    mozL10n = require('l10n!'),
+    messageDisplay = require('message_display'),
+    MessageListTopBar = require('message_list_topbar'),
+    updatePeepDom = require('./peep_dom').update;
+
+// Custom elements used in the template.
+require('element!./msg_vscroll');
+
+return [
+  require('../base_render')(['folder'], function(html) {
+console.log('IN THE MSG VSCROLL FOLDER RENDER: ' + this.state.folder);
+    var folder = this.state.folder;
+    if (!folder || this.curFolder === folder) {
+      return;
+    }
+
+Object.keys(folder).forEach((k) => console.log(k, ': ', folder[k]));
+
+    html`
+    <div data-prop="scrollContainer" class="msg-list-scrollouter">
+      <!-- exists so we can force a minimum height -->
+      <div class="msg-list-scrollinner">
+        <!-- The search textbox hides under the lip of the messages.
+             As soon as any typing happens in it, we push the search
+             controls card. -->
+        <form role="search" data-prop="searchBar"
+              class="msg-search-tease-bar">
+          <p>
+            <input data-event="focus:onSearchButton"
+                   data-prop="searchTextTease"
+                   class="msg-search-text-tease" type="text"
+                   dir="auto"
+                   data-l10n-id="message-search-input" />
+          </p>
+        </form>
+        <lst-msg-vscroll data-prop="msgVScroll"
+                         aria-label="${folder.name}"
+                         data-event="messageClick:onClickMessage"
+                         data-empty-l10n-id="messages-folder-empty">
+        </lst-msg-vscroll>
+      </div>
+    </div>
+
+    <!-- New email notification bar -->
+    <div class="message-list-topbar"></div>
+    `;
+  }),
+
+  require('./msg_click'),
+
+  {
+    htemplateIgnoreEmptyRender: true,
+
+    createdCallback: function() {
+      // Workaround to multiple notifications on the same folder for minor
+      // changes (sync status pending active switching mostly).
+      this.curFolder = null;
+    },
+
+    renderEnd: function() {
+      var folder = this.state.folder;
+
+      if (!folder || this.curFolder === folder) {
+        return;
+      }
+
+      // Set the curFolder in renderEnd instead of render.
+      this.curFolder = folder;
+
+      // Wires up the data-prop properties.
+      dataProp.templateInsertedCallback.call(this);
+      dataEvent.templateInsertedCallback.call(this);
+
+      this._topBar = new MessageListTopBar(
+        this.querySelector('.message-list-topbar')
+      );
+      this._topBar.bindToElements(this.scrollContainer,
+                                  this.msgVScroll.vScroll);
+
+      //todo: figure out when this makes sense to do. Always, since renderEnd?
+      // If using a cache, do not clear the HTML as it will
+      // be cleared once real data has been fetched.
+      // if (!this.usingCachedNode) {
+        // This inherently scrolls us back up to the top of the list.
+      //   this.msgVScroll.vScroll.clearDisplay();
+      // }
+
+      this.msgVScroll.on('messagesSpliceStart', this, function(whatChanged) {
+//todo: reconsider how to do this communication.
+        this.parentNode._clearCachedMessages(this);
+      });
+
+      this.msgVScroll.on('messagesSpliceEnd', this, function(whatChanged) {
+        // Only cache if it is an add or remove of items
+        //todo: whatChanged is not returning totalCount.
+        if (whatChanged.totalCount) {
+//todo: how to call this now?
+          // this._considerCacheDom(
+          //   this.msgVScroll.listCursor.list.offset,
+          //   module.id
+          // );
+        }
+
+        // Inform that content is ready. There could actually be a small delay
+        // with vScroll.updateDataBind from rendering the final display, but it
+        // is small enough that it is not worth trying to break apart the design
+        // to accommodate this metrics signal.
+        if (!this._emittedContentEvents) {
+          evt.emit('metrics:contentDone');
+          this._emittedContentEvents = true;
+        }
+      });
+
+      this.msgVScroll.on('messagesChange', this, function(message, index) {
+        this.onMessagesChange(message, index);
+      });
+
+      // Outbox has some special concerns, override status method to account for
+      // it. Do this **before** initing the vscroll, so that the override is
+      // used.
+//todo: what to do now instead of status?
+      // var oldMessagesStatus = this.msgVScroll.messages_status;
+      // this.msgVScroll.messages_status = (newStatus) => {
+      //   // The outbox's refresh button is used for sending messages, so we
+      //   // ignore any syncing events generated by the slice. The outbox
+      //   // doesn't need to show many of these indicators (like the "Load
+      //   // More Messages..." node, etc.) and it has its own special
+      //   // "refreshing" display, as documented elsewhere in this file.
+      //   if (!this.curFolder || this.curFolder.type === 'outbox') {
+      //     return;
+      //   }
+
+      //   return oldMessagesStatus.call(this.msgVScroll, newStatus);
+      // };
+
+      this.msgVScroll.on('emptyLayoutShown', this, function() {
+//todo: reconsider how to do this communication.
+        this.parentNode._clearCachedMessages(this);
+
+        this.editBtn.disabled = true;
+
+        this._hideSearchBoxByScrolling();
+
+      });
+      this.msgVScroll.on('emptyLayoutHidden', this, function() {
+        this.editBtn.disabled = false;
+      });
+
+      var vScrollBindData = (model, node) => {
+        model.element = node;
+        node.message = model;
+        this.updateMessageDom(model);
+      };
+
+      this.msgVScroll.init(this.scrollContainer,
+                           vScrollBindData,
+                           defaultVScrollData);
+
+      // Event listeners for VScroll events.
+      this.msgVScroll.vScroll.on('inited', this, '_hideSearchBoxByScrolling');
+      this.msgVScroll.vScroll.on('dataChanged',
+                                 this, '_hideSearchBoxByScrolling');
+      this.msgVScroll.vScroll.on('recalculated', this, function(calledFromTop) {
+        if (calledFromTop) {
+          this._hideSearchBoxByScrolling();
+        }
+      });
+
+
+      var listCursor = this.listCursor = new ListCursor();
+      this.listCursor.bindToList(this.renderModel.api
+                                  .viewFolderConversations(folder));
+      this.msgVScroll.setListCursor(listCursor, this.renderModel);
+
+
+      this._hideSearchBoxByScrolling();
+
+      // Now that _hideSearchBoxByScrolling has activated the display
+      // of the search box, get the height of the search box and tell
+      // vScroll about it, but only do this once the DOM is displayed
+      // so the ClientRect gives an actual height.
+      this.msgVScroll.vScroll.visibleOffset =
+                                  this.searchBar.getBoundingClientRect().height;
+
+      // Also tell the MessageListTopBar
+      this._topBar.visibleOffset = this.msgVScroll.vScroll.visibleOffset;
+
+      // For search we want to make sure that we capture the screen size prior
+      // to focusing the input since the FxOS keyboard will resize our window to
+      // be smaller which messes up our logic a bit.  We trigger metric
+      // gathering in non-search cases too for consistency.
+      this.msgVScroll.vScroll.captureScreenMetrics();
+
+      // If user tapped in search box before the JS for the card is attached,
+      // then treat that as the signal to go to search. Only do this when first
+      // starting up though.
+      //todo: test this still works.
+      if (document.activeElement === this.searchTextTease) {
+        this.onSearchButton();
+      }
+    },
+
+    // Called by owning card.
+    nowVisible: function() {
+      // In case the vScroll was initialized when the card was not visible, like
+      // in an activity/notification flow when this card is created in the
+      // background behind the compose/reader card, let it know it is visible
+      // now in case it needs to finish initializing and initial display.
+      if (this.msgVScroll) {
+        this.msgVScroll.vScroll.nowVisible();
+      }
+    },
+
+    _hideSearchBoxByScrolling: function() {
+      // scroll the search bit out of the way
+      var searchBar = this.searchBar,
+          scrollContainer = this.scrollContainer;
+
+      // Search bar could have been collapsed with a cache load,
+      // make sure it is visible, but if so, adjust the scroll
+      // position in case the user has scrolled before this code
+      // runs.
+      if (searchBar.classList.contains('collapsed')) {
+        searchBar.classList.remove('collapsed');
+        scrollContainer.scrollTop += searchBar.offsetHeight;
+      }
+
+      // Adjust scroll position now that there is something new in
+      // the scroll region, but only if at the top. Otherwise, the
+      // user's purpose scroll positioning may be disrupted.
+      //
+      // Note that when we call vScroll.clearDisplay() we
+      // inherently scroll back up to the top, so this check is still
+      // okay even when switching folders.  (We do not want to start
+      // index 50 in our new folder because we were at index 50 in our
+      // old folder.)
+      if (scrollContainer.scrollTop === 0) {
+        scrollContainer.scrollTop = searchBar.offsetHeight;
+      }
+    },
+
+    onSearchButton: function() {
+      // Do not bother if there is no current folder.
+      if (!this.model || !this.model.folder) {
+        return;
+      }
+
+      //todo: commented out until search is usable.
+      require('not_implemented')('Search');
+      // cards.add('animate', 'message_list_search', {
+      //   model: this.model,
+      //   folder: this.model.folder
+      // });
+    },
+
+    onMessagesChange: function(message, index) {
+      this.updateMessageDom(message);
+
+      // Since the DOM change, cache may need to change.
+//todo: sort this out, how to access/inform?
+      //this._considerCacheDom(index, module.id);
+    },
+
+    /**
+     * Update the state of the given DOM node.  Note that DOM nodes are reused
+     * so you must ensure that this method cleans up any dirty state resulting
+     * from any possible prior operation of this method.
+     */
+    updateMessageDom: function(message) {
+      var msgNode = message.element;
+
+      if (!msgNode) {
+        return;
+      }
+
+      // If the placeholder data, indicate that in case VScroll
+      // wants to go back and fix later.
+      var classAction = message.isPlaceholderData ? 'add' : 'remove';
+      var defaultDataClass = this.msgVScroll.vScroll.itemDefaultDataClass;
+      msgNode.classList[classAction](defaultDataClass);
+
+      // ID is stored as a data- attribute so that it can survive
+      // serialization to HTML for storing in the HTML cache, and
+      // be usable before the actual data from the backend has
+      // loaded, as clicks to the message list are allowed before
+      // the back end is available. For this reason, click
+      // handlers should use dataset.id when wanting the ID.
+      msgNode.dataset.id = message.id;
+
+      // some things only need to be done once
+      var dateNode = msgNode.querySelector('.msg-message-date');
+      var subjectNode = msgNode.querySelector('.msg-message-subject');
+      var snippetNode = msgNode.querySelector('.msg-message-snippet');
+
+      var listPerson;
+      if (this.isIncomingFolder || this.is) {
+        listPerson = message.authors[0];
+      // XXX This is not to UX spec, but this is a stop-gap and that would
+      // require adding strings which we cannot justify as a slipstream fix.
+      } else if (message.to && message.to.length) {
+        listPerson = message.to[0];
+      } else if (message.cc && message.cc.length) {
+        listPerson = message.cc[0];
+      } else if (message.bcc && message.bcc.length) {
+        listPerson = message.bcc[0];
+      } else {
+//todo: changed this for drafts, but is it ideal if isDraft is on the message?
+        listPerson = message.authors[0];
+      }
+
+      var detailsNode = msgNode.querySelector('.msg-message-details-section');
+      detailsNode.classList.toggle('draft', message.hasDrafts);
+
+      // author
+      listPerson.element =
+        msgNode.querySelector('.msg-message-author');
+      listPerson.onchange = updatePeepDom;
+      listPerson.onchange(listPerson);
+
+      // count, if more than one.
+      var countNode = msgNode.querySelector('.msg-message-count'),
+          accountCountContainer = msgNode
+                                  .querySelector('.msg-message-author-count');
+      if (message.messageCount > 1) {
+        accountCountContainer.classList.add('multiple-count');
+      } else {
+        accountCountContainer.classList.remove('multiple-count');
+      }
+      mozL10n.setAttributes(countNode, 'message-header-conv-count', {
+        n: message.messageCount
+      });
+
+      // date
+      var dateTime = dateNode.dataset.time =
+                     message.mostRecentMessageDate.valueOf();
+      date.relativeDateElement(dateNode, dateTime);
+
+      // subject
+      messageDisplay.subject(msgNode.querySelector('.msg-message-subject'),
+                            message);
+
+      // attachments (can't change within a message but can change between
+      // messages, and since we reuse DOM nodes...)
+      var attachmentsNode = msgNode.querySelector('.msg-message-attachments');
+      attachmentsNode.classList.toggle('msg-message-attachments-yes',
+                                       message.hasAttachments);
+      // snippet needs to be shorter if icon is shown
+      snippetNode.classList.toggle('icon-short', message.hasAttachments);
+
+//todo: want first one or first unread one? Can tidbits be read messages?
+      // snippet
+      var tidbit = message.messageTidbits[0];
+      snippetNode.textContent = (tidbit && tidbit.snippet) || ' ';
+
+      // update styles throughout the node for read vs unread
+      msgNode.classList.toggle('unread', message.hasUnread);
+
+      // star
+      var starNode = msgNode.querySelector('.msg-message-star');
+
+      starNode.classList.toggle('msg-message-star-starred', message.hasStarred);
+      // subject needs to give space for star if it is visible
+      subjectNode.classList.toggle('icon-short', message.hasStarred);
+
+      // sync status
+      var syncNode =
+            msgNode.querySelector('.msg-message-syncing-section');
+
+      // sendState is only intended for outbox messages, so not all
+      // messages will have sendProblems defined.
+      var sendState = message.sendProblems && message.sendProblems.state;
+
+      syncNode.classList.toggle('msg-message-syncing-section-syncing',
+                                sendState === 'sending');
+      syncNode.classList.toggle('msg-message-syncing-section-error',
+                                sendState === 'error');
+
+      // Set the accessible label for the syncNode.
+      if (sendState) {
+        mozL10n.setAttributes(syncNode, 'message-message-state-' + sendState);
+      } else {
+        syncNode.removeAttribute('data-l10n-id');
+      }
+
+      // edit mode select state, defined in lst/edit_controller
+      this.updateDomSelectState(msgNode, message);
+    }
+
+
+  }
+];
+
+});

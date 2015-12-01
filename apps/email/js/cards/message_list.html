@@ -29,31 +29,9 @@
 <lst-edit-header data-prop="editHeader"
                        data-event="editHeaderClose"></lst-edit-header>
 <!-- Scroll region -->
-<div data-prop="scrollContainer" class="msg-list-scrollouter">
-  <!-- exists so we can force a minimum height -->
-  <div class="msg-list-scrollinner">
-    <!-- The search textbox hides under the lip of the messages.
-         As soon as any typing happens in it, we push the search
-         controls card. -->
-    <form role="search" data-prop="searchBar"
-          class="msg-search-tease-bar">
-      <p>
-        <input data-event="focus:onSearchButton"
-               data-prop="searchTextTease"
-               class="msg-search-text-tease" type="text"
-               dir="auto"
-               data-l10n-id="message-search-input" />
-      </p>
-    </form>
-    <lst-msg-vscroll data-prop="msgVScroll"
-                     data-event="messageClick:onClickMessage"
-                     data-empty-l10n-id="messages-folder-empty">
-    </lst-msg-vscroll>
-  </div>
-</div>
-
-<!-- New email notification bar -->
-<div class="message-list-topbar"></div>
+<lst-msg-vscroll-folder data-prop="msgVScrollFolder"
+                        data-model-args>
+</lst-msg-vscroll-folder>
 
 <!-- Toolbar for non-multi-edit state -->
 <ul data-prop="normalToolbar" class="bb-tablist msg-list-action-toolbar"
