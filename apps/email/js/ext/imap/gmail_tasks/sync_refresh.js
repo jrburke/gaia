@@ -24,6 +24,7 @@ define(function (require) {
 
   /**
    * This is the steady-state sync task that drives all of our gmail sync.
+   * See sync.md for detailed documentation on our algorithm/strategy.
    */
   return TaskDefiner.defineAtMostOnceTask([{
     name: 'sync_refresh',
@@ -98,7 +99,7 @@ define(function (require) {
       });
       var rawSyncState = fromDb.syncStates.get(req.accountId);
 
-      // -- Check to see if we need to spin-off a sync_grow instead
+      // -- Check to see if we need to spin-off the first-ever sync_grow
       if (!rawSyncState) {
         return {
           // we ourselves are done
@@ -121,8 +122,25 @@ define(function (require) {
         throw new Error('missing modseq');
       }
 
+      // -- Check to see if this is the first sync for this folder
+      // (The above check was the first check ever for anyone.)
+      if (!syncState.getFolderIdSinceDate(req.folderId)) {
+        return {
+          // we ourselves are done
+          taskState: null,
+          newData: {
+            tasks: [{
+              type: 'sync_grow',
+              accountId: req.accountId,
+              folderId: req.folderId
+            }]
+          }
+        };
+      }
+
+      // -- Okay, we're going to go through with this sync directly
       var foldersTOC = yield ctx.universe.acquireAccountFoldersTOC(ctx, req.accountId);
-      var labelMapper = new GmailLabelMapper(foldersTOC);
+      var labelMapper = new GmailLabelMapper(ctx, foldersTOC);
 
       // - sync_folder_list dependency-failsafe
       if (foldersTOC.items.length <= 3) {
@@ -138,7 +156,7 @@ define(function (require) {
       var syncDate = NOW();
 
       logic(ctx, 'syncStart', { modseq: syncState.modseq });
-      var { mailboxInfo, result: messages } = yield account.pimap.listMessages(allMailFolderInfo, '1:*', ['UID', 'INTERNALDATE', 'X-GM-THRID', 'X-GM-LABELS',
+      var { mailboxInfo, result: messages } = yield account.pimap.listMessages(ctx, allMailFolderInfo, '1:*', ['UID', 'INTERNALDATE', 'X-GM-THRID', 'X-GM-LABELS',
       // We don't need/want FLAGS for new messsages (ones with a higher UID
       // than we've seen before), but it's potentially kinder to gmail to
       // ask for everything in a single go.
@@ -164,9 +182,7 @@ define(function (require) {
         // Unwrap the imap-parser tagged { type, value } objects.  (If this
         // were a singular value that wasn't a list it would automatically be
         // unwrapped.)
-        var rawLabels = msg['x-gm-labels'].map(function (x) {
-          return x.value;
-        });
+        var rawLabels = msg['x-gm-labels'];
         var flags = msg.flags;
 
         highestModseq = a64.maxDecimal64Strings(highestModseq, msg.modseq);

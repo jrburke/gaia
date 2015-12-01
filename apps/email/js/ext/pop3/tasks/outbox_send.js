@@ -27,15 +27,15 @@ define(function (require) {
     saveSentMessage: function ({ messageInfo, account }) {
       // Put it in the sent folder.
       var sentFolder = account.getFirstFolderWithType('sent');
-      messageInfo.folderIds = [sentFolder.id];
+      messageInfo.folderIds = new Set([sentFolder.id]);
 
       // Mark the message as read.  We are clobbering other flags, but we don't
       // currently support a way for them to exist.
-      attachment.flags = ['\\Seen'];
-      for (var _attachment of messageInfo.attachments) {
-        _attachment.type = 'application/x-gelam-no-download';
+      messageInfo.flags = ['\\Seen'];
+      for (var attachment of messageInfo.attachments) {
+        attachment.type = 'application/x-gelam-no-download';
         // bye-bye Blob!
-        _attachment.file = null;
+        attachment.file = null;
       }
     }
   }]);

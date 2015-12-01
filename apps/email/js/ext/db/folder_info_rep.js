@@ -38,6 +38,24 @@ define(function () {
    *   Indicates the granularity at which this folder is synchronized with the
    *   server.  Some folders are not synchronized with a server, in which case
    *   the value 'local-only' is used.
+   * @property {Boolean} fullySynced
+   *   Is this folder fully synchronized?
+   * @property {Number|null} localMessageCount
+   *   The number of messages locally present in this folder.  This is tracked by
+   *   a database trigger and so will be valid for local-only folders as well
+   *   reflecting local changes that have not been applied to the server.  There
+   *   is some overhead to maintaining this and it's not a given that it's worth
+   *   whatever the overhead is.  However, it *is* useful for our gmail sync_grow
+   *   implementation and should allow us to help vanilla IMAP generate internal
+   *   consistency checks.
+   * @property {Number|null} estimatedUnsyncedMessages
+   *   The number of messages we think are not yet synchronized in this folder or
+   *   null if we have no idea.
+   * @property {DateMS|null} syncedThrough
+   *   The oldest date we are synchronized through in this folder.  This will be
+   *   null if we've never synchronized this folder or that's not how the sync
+   *   engine for this account works.
+   *
    * @property {DateMS} [lastSuccessfulSyncAt]
    *   The last time the folder was successfully synchronized, or 0 if the folder
    *   has never been (successfully) synchronized.  In the case of sync engines
@@ -54,6 +72,7 @@ define(function () {
    *   The number of times we have failed to synchronize since the last time we
    *   successfully synchronized.  By definition, this is zeroed when a successful
    *   sync occurs.
+   *
    * @property {Number} localUnreadConversations
    *   The number of locally-known unread conversations in this folder.
    */
@@ -69,10 +88,15 @@ define(function () {
       delim: raw.delim || null,
       depth: raw.depth || 0,
       syncGranularity: raw.syncGranularity || null,
+      localMessageCount: 0,
+      estimatedUnsyncedMessages: null,
+      syncedThrough: null,
+
       lastSuccessfulSyncAt: raw.lastSuccessfulSyncAt || 0,
       lastAttemptedSyncAt: raw.lastAttemptedSyncAt || 0,
       lastFailedSyncAt: raw.lastFailedSyncAt || 0,
       failedSyncsSinceLastSuccessfulSync: raw.failedSyncsSinceLastSuccessfulSync || 0,
+
       localUnreadConversations: raw.localUnreadConversations || 0
     };
   }

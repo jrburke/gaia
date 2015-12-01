@@ -1,9 +1,9 @@
 define(function (require) {
   'use strict';
 
-  var { numericUidFromMessageId } = require('../../id_conversions');
+  const { numericUidFromMessageId } = require('../../id_conversions');
 
-  var TaskDefiner = require('../../task_infra/task_definer');
+  const TaskDefiner = require('../../task_infra/task_definer');
 
   return TaskDefiner.defineComplexTask([require('../../task_mixins/mix_sync_body'), require('../task_mixins/imap_mix_sync_body'), {
     prepForMessages: function (ctx, account /*, messages*/) {

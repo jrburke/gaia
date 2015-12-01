@@ -1,24 +1,36 @@
 define(function (require) {
   'use strict';
 
-  var co = require('co');
-  var logic = require('logic');
+  const co = require('co');
+  const logic = require('logic');
 
-  var TaskDefiner = require('../../task_infra/task_definer');
+  const TaskDefiner = require('../../task_infra/task_definer');
 
-  var { makeDaysAgo, makeDaysBefore, quantizeDate, NOW } = require('../../date');
+  const { quantizeDate, NOW } = require('../../date');
 
-  var imapchew = require('../imapchew');
-  var parseImapDateTime = imapchew.parseImapDateTime;
+  const imapchew = require('../imapchew');
+  const parseImapDateTime = imapchew.parseImapDateTime;
 
-  var FolderSyncStateHelper = require('../vanilla/folder_sync_state_helper');
+  const FolderSyncStateHelper = require('../vanilla/folder_sync_state_helper');
 
-  var syncbase = require('../../syncbase');
+  const { OLDEST_SYNC_DATE, SYNC_WHOLE_FOLDER_AT_N_MESSAGES,
+    GROWTH_MESSAGE_COUNT_TARGET } = require('../../syncbase');
 
   /**
-   * Expand the date-range of known messages for the given folder/label.
+   * Expand the date-range of known messages for the given folder.
+   *
+   * This is now relatively clever and uses the following two heuristics to ensure
+   * that we always learn about at least one message:
+   * - If there's only a small number of messages in the folder that we don't
+   *   know about, we just move our sync range to be everything since the oldest
+   *   sync date.  TODO: In the future change this to have us remove date
+   *   constraints entirely.  It's likely much friendlier to the server to do
+   *   this.
+   * - Use sequence numbers to figure out an appropriate date to use to grow our
+   *   date-based sync window.  This is intended to help us bridge large time
+   *   gaps between messages.
    */
-  return TaskDefiner.defineSimpleTask([{
+  return TaskDefiner.defineSimpleTask([require('../task_mixins/imap_mix_probe_for_date'), {
     name: 'sync_grow',
     args: ['accountId', 'folderId', 'minDays'],
 
@@ -40,34 +52,43 @@ define(function (require) {
 
       var syncState = new FolderSyncStateHelper(ctx, fromDb.syncStates.get(req.folderId), req.accountId, req.folderId, 'grow');
 
+      // -- Enter the folder to get an estimate of the number of messages
+      var account = yield ctx.universe.acquireAccount(ctx, req.accountId);
+      var folderInfo = account.getFolderById(req.folderId);
+      var mailboxInfo = yield account.pimap.selectMailbox(ctx, folderInfo);
+
+      // Figure out an upper bound on the number of messages in the folder that
+      // we have not synchronized.
+      var estimatedUnsyncedMessages = mailboxInfo.exists - syncState.knownMessageCount;
+
       // -- Issue a search for the new date range we're expanding to cover.
-      // TODO: consider the fast full folder sync heuristic where if the folder
-      // only has a few messages we just sync them all.
-      // TODO: consider some type of statistical shenanigans based on message
-      // sequence number.  Like fetch the dates of N messages around
-      // (EXISTS - 50) and then extrapolate a reasonable date choice based on
-      // that.
       var searchSpec = { not: { deleted: true } };
 
       var existingSinceDate = syncState.sinceDate;
       var newSinceDate = undefined;
-      if (existingSinceDate) {
-        searchSpec.before = new Date(quantizeDate(existingSinceDate));
-        newSinceDate = makeDaysBefore(existingSinceDate, syncbase.INITIAL_SYNC_GROWTH_DAYS);
-        searchSpec.since = new Date(newSinceDate);
+
+      // If there are fewer messages left to sync than our constant for this
+      // purpose, then just set the date range to our oldest sync date.
+      if (!isNaN(estimatedUnsyncedMessages) && estimatedUnsyncedMessages < Math.max(SYNC_WHOLE_FOLDER_AT_N_MESSAGES, GROWTH_MESSAGE_COUNT_TARGET)) {
+        newSinceDate = OLDEST_SYNC_DATE;
       } else {
-        newSinceDate = makeDaysAgo(syncbase.INITIAL_SYNC_DAYS);
-        searchSpec.since = new Date(newSinceDate);
+        newSinceDate = yield this._probeForDateUsingSequenceNumbers({
+          ctx, account, folderInfo,
+          startSeq: mailboxInfo.exists - syncState.knownMessageCount,
+          curDate: existingSinceDate || quantizeDate(NOW())
+        });
       }
 
-      var account = yield ctx.universe.acquireAccount(ctx, req.accountId);
+      if (existingSinceDate) {
+        searchSpec.before = new Date(quantizeDate(existingSinceDate));
+      }
+      searchSpec.since = new Date(newSinceDate);
 
       var syncDate = NOW();
 
       logic(ctx, 'searching', { searchSpec: searchSpec });
-      var folderInfo = account.getFolderById(req.folderId);
       // Find out new UIDs covering the range in question.
-      var { mailboxInfo, result: uids } = yield account.pimap.search(folderInfo, searchSpec, { byUid: true });
+      var { result: uids } = yield account.pimap.search(ctx, folderInfo, searchSpec, { byUid: true });
 
       // -- Fetch flags and the dates for the new messages
       // We want the date so we can prioritize the synchronization of the
@@ -76,7 +97,7 @@ define(function (require) {
       if (uids.length) {
         var newUids = syncState.filterOutKnownUids(uids);
 
-        var { result: messages } = yield account.pimap.listMessages(folderInfo, newUids, ['UID', 'INTERNALDATE', 'FLAGS'], { byUid: true });
+        var { result: messages } = yield account.pimap.listMessages(ctx, folderInfo, newUids, ['UID', 'INTERNALDATE', 'FLAGS'], { byUid: true });
 
         for (var msg of messages) {
           var dateTS = parseImapDateTime(msg.internaldate);
@@ -117,6 +138,9 @@ define(function (require) {
         },
         atomicClobbers: {
           folders: new Map([[req.folderId, {
+            fullySynced: syncState.sinceDate === OLDEST_SYNC_DATE.valueOf(),
+            estimatedUnsyncedMessages,
+            syncedThrough: syncState.sinceDate,
             lastSuccessfulSyncAt: syncDate,
             lastAttemptedSyncAt: syncDate,
             failedSyncsSinceLastSuccessfulSync: 0

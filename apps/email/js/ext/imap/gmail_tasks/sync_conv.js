@@ -13,7 +13,7 @@ define(function (require) {
 
   var { encodedGmailConvIdFromConvId } = require('../../id_conversions');
 
-  var { valuesOnly, chewMessageStructure, parseImapDateTime } = require('../imapchew');
+  var { chewMessageStructure, parseImapDateTime } = require('../imapchew');
 
   var { conversationMessageComparator } = require('../../db/comparators');
 
@@ -62,7 +62,15 @@ define(function (require) {
    *
    * For a new conversation, in the execution phase, do a SEARCH to find all the
    * headers, FETCH all their envelopes, and add the headers/bodies to the
-   * database.  This requires loading and mutating the syncState.
+   * database.  This requires loading and mutating the syncState.  TODO: But we
+   * want this to either avoid doing this or minimize what it gets up to.  One
+   * possibility is to use a locking construct that allows multiple sync_conv
+   * tasks such as ourselves to operate in parallel but block sync_refresh from
+   * operating until all of us have completed.  This would allow us to do
+   * scattered writes that the sync_conv would slurp up and integrate into the
+   * sync state when it starts.  This would accomplish our goals of 1) letting us
+   * being parallelized and 2) keeping sync_refresh smaller/simpler so it doesn't
+   * need to do this too.
    *
    * For a non-new conversation where we are told newUids, in the execution
    * phase, FETCH their envelopes and add the headers/bodies to the database.
@@ -120,16 +128,12 @@ define(function (require) {
 
       if (uids && uids.length) {
         var foldersTOC = yield ctx.universe.acquireAccountFoldersTOC(ctx, account.id);
-        var labelMapper = new GmailLabelMapper(foldersTOC);
+        var labelMapper = new GmailLabelMapper(ctx, foldersTOC);
 
-        var { result: rawMessages } = yield account.pimap.listMessages(allMailFolderInfo, uids, INITIAL_FETCH_PARAMS, { byUid: true });
+        var { result: rawMessages } = yield account.pimap.listMessages(ctx, allMailFolderInfo, uids, INITIAL_FETCH_PARAMS, { byUid: true });
 
         for (var msg of rawMessages) {
-          // Convert the imap-parser tagged { type: STRING, value } for to just
-          // values.
-          // (Note this is a different set of types from the header parser, and
-          // different from flags which are automatically normalized.)
-          var rawGmailLabels = valuesOnly(msg['x-gm-labels']);
+          var rawGmailLabels = msg['x-gm-labels'];
           var flags = msg.flags || [];
           var uid = msg.uid;
 
@@ -155,7 +159,8 @@ define(function (require) {
 
           var folderIds = labelMapper.labelsToFolderIds(rawGmailLabels);
 
-          var messageInfo = chewMessageStructure(msg, folderIds, flags, convId);
+          var messageInfo = chewMessageStructure(msg, null, // we don't pre-compute the headers.
+          folderIds, flags, convId);
           messages.push(messageInfo);
         }
       }
@@ -183,7 +188,7 @@ define(function (require) {
       var searchSpec = {
         'x-gm-thrid': convIdToGmailThreadId(req.convId)
       };
-      var { result: uids } = yield account.pimap.search(allMailFolderInfo, searchSpec, { byUid: true });
+      var { result: uids } = yield account.pimap.search(ctx, allMailFolderInfo, searchSpec, { byUid: true });
       logic(ctx, 'search found uids', { uids });
 
       var messages = yield* this._fetchAndChewUids(ctx, account, allMailFolderInfo, req.convId, uids, syncState);

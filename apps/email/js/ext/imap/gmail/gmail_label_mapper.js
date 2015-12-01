@@ -15,8 +15,8 @@ define(function (require) {
    * - "INBOX" is \Inbox
    * - "[Gmail]/Sent Mail" is \Sent
    */
-  function GmailLabelMapper(foldersTOC) {
-    logic.defineScope(this, 'GmailLabelMapper');
+  function GmailLabelMapper(ctx, foldersTOC) {
+    logic.defineScope(this, 'GmailLabelMapper', { ctxId: ctx.id });
 
     this._labelToFolderId = new Map();
     this._folderIdToLabel = new Map();
@@ -68,8 +68,10 @@ define(function (require) {
         this._labelToFolderId.set(label, folderInfo.id);
         this._folderIdToLabel.set(folderInfo.id, label);
         // Useful but too chatty right now.
-        //logic(this, 'mapping', { id: folderInfo.id, label: label });
       }
+      // Labels may be user-authored with privacy implications, so use an
+      // underscore to indicate the data is private.
+      logic(this, 'mapEstablished', { _labelToFolderId: this._labelToFolderId });
     },
 
     /**
@@ -81,13 +83,16 @@ define(function (require) {
      * @return {FolderId[]}
      */
     labelsToFolderIds: function (gmailLabels) {
-      var folderIds = [];
+      var folderIds = new Set();
       for (var gmailLabel of gmailLabels) {
         var folderId = this._labelToFolderId.get(gmailLabel);
         if (!folderId) {
-          logic(this, 'missingLabelMapping', { label: gmailLabel, allLabels: gmailLabels });
+          // This is a serious invariant violation, so do report the specific
+          // missing label as non-private, but keep the others private unless
+          // they also fail.
+          logic(this, 'missingLabelMapping', { label: gmailLabel, _allLabels: gmailLabels });
         } else {
-          folderIds.push(folderId);
+          folderIds.add(folderId);
         }
       }
       return folderIds;
@@ -108,7 +113,11 @@ define(function (require) {
      * Given an array of `FolderId`s, return an array of gmail label strings that
      * X-GM-LABELS understands.  The values should never be exposed to the user.
      *
-     * @param {FolderId[]} folderIds
+     * Note that even though we have transitioned to always storing folder id's
+     * in a Set, we continue to return an array because we pass these to
+     * browserbox and it still wants an Array.
+     *
+     * @param {Set<FolderId>} folderIds
      * @return {String[]}
      */
     folderIdsToLabels: function (folderIds) {

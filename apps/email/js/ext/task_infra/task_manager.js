@@ -123,6 +123,10 @@ define(function (require) {
       // -- Trigger processing when all initialization has completed.
       Promise.all(pendingInitPromises).then(function () {
         _this._activePromise = null;
+        logic(_this, 'starting', {
+          numTasksToPlan: _this._tasksToPlan.length,
+          numPrioritizedTasks: _this._priorities.numTasksToExecute
+        });
         _this._maybeDoStuff();
       });
     }),
@@ -501,6 +505,41 @@ define(function (require) {
         this.emit('executed', taskThing.id, undefined);
       }
       return execResult;
+    },
+
+    /**
+     * Used by `TaskContext.spawnSubtask` to tell us about subtasks it is
+     * spawning.  From a scheduling/management/ownership perspective, we don't
+     * care about them at all.  But from a logging perspective we do care and
+     * we want them to pass through us.
+     *
+     * Currently we are treating subtasks very explicitly to logging as their own
+     * thing and not pretending they are tasks being executed.  Likewise, we do
+     * not expose them to task groups, etc.  The rationale is that subtasks'
+     * life-cycles are strictly bound by their parent tasks, so they are boring on
+     * their own.  (Also, they're basically just a hack to reuse all the
+     * read/mutate/lock semantics while still maintaining our rules about
+     * locking.)
+     *
+     * @param {TaskContext} subctx
+     *   The task context created for the subtask.
+     * @param {Function} subtaskFunc
+     *   The subtask function to be invoked and which is expected to return a
+     *   Promise (presumably the function is wrapped using co.wrap()).  We use
+     *   subctx.__taskInstance as the `this`, the `subctx` as the first argument,
+     *   and the `subtaskArg` as the second argument.
+     * @param Object [subtaskArg]
+     */
+    __trackAndWrapSubtask: function (ctx, subctx, subtaskFunc, subtaskArg) {
+      var _this14 = this;
+
+      logic(this, 'subtask:begin', { taskId: ctx.id, subtaskId: subctx.id });
+      var subtaskResult = subtaskFunc.call(subctx.__taskInstance, subctx, subtaskArg);
+      // (we want our logging to definitely happen before any result is returned)
+      return subtaskResult.then(function (result) {
+        logic(_this14, 'subtask:end', { taskId: ctx.id, subtaskId: subctx.id });
+        return result;
+      });
     }
   });
 

@@ -65,6 +65,10 @@ define(function (require) {
       return this._prioritizedTasks.isEmpty();
     },
 
+    get numTasksToExecute() {
+      return this._prioritizedTasks.nodeCount;
+    },
+
     /**
      * Retrieve a task for execution.  The task will no longer be tracked by
      * `TaskPriorities` at all; error handling logic at higher levels is
@@ -90,8 +94,10 @@ define(function (require) {
     _computePriorityForTags: function (priorityTags) {
       var summedPriorityTags = this._summedPriorityTags;
       var priority = 0;
-      for (var priorityTag of priorityTags) {
-        priority += summedPriorityTags.get(priorityTag) || 0;
+      if (priorityTags) {
+        for (var priorityTag of priorityTags) {
+          priority += summedPriorityTags.get(priorityTag) || 0;
+        }
       }
       return priority;
     },
@@ -151,13 +157,13 @@ define(function (require) {
       };
 
       // - Iterate over newValues for new/changed values.
-      for (var [priorityTag, newPriority] of newValues.items()) {
+      for (var [priorityTag, newPriority] of newValues.entries()) {
         var oldPriority = existingValues.get(priorityTag) || 0;
         var priorityDelta = newPriority - oldPriority;
         applyDelta(priorityTag, priorityDelta);
       }
       // - Iterate over existingValues for deletions
-      for (var [priorityTag, oldPriority] of existingValues.items()) {
+      for (var [priorityTag, oldPriority] of existingValues.entries()) {
         if (newValues.has(priorityTag)) {
           continue;
         }

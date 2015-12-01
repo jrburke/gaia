@@ -4,7 +4,7 @@ define(function (require) {
   const logic = require('logic');
 
   const $router = require('./worker-router');
-  const sendMessage = $router.registerCallbackType('wakelocks');
+  const sendWakeLockMessage = $router.registerCallbackType('wakelocks');
 
   /**
    * SmartWakeLock: A renewable, failsafe Wake Lock manager.
@@ -29,7 +29,7 @@ define(function (require) {
   function SmartWakeLock(opts) {
     var _this = this;
 
-    logic.defineScope(this, 'SmartWakeLock', { unique: Date.now() });
+    logic.defineScope(this, 'SmartWakeLock', { unique: Date.now(), types: opts.locks });
     this.timeoutMs = opts.timeout || SmartWakeLock.DEFAULT_TIMEOUT_MS;
     var locks = this.locks = {}; // map of lockType -> wakeLockInstance
 
@@ -41,16 +41,13 @@ define(function (require) {
     // the methods on this class) ensures that folks can ignore the
     // ugly asynchronous parts and not worry about when things happen
     // under the hood.
+    logic(this, 'requestLock', { durationMs: this.timeoutMs });
     this._readyPromise = Promise.all(opts.locks.map(function (type) {
-      logic(_this, 'requestLock', { type, durationMs: _this.timeoutMs });
-      return new Promise(function (resolve) {
-        sendMessage('requestWakeLock', [type], function (lockId) {
-          logic(_this, 'locked', { type });
-          locks[type] = lockId;
-          resolve();
-        });
+      return sendWakeLockMessage('requestWakeLock', [type]).then(function (lockId) {
+        locks[type] = lockId;
       });
     })).then(function () {
+      logic(_this, 'locked', {});
       // For simplicity of implementation, we reuse the `renew` method
       // here to add the initial `opts.timeout` to the unlock clock.
       _this.renew(); // Start the initial timeout.
@@ -107,15 +104,14 @@ define(function (require) {
         clearTimeout(_this3._timeout);
         _this3._timeout = null;
 
+        logic(_this3, 'unlock', { reason });
         // Wait for all of them to successfully unlock.
         return Promise.all(Object.keys(locks).map(function (type) {
-          return new Promise(function (resolve) {
-            sendMessage('unlock', [locks[type]], function () {
-              resolve(type);
-            });
+          return sendWakeLockMessage('unlock', [locks[type]], function () {
+            return type;
           });
-        })).then(function (type) {
-          logic(_this3, 'unlocked', { type, reason });
+        })).then(function () {
+          logic(_this3, 'unlocked', { reason });
         });
       });
     },

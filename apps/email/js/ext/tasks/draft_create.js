@@ -79,7 +79,7 @@ define(function (require) {
       var allMessages = undefined;
       var oldConvInfo = undefined;
       var messageInfo = undefined;
-      var folderIds = [draftFolderInfo.id];
+      var folderIds = new Set([draftFolderInfo.id]);
       // - Blank Compose
       if (req.draftType === 'blank') {
         // No need for a body, just generate it up.

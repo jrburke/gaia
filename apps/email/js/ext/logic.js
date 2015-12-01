@@ -281,7 +281,8 @@ define(function (require) {
     logic.emit('event', event);
 
     if (logic.realtimeLogEverything) {
-      dump('logic: ' + event.toString() + '\n');
+      //dump('logic: ' + event.toString() + '\n');
+      dump('logic: ' + JSON.stringify(event) + '\n');
     }
 
     return event;

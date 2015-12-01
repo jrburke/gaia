@@ -65,15 +65,38 @@ define(function (require) {
      * The loaded complex task states which we stash until we hear about the
      * account existing with `accountExists`.
      */
-    initializeFromDatabaseState: function (complexStates) {
-      for (var rec of complexStates) {
-        var [accountId, taskType] = rec.key;
+    initializeFromDatabaseState: function ([stateKeys, stateValues]) {
+      if (stateKeys.length !== stateValues.length) {
+        throw new Error('impossible complex state inconsistency issue');
+      }
+      for (var i = 0; i < stateKeys.length; i++) {
+        var [accountId, taskType, taskKey] = stateKeys[i];
+        var value = stateValues[i];
+        // NB: The data we receive from IndexedDB has a known ordering that could
+        // allow this loop to avoid wasted Map lookups, although it's unlikely
+        // to ever matter.
+
+        // - Binned by account
         var dataByTaskType = this._dbDataByAccount.get(accountId);
         if (!dataByTaskType) {
           dataByTaskType = new Map();
           this._dbDataByAccount.set(accountId, dataByTaskType);
         }
-        dataByTaskType.set(taskType, rec);
+
+        // - Binned by task type
+        // Is this a multi-valued Map?
+        if (taskKey !== undefined) {
+          // Multi-valued Map stored as multiple keyed records
+          var map = dataByTaskType.get(taskType);
+          if (!map) {
+            map = new Map();
+            dataByTaskType.set(taskType, map);
+          }
+          map.set(taskKey, value);
+        } else {
+          // Single object, no key.
+          dataByTaskType.set(taskType, value);
+        }
       }
     },
 
@@ -203,13 +226,33 @@ define(function (require) {
         }
       }
 
-      if (taskMeta.impl.isComplex) {
-        return taskMeta.impl.plan(ctx, taskMeta.persistentState, taskMeta.memoryState, rawTask);
-      } else {
-        // All tasks have a plan stage.  Even if it's only the default one that
-        // just chucks it in the priority bucket.
-        return taskMeta.impl.plan(ctx, rawTask);
+      ctx.__taskInstance = taskMeta.impl;
+      var maybePromiseResult = undefined;
+      try {
+        if (taskMeta.impl.isComplex) {
+          maybePromiseResult = taskMeta.impl.plan(ctx, taskMeta.persistentState, taskMeta.memoryState, rawTask);
+        } else {
+          // All tasks have a plan stage.  Even if it's only the default one that
+          // just chucks it in the priority bucket.
+          return taskMeta.impl.plan(ctx, rawTask);
+        }
+      } catch (ex) {
+        logic.fail(ex);
       }
+      // We need to force tasks to finalize if they don't do so themselves.  This
+      // is true for both rejections and returns without finalization.
+      if (maybePromiseResult.then) {
+        var doFinalize = function () {
+          ctx.__failsafeFinalize();
+        };
+        // I'm intentionally not forcing the return to wait on the failsafe
+        // finalization to happen out of paranoia.  It might be a good idea,
+        // though.
+        maybePromiseResult.then(doFinalize, doFinalize);
+      } else {
+        ctx.__failsafeFinalize();
+      }
+      return maybePromiseResult;
     },
 
     executeTask: function (ctx, taskThing) {
@@ -231,6 +274,7 @@ define(function (require) {
         throw new Error('Trying to exec ' + taskType + ' but isComplex:' + taskMeta.impl.isComplex);
       }
 
+      ctx.__taskInstance = taskMeta.impl;
       if (isMarker) {
         return taskMeta.impl.execute(ctx, taskMeta.persistentState, taskMeta.memoryState, taskThing);
       } else {

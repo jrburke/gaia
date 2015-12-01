@@ -3,7 +3,7 @@ define(function (require) {
 
   var evt = require('evt');
 
-  function MailFolder(api, wireRep, overlays, slice) {
+  function MailFolder(api, wireRep, overlays) {
     evt.Emitter.call(this);
     this._api = api;
 
@@ -31,6 +31,7 @@ define(function (require) {
       this._wireRep = wireRep;
 
       this.localUnreadConversations = wireRep.localUnreadConversations;
+      this.localMessageCount = wireRep.localMessageCount;
 
       var datify = function (maybeDate) {
         return maybeDate ? new Date(maybeDate) : null;
@@ -88,9 +89,12 @@ define(function (require) {
       // Exchange folder name with the localized version if available
       this.name = this._api.l10n_folder_name(this.name, this.type);
 
-      this.selectable = wireRep.type !== 'account' && wireRep.type !== 'nomail';
+      var hierarchyOnly = wireRep.type === 'account' || wireRep.type === 'nomail';
+      this.selectable = !hierarchyOnly && !wireRep.engineSaysUnselectable;
 
-      this.neededForHierarchy = !this.selectable;
+      this.neededForHierarchy = hierarchyOnly;
+
+      this.fullySynced = wireRep.fullySynced;
 
       /**
        *  isValidMoveTarget denotes whether this folder is a valid

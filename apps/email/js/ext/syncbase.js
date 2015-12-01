@@ -21,22 +21,6 @@ define(['./date', 'exports'], function ($date, exports) {
   ////////////////////////////////////////////////////////////////////////////////
   // IMAP time constants
 
-  /**
-   * How recently synchronized does a time range have to be for us to decide that
-   * we don't need to refresh the contents of the time range when opening a slice?
-   * If the last full synchronization is more than this many milliseconds old, we
-   * will trigger a refresh, otherwise we will skip it.
-   */
-  exports.OPEN_REFRESH_THRESH_MS = 10 * 60 * 1000;
-
-  /**
-   * How recently synchronized does a time range have to be for us to decide that
-   * we don't need to refresh the contents of the time range when growing a slice?
-   * If the last full synchronization is more than this many milliseconds old, we
-   * will trigger a refresh, otherwise we will skip it.
-   */
-  exports.GROW_REFRESH_THRESH_MS = 60 * 60 * 1000;
-
   ////////////////////////////////////////////////////////////////////////////////
   // POP3 Sync Constants
 
@@ -86,11 +70,6 @@ define(['./date', 'exports'], function ($date, exports) {
   exports.SYNC_FOLDER_LIST_EVERY_MS = $date.DAY_MILLIS;
 
   /**
-   * How many messages should we send to the UI in the first go?
-   */
-  exports.INITIAL_FILL_SIZE = 15;
-
-  /**
    * How many days in the past should we first look for messages.
    *
    * IMAP only.
@@ -104,19 +83,10 @@ define(['./date', 'exports'], function ($date, exports) {
   exports.INITIAL_SYNC_GROWTH_DAYS = 3;
 
   /**
-   * What should be multiple the current number of sync days by when we perform
-   * a sync and don't find any messages?  There are upper bounds in
-   * `ImapFolderSyncer.onSyncCompleted` that cap this and there's more comments
-   * there.  Note that we keep moving our window back as we go.
-   *
-   * This was 1.6 for a while, but it was proving to be a bit slow when the first
-   * messages start a ways back.  Also, once we moved to just syncing headers
-   * without bodies, the cost of fetching more than strictly required went way
-   * down.
-   *
-   * IMAP only.
+   * When growing in a folder, what's the approximate number of messages we should
+   * target to synchronize?  Note that this is in messages, not conversations.
    */
-  exports.TIME_SCALE_FACTOR_ON_NO_MESSAGES = 2;
+  exports.GROWTH_MESSAGE_COUNT_TARGET = 32;
 
   /**
    * What is the furthest back in time we are willing to go?  This is an
@@ -163,33 +133,19 @@ define(['./date', 'exports'], function ($date, exports) {
   exports.BYTES_PER_IMAP_FETCH_CHUNK_REQUEST = 1024 * 1024;
 
   ////////////////////////////////////////////////////////////////////////////////
-  // Error / Retry Constants
+  // Download Stuff
 
   /**
-   * What is the maximum number of tries we should give an operation before
-   * giving up on the operation as hopeless?  Note that in some suspicious
-   * error cases, the try cont will be incremented by more than 1.
-   *
-   * This value is somewhat generous because we do assume that when we do
-   * encounter a flakey connection, there is a high probability of the connection
-   * being flakey in the short term.  The operations will not be excessively
-   * penalized for this since IMAP connections have to do a lot of legwork to
-   * establish the connection before we start the operation (CAPABILITY, LOGIN,
-   * CAPABILITY).
+   * The device storage name to use when saving downloaded files.  It has always
+   * been 'sdcard', it will probably always be 'sdcard'.  The choice of which
+   * of internal/external storage is handled by DeviceStorage and the system
+   * itself, not us.  You probably don't want to be changing this unless we change
+   * on devices to store the other storage names in places that don't overlap with
+   * 'sdcard'.  (As of this writing, on desktop the hacky/unsupported
+   * devicestorage implementation does use disparate places unless in testing
+   * mode.)
    */
-  exports.MAX_OP_TRY_COUNT = 10;
-
-  /**
-   * The value to increment the operation tryCount by if we receive an
-   * unexpected error.
-   */
-  exports.OP_UNKNOWN_ERROR_TRY_COUNT_INCREMENT = 5;
-
-  /**
-   * If we need to defer an operation because the folder/resource was not
-   * available, how long should we defer for?
-   */
-  exports.DEFERRED_OP_DELAY_MS = 30 * 1000;
+  exports.DEVICE_STORAGE_NAME = 'sdcard';
 
   ////////////////////////////////////////////////////////////////////////////////
   // General defaults
@@ -345,12 +301,10 @@ define(['./date', 'exports'], function ($date, exports) {
    * syncbase can be overridden.
    */
   exports.TEST_adjustSyncValues = function TEST_adjustSyncValues(syncValues) {
-
     // Legacy values: This function used to accept a mapping that didn't
     // match one-to-one with constant names, but was changed to map
     // directly to constant names for simpler grepping.
     var legacyKeys = {
-      fillSize: 'INITIAL_FILL_SIZE',
       days: 'INITIAL_SYNC_DAYS',
       growDays: 'INITIAL_SYNC_GROWTH_DAYS',
       wholeFolderSync: 'SYNC_WHOLE_FOLDER_AT_N_MESSAGES',

@@ -38,7 +38,7 @@ define(function (require) {
       replyTo: null,
       date: null,
       flags: [],
-      folderIds: [folderId],
+      folderIds: new Set([folderId]),
       hasAttachments: false,
       subject: null,
       snippet: null,
@@ -106,6 +106,9 @@ define(function (require) {
               case asb.EstimatedDataSize:
                 bodySize = grandchild.children[0].textContent;
                 break;
+              default:
+                // Ignore other tag types.
+                break;
             }
           }
           break;
@@ -130,6 +133,7 @@ define(function (require) {
               part: null,
               encoding: null,
               sizeEstimate: null,
+              downloadState: null,
               file: null
             };
 
@@ -165,6 +169,9 @@ define(function (require) {
                 case asb.IsInline:
                   isInline = attachDataText === '1';
                   break;
+                default:
+                  // Ignore other tag types.
+                  break;
               }
             }
 
@@ -175,6 +182,9 @@ define(function (require) {
             }
           }
           scratchMsg.hasAttachments = scratchMsg.attachments.length > 0;
+          break;
+        default:
+          // Ignore other tag types.
           break;
       }
     }

@@ -19,7 +19,7 @@ define(function (require) {
    * For convoy this gets bumped willy-nilly as I make minor changes to things.
    * We probably want to drop this way back down before merging anywhere official.
    */
-  const CUR_VERSION = 108;
+  const CUR_VERSION = 116;
 
   /**
    * What is the lowest database version that we are capable of performing a
@@ -68,23 +68,31 @@ define(function (require) {
   const TBL_TASKS = 'tasks';
 
   /**
-   * Complex task state.  When a complex task plans a raw task, the state goes in
-   * here and the original task is nuked.
+   * Complex task state to be loaded in its entirety when tasks are intialized for
+   * an account.  Complex tasks can store either a single object of their choosing
+   * in here, or have multiple keyed values that are automatically loaded into a
+   * map.
+   *
+   * Since the information is kept in-memory once loaded and should be of limited
+   * size, the single object form will usually be a good choice.  However, in
+   * cases involving DOM Blobs/Files where we need to write values to disk and
+   * then read them back to convert them from a memory-backed Blob to a
+   * disk-backed File and such manipulations may want to logically occur in
+   * parallel, the multi-record Map implementation may be preferable.  (Noting
+   * that the IndexedB transactions will be serialized.  But our tasks operate on
+   * a higher abstraction level and it's easier to reason about if we can view
+   * them as distinct records with orthogonal life cycles.)
    *
    * The key is a composite of:
    * - `AccountId`: Because complex tasks are managed on a per-account basis.
    * - `ComplexTaskName`: Namespaces the task.
+   * - Optional `ComplexTaskKey`: If doing the Map, this key will exist.
+   *   Otherwise the key will be a 2-item Array.
    *
-   * key: [`AccountId`, `ComplexTaskName`, ...]
-   *
-   * The value must include `key` as a property that is the key.  This is because
-   * of mozGetAll limitations.
+   * key: [`AccountId`, `ComplexTaskName`, ...key]
    *
    * This data is loaded at startup for task prioritization reasons.  Writes are
-   * made as part of task completing transactions.  Currently the complex task
-   * state has to be a simple (potentially giant) object because it's planned to
-   * simplify unit testing and we don't actually expect there to be that much
-   * data.
+   * made as part of task completing transactions.
    */
   const TBL_COMPLEX_TASKS = 'complexTasks';
 
@@ -538,7 +546,7 @@ define(function (require) {
       db.createObjectStore(TBL_CONFIG);
       db.createObjectStore(TBL_SYNC_STATES);
       db.createObjectStore(TBL_TASKS);
-      db.createObjectStore(TBL_COMPLEX_TASKS, { keyPath: 'key' });
+      db.createObjectStore(TBL_COMPLEX_TASKS);
       db.createObjectStore(TBL_FOLDER_INFO);
       db.createObjectStore(TBL_CONV_INFO);
       db.createObjectStore(TBL_CONV_IDS_BY_FOLDER);
@@ -806,6 +814,9 @@ define(function (require) {
         if (requests.umidLocations) {
           dbReqCount += genericUncachedLookups(trans.objectStore(TBL_UMID_LOCATION), requests.umidLocations);
         }
+        if (requests.complexTaskStates) {
+          dbReqCount += genericUncachedLookups(trans.objectStore(TBL_COMPLEX_TASKS), requests.complexTaskStates);
+        }
 
         // -- Cached lookups
         if (requests.conversations) {
@@ -950,8 +961,7 @@ define(function (require) {
         // (nothing to do for "accounts")
         // (nothing to do for "folders")
 
-        // Right now we only care about conversations because all other data types
-        // have no complicated indices to maintain.
+        // - conversations
         if (mutateRequests.conversations) {
           var preConv = preMutateStates.conversations = new Map();
           for (var conv of mutateRequests.conversations.values()) {
@@ -963,7 +973,10 @@ define(function (require) {
 
             preConv.set(conv.id, {
               date: conv.date,
-              folderIds: conv.folderIds,
+              // A well-behaved mutation will not mutate the list an instead
+              // replace it with a new one, but we are not so naive as to
+              // have our correctness depend on that.
+              folderIds: new Set(conv.folderIds),
               hasUnread: conv.hasUnread,
               height: conv.height
             });
@@ -979,13 +992,19 @@ define(function (require) {
           if (mutateRequests.messagesByConversation) {
             for (var convMessages of mutateRequests.messagesByConversation.values()) {
               for (var message of convMessages) {
-                preMessages.set(message.id, message.date);
+                preMessages.set(message.id, {
+                  date: message.date,
+                  folderIds: new Set(message.folderIds)
+                });
               }
             }
           }
           if (mutateRequests.messages) {
             for (var message of mutateRequests.messages.values()) {
-              preMessages.set(message.id, message.date);
+              preMessages.set(message.id, {
+                date: message.date,
+                folderIds: new Set(message.folderIds)
+              });
             }
           }
         }
@@ -995,15 +1014,18 @@ define(function (require) {
     },
 
     /**
-     * Load all tasks from the database.  Ideally this is called before any calls
+     * Load all tasks from thew database.  Ideally this is called before any calls
      * to addTasks if you want to avoid having a bad time.
      */
     loadTasks: function () {
       var trans = this._db.transaction([TBL_TASKS, TBL_COMPLEX_TASKS], 'readonly');
       var taskStore = trans.objectStore(TBL_TASKS);
       var complexTaskStore = trans.objectStore([TBL_COMPLEX_TASKS]);
-      return Promise.all([wrapReq(taskStore.mozGetAll()), wrapReq(complexTaskStore.mozGetAll())]).then(function ([wrappedTasks, complexTaskStates]) {
-        return { wrappedTasks, complexTaskStates };
+      return Promise.all([wrapReq(taskStore.getAll()), wrapReq(complexTaskStore.getAllKeys()), wrapReq(complexTaskStore.getAll())]).then(function ([wrappedTasks, complexTaskStateKeys, complexTaskStateValues]) {
+        return {
+          wrappedTasks,
+          complexTaskStates: [complexTaskStateKeys, complexTaskStateValues]
+        };
       });
     },
 
@@ -1216,6 +1238,7 @@ define(function (require) {
         store.add(message, key);
         messageCache.set(message.id, message);
 
+        this.emit('msg!*!add', message);
         var eventId = 'conv!' + convId + '!messages!tocChange';
         this.emit(eventId, message.id, null, message.date, message, true);
       }
@@ -1229,7 +1252,8 @@ define(function (require) {
       var messageCache = this.messageCache;
       for (var [messageId, message] of messages) {
         var convId = convIdFromMessageId(messageId);
-        var preDate = preStates.get(messageId);
+        var preInfo = preStates.get(messageId);
+        var preDate = preInfo.date;
         var postDate = message && message.date;
         var preKey = [convId, preDate, messageSpecificIdFromMessageId(messageId)];
 
@@ -1248,10 +1272,18 @@ define(function (require) {
           messageCache.set(messageId, message);
         }
 
+        var { added, kept, removed } = computeSetDelta(preInfo.folderIds, message ? message.folderIds : new Set());
+
         var convEventId = 'conv!' + convId + '!messages!tocChange';
         this.emit(convEventId, messageId, preDate, postDate, message, false);
         var messageEventId = 'msg!' + messageId + '!change';
         this.emit(messageEventId, messageId, message);
+
+        this.emit('msg!*!change', messageId, preInfo, message, added, kept, removed);
+        if (!message) {
+          this.emit('msg!' + messageId + '!remove', messageId);
+          this.emit('msg!*!remove', messageId);
+        }
       }
     },
 
@@ -1356,7 +1388,23 @@ define(function (require) {
       // greater than any legal suffix (\ufff0 not being a legal suffix
       // in our key-space.)
       var accountStringPrefix = IDBKeyRange.bound(accountId + '.', accountId + '.\ufff0', true, true);
+      // A key range where the key is an array and the first item is a string that
+      // is a namespaced-suffix of the accountId.  For example, FolderId and
+      // ConversationId and MessageId are all suffixes.  If the first item is
+      // *only* the accountId,
       var accountArrayItemPrefix = IDBKeyRange.bound([accountId + '.'], [accountId + '.\ufff0'], true, true);
+      // A key range where the key is an array and the first item is the
+      // AccountId.
+      var accountFirstElementArray = IDBKeyRange.bound([accountId],
+      // We use an array as the second element since arrays are greater than
+      // all other key values.  We do this instead of suffixing the (variable
+      // length) AccountId because although this way is slightly more magic,
+      // I believe it's significantly easier to intuitively understand as
+      // correct.  If only because everyone should be innately terrified of
+      // string comparisons and unicode.  (It does, however forbid any of our
+      // data types from using nested arrays as the second element.  This is
+      // currently the case.)
+      [accountId, []], true, true);
 
       // We handle the syncStates, folders, conversations, and message
       // ranges here.
@@ -1368,6 +1416,8 @@ define(function (require) {
       trans.objectStore(TBL_SYNC_STATES).delete(accountId);
       trans.objectStore(TBL_SYNC_STATES).delete(accountStringPrefix);
 
+      trans.objectStore(TBL_COMPLEX_TASKS).delete(accountFirstElementArray);
+
       // Folders: Just delete by accountId
       trans.objectStore(TBL_FOLDER_INFO).delete(accountStringPrefix);
 
@@ -1378,9 +1428,9 @@ define(function (require) {
       // Messages: string ordering unicode tricks
       trans.objectStore(TBL_MESSAGES).delete(accountArrayItemPrefix);
 
-      trans.objectStore(TBL_HEADER_ID_MAP).delete(accountArrayItemPrefix);
-      trans.objectStore(TBL_UMID_NAME).delete(accountStringPrefix);
+      trans.objectStore(TBL_HEADER_ID_MAP).delete(accountFirstElementArray);
       trans.objectStore(TBL_UMID_LOCATION).delete(accountStringPrefix);
+      trans.objectStore(TBL_UMID_NAME).delete(accountStringPrefix);
     },
 
     _addRawTasks: function (trans, wrappedTasks) {
@@ -1483,9 +1533,7 @@ define(function (require) {
 
         if (mutations.complexTaskStates) {
           for (var [key, complexTaskState] of mutations.complexTaskStates) {
-            complexTaskState.key = key;
-            logic(this, 'complexTaskStates', { complexTaskState });
-            trans.objectStore(TBL_COMPLEX_TASKS).put(complexTaskState);
+            trans.objectStore(TBL_COMPLEX_TASKS).put(complexTaskState, key);
           }
         }
       } else {

@@ -118,7 +118,7 @@ define(function (require) {
       // number of the highest UID.  Oh. Hm.  Could it be the "*" that causes
       // the range to be N+1:N ?  Maybe that's it.  Anyways, be smarter by
       // adding a step that selects the folder first and checks UIDNEXT.
-      var parallelNewMessages = account.pimap.listMessages(folderInfo, syncState.lastHighUid + 1 + ':*', ['UID', 'INTERNALDATE', 'FLAGS'], {
+      var parallelNewMessages = account.pimap.listMessages(ctx, folderInfo, syncState.lastHighUid + 1 + ':*', ['UID', 'INTERNALDATE', 'FLAGS'], {
         byUid: true,
         changedSince: syncState.modseq
       });
@@ -149,12 +149,12 @@ define(function (require) {
         // XXX have range-generation logic
         uid: syncState.getAllUids().join(',')
       };
-      var { result: searchedUids } = yield account.pimap.search(folderInfo, searchSpec, { byUid: true });
+      var { result: searchedUids } = yield account.pimap.search(ctx, folderInfo, searchSpec, { byUid: true });
       syncState.inferDeletionFromExistingUids(searchedUids);
 
       // - Do envelope fetches on the non-deleted messages
       // XXX use SEARCHRES here when possible!
-      var { result: currentFlagMessages } = yield account.pimap.listMessages(folderInfo, searchedUids.join(','), ['UID', 'FLAGS'], {
+      var { result: currentFlagMessages } = yield account.pimap.listMessages(ctx, folderInfo, searchedUids.join(','), ['UID', 'FLAGS'], {
         byUid: true
       });
       for (var msg of currentFlagMessages) {

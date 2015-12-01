@@ -158,13 +158,7 @@ define(function (require) {
         for (var iPeep = 0; iPeep < livePeeps.length; iPeep++) {
           var peep = livePeeps[iPeep];
           peep.contactId = null;
-          if (peep.onchange) {
-            try {
-              peep.onchange(peep);
-            } catch (ex) {
-              reportClientCodeError('peep.onchange error', ex, '\n', ex.stack);
-            }
-          }
+          peep.emit('change', peep);
         }
       }
 
@@ -227,13 +221,7 @@ define(function (require) {
                     // this.
                     livePeeps.splice(iPeep--, 1);
                     peep.contactId = null;
-                    if (peep.onchange) {
-                      try {
-                        peep.onchange(peep);
-                      } catch (ex) {
-                        reportClientCodeError('peep.onchange error', ex, '\n', ex.stack);
-                      }
-                    }
+                    peep.emit('change', peep);
                   }
                 }
                 if (livePeeps.length === 0) {
@@ -277,13 +265,7 @@ define(function (require) {
                 if (contact.name && contact.name.length) {
                   peep.name = contact.name[0];
                 }
-                if (peep.onchange) {
-                  try {
-                    peep.onchange(peep);
-                  } catch (ex) {
-                    reportClientCodeError('peep.onchange error', ex, '\n', ex.stack);
-                  }
-                }
+                peep.emit('change', peep);
               }
             }
           };
@@ -408,16 +390,10 @@ define(function (require) {
                     fixupPeep._thumbnailBlob = contact.photo[0];
                   }
 
-                  // If no one is waiting for our/any request to complete, generate an
-                  // onchange notification.
+                  // If no one is waiting for our/any request to complete, generate a
+                  // change notification.
                   if (!self.callbacks.length) {
-                    if (fixupPeep.onchange) {
-                      try {
-                        fixupPeep.onchange(peep);
-                      } catch (ex) {
-                        reportClientCodeError('peep.onchange error', ex, '\n', ex.stack);
-                      }
-                    }
+                    fixupPeep.emit('change', fixupPeep);
                   }
                 }
               } else {

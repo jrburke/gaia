@@ -102,7 +102,10 @@ define(function (require) {
 
           var byteRange = undefined;
           if (maxBytesPerMessage || rep.amountDownloaded) {
-            byteRange = [rep.amountDownloaded, bytesToFetch];
+            byteRange = {
+              offset: rep.amountDownloaded,
+              bytesToFetch
+            };
           }
 
           // If we had already downloaded part of the body, be sure to parse it.
@@ -115,10 +118,10 @@ define(function (require) {
 
           // - Issue the fetch
           var { folderInfo, uid } = this.getFolderAndUidForMesssage(prepared, account, message);
-          var rawBody = yield account.pimap.fetchBody(folderInfo, {
+          var rawBody = yield account.pimap.fetchBody(ctx, folderInfo, {
             uid,
-            partInfo: rep._partInfo,
-            bytes: byteRange
+            part: rep.part,
+            byteRange
           });
 
           bodyParser.parse(rawBody);
@@ -128,7 +131,7 @@ define(function (require) {
           imapchew.updateMessageWithFetch(message, {
             bodyRepIndex: iBodyRep,
             createSnippet: iBodyRep === bodyRepIndex,
-            bytes: byteRange
+            byteRange
           }, bodyResult);
 
           modifiedMessagesMap.set(message.id, message);

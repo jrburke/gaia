@@ -61,7 +61,7 @@ define(function (require) {
       // TODO: implement heartbeat/renewWakeLock support.  Ideally this happens
       // naturally as part of the fix for the blob deficiency above, but if not,
       // we can do the same monkeypatch/hack that SMTP uses to get this.
-      yield account.pimap.upload(folderInfo.path, composedString, { flags: ['\\Seen'] });
+      yield account.pimap.upload(ctx, folderInfo.path, composedString, { flags: ['\\Seen'] });
 
       yield ctx.finishTask({});
     })
