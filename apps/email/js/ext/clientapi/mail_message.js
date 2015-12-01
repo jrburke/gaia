@@ -103,8 +103,6 @@ define(function (require) {
     this.bcc = ContactCache.resolvePeeps(wireRep.bcc);
     this.replyTo = wireRep.replyTo;
 
-    this.date = new Date(wireRep.date);
-
     this._relatedParts = wireRep.relatedParts;
     this.bodyReps = wireRep.bodyReps;
     // references is included for debug/unit testing purposes, hence is private
@@ -135,6 +133,8 @@ define(function (require) {
       if (wireRep.snippet !== null) {
         this.snippet = wireRep.snippet;
       }
+
+      this.date = new Date(wireRep.date);
 
       this.isRead = wireRep.flags.indexOf('\\Seen') !== -1;
       this.isStarred = wireRep.flags.indexOf('\\Flagged') !== -1;
@@ -176,10 +176,24 @@ define(function (require) {
     },
 
     __updateOverlays: function (overlays) {
-      var downloadMap = overlays.downloads;
+      var downloadMap = overlays.download;
+      // Loop over all attachments even if there isn't a download map; when the
+      // map gets retracted, that's still a notable change that we need to update
+      // for.
       for (var attachment of this.attachments) {
         var downloadOverlay = downloadMap && downloadMap.get(attachment.relId);
         attachment.__updateDownloadOverlay(downloadOverlay);
+        attachment.emit('change');
+      }
+
+      this.isDownloadingEmbeddedImages = false;
+      if (downloadMap) {
+        for (var relId of downloadMap.keys()) {
+          if (relId[0] === 'r') {
+            this.isDownloadingEmbeddedImages = true;
+            break;
+          }
+        }
       }
     },
 

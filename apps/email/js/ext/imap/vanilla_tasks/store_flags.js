@@ -30,10 +30,10 @@ define(function (require) {
 
       // -- Issue the manipulations to the server
       if (changes.add && changes.add.length) {
-        yield account.pimap.store(folderInfo, [uid], '+' + this.imapDataName, changes.add, { byUid: true });
+        yield account.pimap.store(ctx, folderInfo, [uid], '+' + this.imapDataName, changes.add, { byUid: true });
       }
       if (changes.remove && changes.remove.length) {
-        yield account.pimap.store(folderInfo, [uid], '-' + this.imapDataName, changes.remove, { byUid: true });
+        yield account.pimap.store(ctx, folderInfo, [uid], '-' + this.imapDataName, changes.remove, { byUid: true });
       }
 
       // - Success, clean up state.

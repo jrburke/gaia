@@ -1,22 +1,22 @@
 define(function (require) {
   'use strict';
 
-  var co = require('co');
-  var logic = require('logic');
+  const co = require('co');
+  const logic = require('logic');
+  const mimefuncs = require('mimefuncs');
 
   /**
    * Helper that just ensures we have a connection and then calls the underlying
    * connection method.
    */
   function simpleWithConn(methodName) {
-    return function () {
+    return function (taskCtx, ...bbArgs) {
       var _this = this;
 
-      var calledArgs = arguments;
       return this._gimmeConnection().then(function (conn) {
-        logic(_this, methodName + ':begin', {});
-        return conn[methodName].apply(conn, calledArgs).then(function (value) {
-          logic(_this, methodName + ':end', { _result: value });
+        logic(_this, methodName + ':begin', { ctxId: taskCtx.id });
+        return conn[methodName].apply(conn, bbArgs).then(function (value) {
+          logic(_this, methodName + ':end', { ctxId: taskCtx.id, _result: value });
           // NB: if we were going to return the connection, this is where we would
           // do it.
           return value;
@@ -35,12 +35,11 @@ define(function (require) {
    * the folder.  (And/or perform a NOOP.)
    */
   function inFolderWithConn(methodName, optsArgIndexPerCaller) {
-    return function (folderInfo) {
+    return function (taskCtx, folderInfo, ...bbArgs) {
       var _this2 = this;
 
-      var calledArgs = arguments;
       return this._gimmeConnection().then(function (conn) {
-        var opts = calledArgs[optsArgIndexPerCaller];
+        var opts = bbArgs[optsArgIndexPerCaller];
         if (!opts) {
           throw new Error('provide the options dictionary so we can mutate it.');
         }
@@ -52,9 +51,9 @@ define(function (require) {
             next();
           }
         };
-        logic(_this2, methodName + ':begin', { folderId: folderInfo.id });
-        return conn[methodName].apply(conn, Array.prototype.slice.call(calledArgs, 1)).then(function (value) {
-          logic(_this2, methodName + ':end', { _result: value });
+        logic(_this2, methodName + ':begin', { ctxId: taskCtx.id, folderId: folderInfo.id });
+        return conn[methodName].apply(conn, bbArgs).then(function (value) {
+          logic(_this2, methodName + ':end', { ctxId: taskCtx.id, _result: value });
           // NB: if we were going to return the connection, this is where we would
           // do it.
           return {
@@ -74,10 +73,9 @@ define(function (require) {
    * used.
    */
   function customFuncInFolderWithConn(implFunc) {
-    return function (folderInfo) {
+    return function (taskCtx, folderInfo, ...bbArgs) {
       var _this3 = this;
 
-      var calledArgs = arguments;
       var methodName = implFunc.name;
       return this._gimmeConnection().then(function (conn) {
         var precheck = function (ctx, next) {
@@ -88,9 +86,9 @@ define(function (require) {
             next();
           }
         };
-        logic(_this3, methodName + ':begin', { folderId: folderInfo.id });
-        return implFunc.apply(_this3, [conn, precheck].concat(Array.prototype.slice.call(calledArgs, 1))).then(function (value) {
-          logic(_this3, methodName + ':end', { _result: value });
+        logic(_this3, methodName + ':begin', { ctxId: taskCtx.id, folderId: folderInfo.id });
+        return implFunc.apply(_this3, [conn, precheck].concat(bbArgs)).then(function (value) {
+          logic(_this3, methodName + ':end', { ctxId: taskCtx.id, _result: value });
           return {
             mailboxInfo: conn.selectedMailboxInfo,
             result: value
@@ -170,23 +168,37 @@ define(function (require) {
     },
 
     listMailboxes: simpleWithConn('listMailboxes'),
-    listMessages: inFolderWithConn('listMessages', 3),
+    listMessages: inFolderWithConn('listMessages', 2),
     listNamespaces: simpleWithConn('listNamespaces'),
-    search: inFolderWithConn('search', 2),
+    search: inFolderWithConn('search', 1),
 
-    store: inFolderWithConn('store', 4),
+    // Select the mailbox returning the mailboxInfo directly (not nested in an
+    // object).  If the mailbox is already selected, just return it.
+    selectMailbox: function (taskCtx, folderInfo) {
+      return this._gimmeConnection().then(function (conn) {
+        if (folderInfo.path === conn.selectedMailboxPath) {
+          return Promise.resolve(conn.selectedMailboxInfo);
+        }
+        return conn.selectMailbox(folderInfo.path).then(function () {
+          return conn.selectedMailboxInfo;
+        });
+      });
+    },
+
+    store: inFolderWithConn('store', 3),
 
     // APPEND does not require being in a folder, it just wants the path, so the
     // caller does need to manually specify it.
     upload: simpleWithConn('upload'),
 
     /**
-     * This is a temporary non-streaming mechanism that fetches a single body part
-     * in a single go.  This is a stop-gap that will be replaced with :mcav's
-     * streaming refactor.  This will necessarily entail refactoring the callers
-     * of this method.
+     * Fetch the full or partial contents of a message part, returning a
+     * Uint8Array with the contents.
+     *
+     * In the future, with changes to browserbox, we may be able to return a
+     * stream instead of delivering the data all at once.
      */
-    fetchBody: co.wrap(function* (folderInfo, request) {
+    fetchBody: co.wrap(function* (taskCtx, folderInfo, request) {
       var conn = yield this._gimmeConnection();
 
       var precheck = function (ctx, next) {
@@ -198,7 +210,8 @@ define(function (require) {
         }
       };
 
-      var messages = yield conn.listMessages(request.uid, ['BODY.PEEK[' + (request.partInfo.partId || '1') + ']' + (request.bytes ? '<' + request.bytes[0] + '.' + request.bytes[1] + '>' : '')], { byUid: true, precheck });
+      logic(this, 'fetchBody:begin', { ctxId: taskCtx.id });
+      var messages = yield conn.listMessages(request.uid, ['BODY.PEEK[' + (request.part || '1') + ']' + (request.byteRange ? '<' + request.byteRange.offset + '.' + request.byteRange.bytesToFetch + '>' : '')], { byUid: true, precheck });
       var msg = messages[0];
       var body = undefined;
       for (var key in msg) {
@@ -210,7 +223,10 @@ define(function (require) {
       if (!body) {
         throw new Error('no body returned!');
       }
-      return body;
+      logic(this, 'fetchBody:end', { ctxId: taskCtx.id, bodyLength: body.length });
+      // browserbox traffics in 'binary' strings; convert this back to a
+      // TypedArray.
+      return mimefuncs.toTypedArray(body);
     })
   };
 

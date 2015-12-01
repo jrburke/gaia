@@ -18,7 +18,7 @@ define(function (require) {
     /**
      * Heap tracking our prioritized tasks/markers by priority.  This only
      * includes tasks/priorities that are not deferred awaiting the availability
-     * of a resource or a timeout.
+     * of a resource or a timeout; those are tracked/held by TaskResources.
      */
     this._prioritizedTasks = new FibonacciHeap();
 
@@ -65,6 +65,10 @@ define(function (require) {
       return this._prioritizedTasks.isEmpty();
     },
 
+    get numTasksToExecute() {
+      return this._prioritizedTasks.nodeCount;
+    },
+
     /**
      * Retrieve a task for execution.  The task will no longer be tracked by
      * `TaskPriorities` at all; error handling logic at higher levels is
@@ -90,8 +94,10 @@ define(function (require) {
     _computePriorityForTags: function (priorityTags) {
       var summedPriorityTags = this._summedPriorityTags;
       var priority = 0;
-      for (var priorityTag of priorityTags) {
-        priority += summedPriorityTags.get(priorityTag) || 0;
+      if (priorityTags) {
+        for (var priorityTag of priorityTags) {
+          priority += summedPriorityTags.get(priorityTag) || 0;
+        }
       }
       return priority;
     },
@@ -151,13 +157,13 @@ define(function (require) {
       };
 
       // - Iterate over newValues for new/changed values.
-      for (var [priorityTag, newPriority] of newValues.items()) {
+      for (var [priorityTag, newPriority] of newValues.entries()) {
         var oldPriority = existingValues.get(priorityTag) || 0;
         var priorityDelta = newPriority - oldPriority;
         applyDelta(priorityTag, priorityDelta);
       }
       // - Iterate over existingValues for deletions
-      for (var [priorityTag, oldPriority] of existingValues.items()) {
+      for (var [priorityTag, oldPriority] of existingValues.entries()) {
         if (newValues.has(priorityTag)) {
           continue;
         }
@@ -225,6 +231,9 @@ define(function (require) {
       this._setupTaskPriorityTracking(taskThing, priorityNode);
     },
 
+    /**
+     * Helper for prioritizeTaskThing to add _priorityTagToHeapNodes mappings.
+     */
     _setupTaskPriorityTracking: function (taskThing, priorityNode) {
       var isTask = !taskThing.type;
       var priorityTags = isTask ? taskThing.plannedTask.priorityTags : taskThing.priorityTags;
@@ -241,6 +250,10 @@ define(function (require) {
       }
     },
 
+    /**
+     * Shared logic for prioritizeTaskThing and removeTaskThing to remove
+     * _priorityTagToHeapNodes mappings.
+     */
     _cleanupTaskPriorityTracking: function (taskThing, priorityNode) {
       var isTask = !taskThing.type;
       var priorityTags = isTask ? taskThing.plannedTask.priorityTags : taskThing.priorityTags;
@@ -264,14 +277,42 @@ define(function (require) {
 
     /**
      * Remove the TaskThing with the given id.
+     *
+     * @param {TaskId} taskId
+     * @param {PriorityNode} [priorityNode]
+     *   Priority node, to be provided if available, or automatically retrieved if
+     *   not.
      */
-    removeTaskThing: function (taskId) {
-      var priorityNode = this._taskIdToHeapNode.get(taskId);
+    removeTaskThing: function (taskId, priorityNode) {
+      if (!priorityNode) {
+        priorityNode = this._taskIdToHeapNode.get(taskId);
+      }
       if (priorityNode) {
         var taskThing = priorityNode.value;
         this._prioritizedTasks.delete(priorityNode);
         this._taskIdToHeapNode.delete(taskId);
         this._cleanupTaskPriorityTracking(taskThing, priorityNode);
+      }
+    },
+
+    /**
+     * Iterate over all taskThings known to us, invoking `shouldRemove` on each
+     * taskThing and removing it if the function returns true.  Note that this is
+     * the opposite behaviour of Array.filter functions.
+     *
+     * This is an O(n) traversal which has been deemed acceptable for the
+     * following use-cases, but for new purposes, please consider whether
+     * additional data structures are merited for your use-case or not:
+     * - TaskResources.resourceNoLongerAvailable moving tasks to be blocking when
+     *   a resource is revoked.
+     * - TODO: Removing outstanding tasks by accountId when an account is deleted.
+     */
+    removeTasksUsingFilter: function (shouldRemove) {
+      for (var priorityNode of this._taskIdToHeapNode.values()) {
+        const taskThing = priorityNode.value;
+        if (shouldRemove(taskThing)) {
+          this.removeTaskThing(taskThing.id, priorityNode);
+        }
       }
     }
   };

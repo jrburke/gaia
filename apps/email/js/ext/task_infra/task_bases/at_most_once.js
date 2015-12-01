@@ -1,21 +1,22 @@
-define(function () {
+define(function (require) {
   'use strict';
 
   const co = require('co');
+  const logic = require('logic');
 
   // (this is broken out into a helper for clarity and to avoid temporary gecko
   // "let" issues.)
   const makeWrappedOverlayFunc = function (helpedOverlayFunc) {
-    return function (persistentState, memoryState, id) {
-      return helpedOverlayFunc.call(this, id, persistentState.binToMarker.get(id), memoryState.inProgressBins.has(id) || memoryState.remainInProgressBins.has(id));
+    return function (persistentState, memoryState, blockedTaskChecker, id) {
+      return helpedOverlayFunc.call(this, id, persistentState.binToMarker.get(id), memoryState.inProgressBins.has(id) || memoryState.remainInProgressBins.has(id), blockedTaskChecker(this.name + ':' + id));
     };
   };
 
   const makeWrappedPrefixOverlayFunc = function ([extractor, helpedOverlayFunc]) {
-    return function (persistentState, memoryState, fullId) {
+    return function (persistentState, memoryState, blockedTaskChecker, fullId) {
       // use the provided extractor to get the id for the bin.
       var binId = extractor(fullId);
-      return helpedOverlayFunc.call(this, fullId, binId, persistentState.binToMarker.get(binId), memoryState.inProgressBins.has(binId) || memoryState.remainInProgressBins.has(binId));
+      return helpedOverlayFunc.call(this, fullId, binId, persistentState.binToMarker.get(binId), memoryState.inProgressBins.has(binId) || memoryState.remainInProgressBins.has(binId), blockedTaskChecker(this.name + ':' + binId));
     };
   };
 
@@ -87,12 +88,13 @@ define(function () {
     plan: co.wrap(function* (ctx, persistentState, memoryState, req) {
       var _this = this;
 
-      var binId = req[this.binByArg];
+      var binId = this.binByArg ? req[this.binByArg] : 'only';
 
       // - Fast-path out if the bin is already planned.
       if (persistentState.binToMarker.has(binId)) {
         var _rval = undefined;
         if (this.helped_already_planned) {
+          logic(ctx, 'alreadyPlanned');
           _rval = yield this.helped_already_planned(ctx, req);
         } else {
           _rval = {};
@@ -115,18 +117,21 @@ define(function () {
         persistentState.binToMarker.set(binId, marker);
         rval.complexTaskState = persistentState;
 
-        if (rval.remainInProgressUntil) {
-          memoryState.remainInProgressBins.add(binId);
-          rval.remainInProgressUntil.then(function () {
-            memoryState.remainInProgressBins.delete(binId);
-            _this.helped_progress_completed(binId, ctx.universe.dataOverlayManager);
-          });
-        }
-
         // The TaskContext doesn't actually know whether we're complex or not,
         // so we need to clobber this to be null to indicate that it should close
         // out the task.
         rval.taskState = null;
+      }
+
+      if (rval.remainInProgressUntil && this.helped_invalidate_overlays) {
+        (function () {
+          memoryState.remainInProgressBins.add(binId);
+          var dataOverlayManager = ctx.universe.dataOverlayManager;
+          rval.remainInProgressUntil.then(function () {
+            memoryState.remainInProgressBins.delete(binId);
+            _this.helped_invalidate_overlays(binId, dataOverlayManager);
+          });
+        })();
       }
 
       if (this.helped_invalidate_overlays) {
@@ -143,11 +148,12 @@ define(function () {
       }
 
       yield ctx.finishTask(rval);
-      return rval.result;
+
+      return ctx.returnValue(rval.result);
     }),
 
     execute: co.wrap(function* (ctx, persistentState, memoryState, marker) {
-      var binId = marker[this.binByArg];
+      var binId = this.binByArg ? marker[this.binByArg] : 'only';
       memoryState.inProgressBins.add(binId);
 
       if (this.helped_invalidate_overlays) {
@@ -174,7 +180,7 @@ define(function () {
       }
 
       yield ctx.finishTask(rval);
-      return rval.result;
+      return ctx.returnValue(rval.result);
     })
   };
 });

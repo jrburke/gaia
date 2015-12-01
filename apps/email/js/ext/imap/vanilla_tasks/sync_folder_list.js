@@ -16,8 +16,8 @@ define(function (require) {
     syncFolders: function* (ctx, account) {
       var { imapAccount, foldersTOC } = account;
 
-      var boxesRoot = yield imapAccount.pimap.listMailboxes();
-      var namespaces = yield imapAccount.pimap.listNamespaces();
+      var boxesRoot = yield imapAccount.pimap.listMailboxes(ctx);
+      var namespaces = yield imapAccount.pimap.listNamespaces(ctx);
 
       if (!namespaces) {
         namespaces = {

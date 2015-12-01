@@ -1,5 +1,7 @@
 /**
  * Common code for creating and working with various account types.
+ *
+ * @module
  **/
 
 define(['./a64', 'logic', './allback', 'require', 'module', 'exports'], function ($a64, logic, allback, require, $module, exports) {

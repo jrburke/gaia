@@ -1,17 +1,19 @@
 define(function (require) {
   'use strict';
 
-  var logic = require('logic');
+  const co = require('co');
+  const logic = require('logic');
 
   /**
    * Provides helpers and standard arguments/context for tasks.
    */
   function TaskContext(taskThing, universe) {
-    // We are used as the scope for all logging by the task, so just call
-    // ourselves "Task".
-    logic.defineScope(this, 'Task', { id: taskThing.id });
     this.id = taskThing.id;
     this._taskThing = taskThing;
+    // The TaskRegistry will clobber this onto us so we can know the `this` to
+    // provide to any subtasks.
+    this.__taskInstance = null;
+
     // It's a TaskMarker if the type is on the root.  We care just because it
     // determines where the task metadata is.  This does not have any other
     // significance.
@@ -23,8 +25,25 @@ define(function (require) {
     this.isPlanning = this.isMarker ? false : taskThing.state === null;
     this.universe = universe;
 
+    // We define the scope after the init above because we want to be able to
+    // use our getters that tell us what is up.  However, this should always
+    // precede any method calls.
+    logic.defineScope(
+    // We are used as the scope for all logging by the task, so call ourselves
+    // "Task" instead of TaskContext.  We leave it to the logger UI to be
+    // configured to extract the `taskType` and show that with more
+    // significance.  This is somewhat arbitrary and roundabout, but it seems
+    // desirable to have our logging namespaces have a strong static correlation
+    // to what is instantiating them.
+    this, 'Task', {
+      id: taskThing.id,
+      taskType: this.taskType,
+      accountId: this.accountId
+    });
+
     this._stuffToRelease = [];
     this._preMutateStates = null;
+    this._subtaskCounter = 0;
 
     /**
      * @type {'prep'|'mutate'|'finishing'}
@@ -78,8 +97,11 @@ define(function (require) {
 
     /**
      * Returns whether we think the account associated with this task is currently
+     * experiencing problems.
      *
-     * TODO: Actually make this do something.
+     * TODO: Actually make this do something or remove it.  This was speculatively
+     * introduced in keeping with the pre-convoy implementation, but we've now
+     * begun to use resources to track more of this.
      */
     get accountProblem() {
       return false;
@@ -108,12 +130,16 @@ define(function (require) {
       return acquireable.__acquire(this);
     },
 
+    acquireAccountsTOC: function () {
+      return this.universe.acquireAccountsTOC(this);
+    },
+
     _releaseEverything: function () {
       for (var acquireable of this._stuffToRelease) {
         try {
           acquireable.__release(this);
         } catch (ex) {
-          logic(this, 'problem releasing', { what: acquireable, ex: ex });
+          logic(this, 'problemReleasing', { what: acquireable, ex, stack: ex && ex.stack });
         }
       }
     },
@@ -135,14 +161,15 @@ define(function (require) {
      *
      * @param {Object} consultWhat
      *   Characterizes the task we want to talk to.
-     * @param {AccountId} accountId
-     * @param {String} name
-     *   The task name.
+     * @param {String} consultWhat.name
+     *   The task you want to talk to.
+     * @param {AccountId} consultWhat.accountId
+     *   The id of the account you want to talk to if the task isn't global.
      * @param {Object} argDict
      *   The argument object to be passed to the complex task.
      */
     synchronouslyConsultOtherTask: function (consultWhat, argDict) {
-      this._taskRegistry.__synchronouslyConsultOtherTask(this, consultWhat, argDict);
+      return this._taskRegistry.__synchronouslyConsultOtherTask(this, consultWhat, argDict);
     },
 
     /**
@@ -151,7 +178,50 @@ define(function (require) {
      * last task in the group completes.
      */
     trackMeInTaskGroup: function (groupName) {
-      this._taskGroupTracker.ensureNamedTaskGroup(groupName, this.id);
+      return this._taskGroupTracker.ensureNamedTaskGroup(groupName, this.id);
+    },
+
+    /**
+     * The id of the root ancestral task group that contains this task.  You would
+     * likely use this for high level "hey, is this the same batch of things as
+     * the last batch of things" if you are a database trigger handler or
+     * something like that.  Note that the id is different from the name of the
+     * task group.  Task group names may be semantic things like
+     * "sync_refresh:ACCOUNTID" which will be reused each time, whereas the group
+     * id is by-design unique for each task group within a mailuniverse lifetime.
+     *
+     * You likely want the root task group instead of the most specific task group
+     * because task groups are hierarchical and there is no rule about introducing
+     * new levels of hierarchy to fix a problem.  So if you depended on the most
+     * specific group, you could be subtly broken by implementation changes,
+     * which would suck.  New containing roots are unlikely to occur without
+     * serious semantic intent, and in that case you may want it anyways.
+     *
+     * If you think you know better, what you probably want is to be able to
+     * provide a regexp that is run against the names of the task group ancestry
+     * until a match is reached.
+     */
+    get rootTaskGroupId() {
+      var rootTaskGroup = this._taskGroupTracker.getRootTaskGroupForTask(this.id);
+      if (rootTaskGroup) {
+        return rootTaskGroup.groupId;
+      } else {
+        return null;
+      }
+    },
+
+    /**
+     * Find the root task group and put this task in the set of tasks to schedule
+     * when the group completes.  As an optimization, a Set is used to store the
+     * tasks, so if you want to avoid needlessly duplicated tasks, it's preferable
+     * if you can use a single object instance to schedule your tasks.  If you
+     * can't make this happen and may generate a large number of potentially
+     * redundant tasks without any other workaround, please consider adding
+     * support for de-duplicating via explicit namespaced string.  (For large,
+     * I'm thinking 10+ per task in a normal case.)
+     */
+    ensureRootTaskGroupFollowOnTask: function (taskToPlan) {
+      this._taskGroupTracker.ensureRootTaskGroupFollowOnTask(this.id, taskToPlan);
     },
 
     /**
@@ -202,20 +272,204 @@ define(function (require) {
       this._taskManager.__renewWakeLock();
     },
 
+    broadcastOverBridges: function (name, data) {
+      return this.universe.broadcastOverBridges(name, data);
+    },
+
+    /**
+     * Notify interested parties that our overlay contribution to the given id in
+     * the given namespace has (probably) changed.  Note that we don't provide
+     * the data; it gets pulled from us on-demand.
+     *
+     * Also note that you don't need to go crazy announcing updates.  For example,
+     * if you're maintaining a download progress in bytes and are updating the
+     * byte count every time you get a packet, you don't actually need to announce
+     * every change.
+     */
     announceUpdatedOverlayData: function (namespace, id) {
       this.universe.dataOverlayManager.announceUpdatedOverlayData(namespace, id);
     },
 
+    /**
+     * Read one or more pieces of data from the database.  This does not acquire
+     * a write-lock.  You absolutely must *not* mutate the objects returned.  If
+     * you later on want to mutate the record, you should use `beginMutate` and at
+     * that point update your variable to use the object returned (which may
+     * differ!).  See `MailDB.read` for more extensive signature details.
+     */
     read: function (what) {
       return this.universe.db.read(this, what);
     },
 
+    /**
+     * Helper to read a single piece of data which you're not planning on
+     * mutating.  If you're thinking of using this multiple times in succession
+     * without a data-dependency between them, then you want to be using `read`.
+     * If you're think of trying to mutate what's returned, you want one of:
+     * `mutateSingle`, `beginMutate` or `spawnSimpleMutationSubtask`.
+     *
+     * @param {String} namespace
+     *   The key you'd use in a `read` request.  Like `messages` or `conversations`
+     * @param {String|Array} reqId
+     *   The id to use in the read request.  In the case of `messages`, this would
+     *   be a list of the form [MessageId, DateMS] and you would also provide
+     *   `readbackId`.  Most of the time, the id is just the id and you don't
+     *   need to provide a `readbackId`.
+     * @param {String} [readbackId]
+     *   Required in cases where the read id is not the same as the id that the
+     *   result will have, like for `messages`.
+     * @return {Promise}
+     *   A promise that will be resolved with the read result (which could be
+     *   null!), or will throw if the underlying read request fails and throws.
+     */
+    readSingle: function (namespace, reqId, readbackId) {
+      var readMap = new Map();
+      readMap.set(reqId, null);
+      var req = {
+        [namespace]: readMap
+      };
+
+      return this.universe.db.read(this, req).then(function (results) {
+        return results[namespace].get(readbackId || reqId);
+      });
+    },
+
+    /**
+     * Helper to read a single piece of data while also acquiring a write-lock.
+     * See/understead `readSingle` and `beginMutate` before trying to use this.
+     */
+    mutateSingle: function (namespace, reqId, readbackId) {
+      var readMap = new Map();
+      readMap.set(reqId, null);
+      var req = {
+        [namespace]: readMap
+      };
+
+      return this.universe.db.beginMutate(this, req).then(function (results) {
+        return results[namespace].get(readbackId || reqId);
+      });
+    },
+
+    /**
+     * Basically `read` but you're also acquiring write-locks on the records you
+     * request for access.  If some other task is currently holding the
+     * write-locks, then your task will block until the other task releases them.
+     * If you previously issued a `read` for any of these values, make sure that
+     * you update your variable to what we return here, because object identity
+     * may not hold.  See `MailDB.beginMutate` for more details.
+     *
+     * You should only acquire write-locks when your task is done waiting on
+     * network traffic and will complete in a timely fashion.  It is okay to be
+     * I/O bound; just don't be depending on things that could take an arbitrary
+     * amount of time.
+     *
+     * If you want to write some data to disk but your task wants to keep running,
+     * then you can spawn a subtask which can do beginMutate and complete in a
+     * timely fashion.  See `spawnSubtask` and `spawnSimpleMutationSubtask`.
+     */
     beginMutate: function (what) {
       if (this.state !== 'prep') {
         throw new Error('Cannot switch to mutate state from state: ' + this.state);
       }
       this.state = 'mutate';
       return this.universe.db.beginMutate(this, what);
+    },
+
+    /**
+     * Immediately spawn a helper sub-task, returning a Promise that will be
+     * resolved when the subtask completes.  The caller/owning task is responsible
+     * for waiting on all of its sub-tasks to resolve or reject before completing.
+     *
+     * The subtask will be invoked with its own `TaskContext` as its first
+     * argument and the provided argument object as its second object.  The `this`
+     * for the task will be the `this` currently associated with the task.
+     *
+     * Subtasks are intended to be used for cases where write locks need to be
+     * taken and then the write promptly performed, inherently releasing the
+     * write-lock.
+     *
+     * @param {Function(TaskContext, argObj)} subtaskFunc
+     *   The subtask function that takes a TaskContext and the argument object
+     *   provided to `spawnSubtask` and returns a Promise.   If using tj/co, you
+     *   want to use `co.wrap(function*(ctx, argObj) {...})`, not just
+     *   `co(...)`.  The reason is that co.wrap returns a function that propagates
+     *   the arguments it is called through to an invocation of your generator
+     *   wrapped in co.  In contrast, when you do `co(function*() {...})` your
+     *   generator is invoked during that call; arguments cannot be provided.
+     *   We need to be able to provide arguments since we create the TaskContext
+     *   inside `spawnSubtask`.  As noted above, the `this` for the invocation
+     *   will be the `this` of your task instance, so you can safely do
+     *   `this.someOtherHelperOnMyTask` without having to use bind() yourself or
+     *   use an arrow function.
+     * @param {Object} [argObj]
+     *   An optional argument object to pass as the second argument to your
+     *   generator.  This is the second argument because it's assumed that if
+     *   you are declaring your subtask inline that you will just close over/
+     *   capture the arguments you want and won't specify the argument object.
+     *   In the case your subtask is a separate helper function, you probably
+     *   would want to provide the object, but it shouldn't be too ugly because
+     *   you won't have a giant inline function* hiding the argument object.
+     * @return {Promise}
+     */
+    spawnSubtask: function (subtaskFunc, argObj) {
+      var subId = 'sub:' + this.id + ':' + this._subtaskCounter++;
+      var subThing = {
+        id: subId,
+        type: 'subtask'
+      };
+      var subContext = new TaskContext(subThing, this.universe);
+      return this._taskManager.__trackAndWrapSubtask(this, subContext, subtaskFunc, argObj);
+    },
+
+    /**
+     * Helper for subtasks where you basically just want to apply some changes to
+     * a record from disk.  You name the namespace and id like in `mutateSingle`,
+     * we create a subtask that issues that call, calls your *synchronous*
+     * function with the result, and then writes whatever you return back.  (It
+     * can be the same object if you want, a new object if you want, or null if
+     * you want to delete the object.)  If you want an asynchronous function,
+     * then you need to use `spawnSubtask` directly.
+     *
+     * We currently do not do anything with flushed reads because our driving
+     * consumer (mix_download) does not need the functionality.  (Specifically,
+     * its `persistentState` introduces complexities since it may only be mutated
+     * while holding the write lock, so a flushed read is not useful since we need
+     * to re-acquire a write-lock.  Luckily mix_download does some expensive stuff
+     * with that.
+     */
+    spawnSimpleMutationSubtask: function ({ namespace, id }, mutateFunc) {
+      return this.spawnSubtask(this._simpleMutationSubtask, { mutateFunc, namespace, id });
+    },
+
+    _simpleMutationSubtask: co.wrap(function* (subctx, { mutateFunc, namespace, id }) {
+      // note! our 'this' context is that of the task implementation!
+      var obj = yield subctx.mutateSingle(namespace, id);
+
+      var writeObj = mutateFunc.call(this, obj);
+
+      yield subctx.finishTask({
+        mutations: {
+          [namespace]: new Map([[id, writeObj]])
+        }
+      });
+
+      // NB: this is where we'd do a flushed read-back if we wanted to.
+      return writeObj;
+    }),
+
+    /**
+     * Perform a write of an object, retaining the write-lock, followed by
+     * immediately reading the object back.  This only makes sense for Blob
+     * laundering where we try and forget about memory-backed Blobs in favor of
+     * disked-back Blobs (or more properly after read-back, Files).
+     *
+     * XXX I wrote this comment but didn't end up using it, but it's a good
+     * comment so here it sits with the open question: would this be a good idea?
+     * TODO: Review the attachment tasks and see if time has made this seem like
+     * a better approach than what we ended up using for blob laundering.
+     */
+    flushedWriteRetainingLock: function () {
+      throw new Error(); // make a stupid call, get a stupid error.
     },
 
     /**
@@ -231,6 +485,9 @@ define(function (require) {
      *   because I'm trying to reuse the mix-in IMAP uses.  Using this could
      *   be avoided by some refactoring or giving ActiveSync its own full
      *   implementation.
+     * - draft attaching.  This is an offline I/O bound process, so the hack here
+     *   is more about forgetting about memory-backed Blobs in favor of
+     *   disk-backed Blobs.
      */
     mutateMore: function (what) {
       if (this.state !== 'mutate') {
@@ -240,7 +497,8 @@ define(function (require) {
     },
 
     /**
-     *
+     * Quite possibly moot, don't use without discussion with asuth.  If asuth,
+     * mumble to self madly.
      */
     dangerousIncrementalWrite: function (mutations) {
       return this.universe.db.dangerousIncrementalWrite(this, mutations);
@@ -283,6 +541,7 @@ define(function (require) {
       }
       this.state = 'finishing';
 
+      const taskManager = this.universe.taskManager;
       var revisedTaskInfo = undefined;
       // If this isn't a marker, then there is a task state that needs to either
       // be revised or nuked.
@@ -296,7 +555,7 @@ define(function (require) {
             id: this.id,
             value: this._taskThing
           };
-          this.universe.taskManager.__queueTasksOrMarkers([this._taskThing], this.id, true);
+          taskManager.__queueTasksOrMarkers([this._taskThing], this.id, true);
         } else {
           revisedTaskInfo = {
             id: this.id,
@@ -327,11 +586,11 @@ define(function (require) {
         for (var [markerId, taskMarker] of finishData.taskMarkers) {
           // create / update marker
           if (taskMarker) {
-            this.universe.taskManager.__queueTasksOrMarkers([taskMarker], this.id, true);
+            taskManager.__queueTasksOrMarkers([taskMarker], this.id, true);
           }
           // nuke the marker
           else {
-              this.universe.taskManager.__removeTaskOrMarker(markerId, this.id);
+              taskManager.__removeTaskOrMarker(markerId, this.id);
             }
         }
       }
@@ -339,7 +598,7 @@ define(function (require) {
       // Normalize any tasks that should be byproducts of this task.
       var wrappedTasks = null;
       if (finishData.newData && finishData.newData.tasks) {
-        wrappedTasks = this.universe.taskManager.__wrapTasks(finishData.newData.tasks);
+        wrappedTasks = taskManager.__wrapTasks(finishData.newData.tasks);
       }
 
       return this.universe.db.finishMutate(this, finishData, {
@@ -351,9 +610,30 @@ define(function (require) {
           // running, the idea is that IndexedDB should really be assigning the
           // id's as part of the transaction, so we will only have assigned id's
           // at this point.  See the __wrapTasks documentation for more context.)
-          _this.universe.taskManager.__enqueuePersistedTasksForPlanning(wrappedTasks, _this.id);
+          taskManager.__enqueuePersistedTasksForPlanning(wrappedTasks, _this.id);
         }
       });
+    },
+
+    /**
+     * We need to wrap return values that are Promises because otherwise automatic
+     * promise chaining gets us.  So we create an explicit wrapper to conceal the
+     * hacky convention.  Also, when we come up with a better way to handle this,
+     * this might be easier to search and replace.
+     */
+    returnValue: function (value) {
+      return { wrappedResult: value };
+    },
+
+    __failsafeFinalize: function () {
+      // things are good if we finished automatically.
+      if (this.state === 'finishing') {
+        return;
+      }
+
+      logic(this, 'failsafeFinalize');
+      // empty object implies empty taskState.
+      this.finishTask({});
     }
   };
   return TaskContext;

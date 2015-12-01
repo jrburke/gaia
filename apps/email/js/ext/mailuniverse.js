@@ -1,14 +1,21 @@
 define(function (require) {
   'use strict';
 
+  /**
+   * @module
+   */
+
   const logic = require('logic');
   const MailDB = require('./maildb');
 
   const AccountManager = require('./universe/account_manager');
+  const CronSyncSupport = require('./universe/cronsync_support');
 
   const DataOverlayManager = require('./db/data_overlay_manager');
   const FolderConversationsTOC = require('./db/folder_convs_toc');
   const ConversationTOC = require('./db/conv_toc');
+
+  const SyncLifecycleMetaHelper = require('./db/toc_meta/sync_lifecycle');
 
   const TaskManager = require('./task_infra/task_manager');
   const TaskRegistry = require('./task_infra/task_registry');
@@ -21,7 +28,8 @@ define(function (require) {
 
   const globalTasks = require('./global_tasks');
 
-  const { accountIdFromMessageId, accountIdFromConvId, convIdFromMessageId } = require('./id_conversions');
+  const { accountIdFromFolderId, accountIdFromMessageId, accountIdFromConvId,
+    convIdFromMessageId, accountIdFromIdentityId } = require('./id_conversions');
 
   /**
    * The root of the backend, coordinating/holding everything together.  It is the
@@ -29,14 +37,25 @@ define(function (require) {
    * APIs to tasks, although we might move most of that into `TaskContext`
    * especially as we push more of our implementation into helpers that live in
    * the `universe` subdirectory.
+   *
+   * @constructor
+   * @memberof module:mailuniverse
    */
   function MailUniverse(online, testOptions) {
     logic.defineScope(this, 'Universe');
     this._initialized = false;
 
-    this.db = new MailDB({
+    // -- Initialize everything
+    // We use locals here with the same name as instance variables in order to get
+    // eslint to immediately tell us if we're being dumb with ordering when
+    // passing arguments.  (Otherwise things could be undefined.)
+    const db = this.db = new MailDB({
       universe: this,
       testOptions
+    });
+    const triggerManager = this.triggerManager = new TriggerManager({
+      db,
+      triggers: dbTriggerDefs
     });
 
     this._bridges = [];
@@ -47,34 +66,42 @@ define(function (require) {
     /** @type{Map<ConverastionId, ConversationTOC>} */
     this._conversationTOCs = new Map();
 
-    this.dataOverlayManager = new DataOverlayManager();
+    const dataOverlayManager = this.dataOverlayManager = new DataOverlayManager();
 
-    this.taskRegistry = new TaskRegistry({
-      dataOverlayManager: this.dataOverlayManager
+    const taskPriorities = this.taskPriorities = new TaskPriorities();
+    const taskResources = this.taskResources = new TaskResources(this.taskPriorities);
+    const taskRegistry = this.taskRegistry = new TaskRegistry({
+      dataOverlayManager,
+      triggerManager,
+      taskResources
     });
-    this.taskPriorities = new TaskPriorities();
-    this.taskResources = new TaskResources(this.taskPriorities);
 
-    this.accountManager = new AccountManager({
-      db: this.db,
+    const accountManager = this.accountManager = new AccountManager({
+      db,
       universe: this,
-      taskRegistry: this.taskRegistry
+      taskRegistry,
+      taskResources
     });
-    this.taskManager = new TaskManager({
+    const taskManager = this.taskManager = new TaskManager({
       universe: this,
-      db: this.db,
-      registry: this.taskRegistry,
-      resources: this.taskResources,
-      priorities: this.taskPriorities,
-      accountsTOC: this.accountManager.accountsTOC
+      db,
+      taskRegistry,
+      taskResources,
+      taskPriorities,
+      accountManager
     });
-    this.taskGroupTracker = new TaskGroupTracker(this.taskManager);
-    this.triggerManager = new TriggerManager({
-      db: this.db,
-      triggers: dbTriggerDefs
-    });
+    this.taskGroupTracker = new TaskGroupTracker(taskManager);
 
     this.taskRegistry.registerGlobalTasks(globalTasks);
+
+    /**
+     * This gets fully initialized
+     */
+    this.cronSyncSupport = new CronSyncSupport({
+      universe: this,
+      db,
+      accountManager
+    });
 
     /** Fake navigator to use for navigator.onLine checks */
     this._testModeFakeNavigator = testOptions && testOptions.fakeNavigator || null;
@@ -87,11 +114,21 @@ define(function (require) {
     // listener.
     this._onConnectionChange(online);
 
-    // Track the mode of the universe. Values are:
-    // 'cron': started up in background to do tasks like sync.
-    // 'interactive': at some point during its life, it was used to
-    // provide functionality to a user interface. Once it goes
-    // 'interactive', it cannot switch back to 'cron'.
+    /**
+     * Track the mode of the universe. Values are:
+     * - 'cron': started up in background to do tasks like sync.
+     * - 'interactive': at some point during its life, it was used to provide
+     *   functionality to a user interface. Once it goes 'interactive', it cannot
+     *   switch back to 'cron'.
+     *
+     * Note that this was introduced pre-convoy as a means of keeping deferred ops
+     * from interfering with cronsync.  It is not currently used in convoy because
+     * the resource management system and our errbackoff-derivatives hope to
+     * address elegantly what the deferred ops timeout tried to accomplish
+     * bluntly.  We're not removing this yet because it does seem reasonable that
+     * we care about this again in the future and it would be silly to remove it
+     * just to add it back.
+     */
     this._mode = 'cron';
 
     this.config = null;
@@ -201,49 +238,32 @@ define(function (require) {
       this._initialized = true;
       this.config = config;
       this._initLogging(config);
+      logic(this, 'START_OF_LOG');
       logic(this, 'configLoaded', { config });
+
+      this._bindStandardBroadcasts();
 
       // For reasons of sanity, we bring up the account manager (which is
       // responsible for registering tasks with the task registry as needed) in
       // its entirety before we initialize the TaskManager so it can assume all
       // task-type definitions are already loaded.
-      return this.accountManager.initFromDB(accountDefs).then(function () {
+      var initPromise = this.accountManager.initFromDB(accountDefs).then(function () {
         return _this2.taskManager.__restoreFromDB();
       }).then(function () {
         if (tasksToPlan) {
           _this2.taskManager.scheduleTasks(tasksToPlan, 'initFromConfig');
         }
+        _this2.cronSyncSupport.systemReady();
         return _this2;
       });
 
-      // XXX disabled cronsync because of massive rearchitecture
-      //this._cronSync = new $cronsync.CronSync(this, this._LOG);
-    },
+      // Now that we've told the account manager the accountDefs we can kick off
+      // an ensureSync.
+      this.cronSyncSupport.ensureSync('universe-init');
 
-    /**
-     * Return the subset of our configuration that the client can know about.
-     */
-    exposeConfigForClient: function () {
-      // eventually, iterate over a whitelist, but for now, it's easy...
-      return {
-        debugLogging: this.config.debugLogging
-      };
-    },
-
-    modifyConfig: function (changes) {
-      // XXX OLD: this wants to be a task using atomicClobber functionality.
-      for (var key in changes) {
-        var val = changes[key];
-        switch (key) {
-          case 'debugLogging':
-            break;
-          default:
-            continue;
-        }
-        this.config[key] = val;
-      }
-      this.db.saveConfig(this.config);
-      this.__notifyConfig();
+      // The official init process does want to wait on the task subsystems coming
+      // up, however.
+      return initPromise;
     },
 
     setInteractive: function () {
@@ -262,34 +282,18 @@ define(function (require) {
       // Knowing when the app thinks it is online/offline is going to be very
       // useful for our console.log debug spew.
       console.log('Email knows that it is:', this.online ? 'online' : 'offline', 'and previously was:', wasOnline ? 'online' : 'offline');
-      /**
-       * Do we want to minimize network usage?  Right now, this is the same as
-       * metered, but it's conceivable we might also want to set this if the
-       * battery is low, we want to avoid stealing network/cpu from other
-       * apps, etc.
-       *
-       * NB: We used to get this from navigator.connection.metered, but we can't
-       * depend on that.
-       */
-      this.minimizeNetworkUsage = true;
-      /**
-       * Is there a marginal cost to network usage?  This is intended to be used
-       * for UI (decision) purposes where we may want to prompt before doing
-       * things when bandwidth is metered, but not when the user is on comparably
-       * infinite wi-fi.
-       *
-       * NB: We used to get this from navigator.connection.metered, but we can't
-       * depend on that.
-       */
-      this.networkCostsMoney = true;
 
-      // - Transition to online
-      if (!wasOnline && this.online) {
-        // XXX put stuff back in here
+      if (this.online) {
+        this.taskResources.resourceAvailable('online');
+      } else {
+        this.taskResources.resourcesNoLongerAvailable(['online']);
       }
     },
 
     registerBridge: function (mailBridge) {
+      // If you're doing anything like thinking of adding event binding here,
+      // please read the comments inside broadcastOverBridges and reconsider its
+      // implementation after having read this.
       this._bridges.push(mailBridge);
     },
 
@@ -297,6 +301,78 @@ define(function (require) {
       var idx = this._bridges.indexOf(mailBridge);
       if (idx !== -1) {
         this._bridges.splice(idx, 1);
+      }
+    },
+
+    exposeConfigForClient: function () {
+      const config = this.config;
+      return {
+        debugLogging: config.debugLogging
+      };
+    },
+
+    /**
+     * The home for thin bindings of back-end events to be front-end events.
+     *
+     * Anything complicated should probably end up as its own explicit file named
+     * by the event we expose to the clients.  Heck, even the simple stuff would
+     * probably do well to do that, but while we're still figuring things out
+     * the simple stuff can live here.  (It's possible the complex stuff really
+     * belongs as tasks or other explicit named classes, so creating a directory
+     * by broadcast would be inverting things from their optimal structure.)
+     */
+    _bindStandardBroadcasts: function () {
+      var _this3 = this;
+
+      // - config: send a sanitized version
+      // While our threat model at the current time trusts the front-end, there's
+      // no need to send it implementation details that it does not care about.
+      this.db.on('config', function () {
+        _this3.broadcastOverBridges('config', _this3.exposeConfigForClient());
+      });
+    },
+
+    /**
+     * Send a named payload to all currently registered bridges to be emitted as
+     * an event on the MailAPI instances.  Currently, all messages are sent
+     * without concern for interest on the client side, but this could eventually
+     * change should profiling show we're being ridonkulous about things.
+     *
+     * This is intended to be used for notable events where one of the following
+     * is true:
+     * - The event is nebulous and global in nature and not something directly
+     *   related to something we already have data types and limited subscriptions
+     *   for.
+     * - The UX for notifying the user and/or helping the user deal with the
+     *   problem is largely stateless and using the existing data types would
+     *   be silly/inefficient or compromises the UX.
+     *
+     * Examples of sensible uses:
+     * - Notifications of account credential problems.  There is no benefit to
+     *   forcing front-end logic to add a listener to every account, but there is
+     *   a lot of hassle.  Likewise, the UI for this situation is likely to be a
+     *   pop-up style notification that doesn't care what else what was happening
+     *   at the time.
+     * - Notification of revised "new tracking" state.
+     *
+     * @param {String} name
+     * @param {Object} data
+     *   Note that this data
+     */
+    broadcastOverBridges: function (name, data) {
+      // Implementation-wise, there are two ways the control flow could go:
+      // 1. Iterate over the bridges and call a broadcast() method.
+      // 2. MailUniverse should be an EventEmitter and it should  emit an event
+      //    that the bridges are subscribed to and then they call _broadcast on
+      //    themselves or _onBroadcast or something.
+      //
+      // We've chosen the iteration strategy somewhat arbitrarily.  The best thing
+      // I can say about the choice is that the control-flow and data-flow are
+      // arguably cleaner this way by having the MailBridge and MailUniverse
+      // interact strictly through explicit API calls with no "soft" API surface
+      // like events.
+      for (var bridge of this._bridges) {
+        bridge.broadcast(name, data);
       }
     },
 
@@ -326,18 +402,34 @@ define(function (require) {
     },
 
     acquireFolderConversationsTOC: function (ctx, folderId) {
-      var _this3 = this;
+      var _this4 = this;
 
       var toc = undefined;
       if (this._folderConvsTOCs.has(folderId)) {
         toc = this._folderConvsTOCs.get(folderId);
       } else {
+        // Figure out what the sync stamp source is for this account.  It hinges
+        // on the sync granularity; if it's account-based then the sync stamps
+        // will be on the account, otherwise on the folder.
+        var accountId = accountIdFromFolderId(folderId);
+        var engineFacts = this.accountManager.getAccountEngineBackEndFacts(accountId);
+        var syncStampSource = undefined;
+        if (engineFacts.syncGranularity === 'account') {
+          syncStampSource = this.accountManager.getAccountDefById(accountId);
+        } else {
+          syncStampSource = this.accountManager.getFolderById(folderId);
+        }
         toc = new FolderConversationsTOC({
           db: this.db,
           folderId,
           dataOverlayManager: this.dataOverlayManager,
+          metaHelpers: [new SyncLifecycleMetaHelper({
+            folderId,
+            syncStampSource,
+            dataOverlayManager: this.dataOverlayManager
+          })],
           onForgotten: function () {
-            _this3._folderConvsTOCs.delete(folderId);
+            _this4._folderConvsTOCs.delete(folderId);
           }
         });
         this._folderConvsTOCs.set(folderId, toc);
@@ -346,7 +438,7 @@ define(function (require) {
     },
 
     acquireConversationTOC: function (ctx, conversationId) {
-      var _this4 = this;
+      var _this5 = this;
 
       var toc = undefined;
       if (this._conversationTOCs.has(conversationId)) {
@@ -357,7 +449,7 @@ define(function (require) {
           conversationId,
           dataOverlayManager: this.dataOverlayManager,
           onForgotten: function () {
-            _this4._conversationsTOCs.delete(conversationId);
+            _this5._conversationTOCs.delete(conversationId);
           }
         });
         this._conversationTOCs.set(conversationId, toc);
@@ -380,7 +472,7 @@ define(function (require) {
      * may potentially be undefined.
      */
     tryToCreateAccount: function (userDetails, domainInfo, why) {
-      var _this5 = this;
+      var _this6 = this;
 
       if (!this.online) {
         return Promise.resolve({ error: 'offline' });
@@ -409,7 +501,7 @@ define(function (require) {
             };
           }
           // - Okay, try the account creation then.
-          return _this5.taskManager.scheduleNonPersistentTaskAndWaitForExecutedResult({
+          return _this6.taskManager.scheduleNonPersistentTaskAndWaitForExecutedResult({
             type: 'account_create',
             userDetails,
             domainInfo: result.configInfo
@@ -429,7 +521,7 @@ define(function (require) {
     },
 
     recreateAccount: function (accountId, why) {
-      var _this6 = this;
+      var _this7 = this;
 
       // Latch the accountDef now since it's going away.  It's safe to do this
       // synchronously since the accountDefs are loaded by startup and the
@@ -443,7 +535,7 @@ define(function (require) {
         type: 'account_delete',
         accountId
       }, why).then(function () {
-        _this6.taskManager.scheduleTasks([{
+        _this7.taskManager.scheduleTasks([{
           type: 'account_migrate',
           accountDef
         }], why);
@@ -455,7 +547,7 @@ define(function (require) {
      * tasks.
      */
     saveAccountDef: function (accountDef, protoConn) {
-      var _this7 = this;
+      var _this8 = this;
 
       this.db.saveAccountDef(this.config, accountDef);
 
@@ -466,13 +558,13 @@ define(function (require) {
       } else {
         var _ret = (function () {
           // (this happens during intial account (re-)creation)
-          var accountWireRep = _this7._accountExists(accountDef);
+          var accountWireRep = _this8._accountExists(accountDef);
           // If we were given a connection, instantiate the account so it can use
           // it.  Note that there's no potential for races at this point since no
           // one knows about this account until we return.
           if (protoConn) {
             return {
-              v: _this7._loadAccount(accountDef, _this7.accountFoldersTOCs.get(accountDef.id), protoConn).then(function () {
+              v: _this8._loadAccount(accountDef, _this8.accountFoldersTOCs.get(accountDef.id), protoConn).then(function () {
                 return {
                   error: null,
                   errorDetails: null,
@@ -486,6 +578,30 @@ define(function (require) {
 
         if (typeof _ret === 'object') return _ret.v;
       }
+    },
+
+    modifyConfig: function (accountId, mods, why) {
+      return this.taskManager.scheduleTaskAndWaitForPlannedResult({
+        type: 'config_modify',
+        mods
+      }, why);
+    },
+
+    modifyAccount: function (accountId, mods, why) {
+      return this.taskManager.scheduleTaskAndWaitForPlannedResult({
+        type: 'account_modify',
+        accountId,
+        mods
+      }, why);
+    },
+
+    modifyIdentity: function (identityId, mods, why) {
+      const accountId = accountIdFromIdentityId(identityId);
+      return this.taskManager.scheduleTaskAndWaitForPlannedResult({
+        type: 'identity_modify',
+        accountId,
+        mods
+      }, why);
     },
 
     //////////////////////////////////////////////////////////////////////////////
@@ -533,22 +649,30 @@ define(function (require) {
       }], why);
     },
 
+    /**
+     * Schedule a sync for the given folder, returning a promise that will be
+     * resolved when the task group associated with the request completes.
+     */
     syncGrowFolder: function (folderId, why) {
       var accountId = folderId.split(/\./g)[0];
-      return this.taskManager.scheduleTasks([{
+      return this.taskManager.scheduleTaskAndWaitForPlannedResult({
         type: 'sync_grow',
         accountId: accountId,
         folderId: folderId
-      }], why);
+      }, why);
     },
 
+    /**
+     * Schedule a sync for the given folder, returning a promise that will be
+     * resolved when the task group associated with the request completes.
+     */
     syncRefreshFolder: function (folderId, why) {
       var accountId = folderId.split(/\./g)[0];
-      return this.taskManager.scheduleTasks([{
+      return this.taskManager.scheduleTaskAndWaitForPlannedResult({
         type: 'sync_refresh',
         accountId: accountId,
         folderId: folderId
-      }], why);
+      }, why);
     },
 
     fetchConversationSnippets: function (convIds, why) {
@@ -724,28 +848,41 @@ define(function (require) {
      * This request is persistent although the callback will obviously be
      * discarded in the event the app is killed.
      *
-     * @param {String[]} relPartIndices
-     *     The part identifiers of any related parts to be saved to IndexedDB.
-     * @param {String[]} attachmentIndices
-     *     The part identifiers of any attachment parts to be saved to
-     *     DeviceStorage.  For each entry in this array there should be a
-     *     corresponding boolean in registerWithDownloadManager.
-     * @param {Boolean[]} registerAttachments
-     *     An array of booleans corresponding to each entry in attachmentIndices
-     *     indicating whether the download should be registered with the download
-     *     manager.
+     * @param {Object} arg
+     * @param {MessageId} messageId
+     * @param {DateMS} messageDate
+     * @param {Map<AttachmentRelId, AttachmentSaveTarget>} parts
      */
     downloadMessageAttachments: function ({
-      messageId, messageDate, relatedPartRelIds, attachmentRelIds }) {
-      return this.taskManager.scheduleNonPer;
+      messageId, messageDate, parts }) {
+      return this.taskManager.scheduleTaskAndWaitForPlannedResult({
+        type: 'download',
+        accountId: accountIdFromMessageId(messageId),
+        messageId,
+        messageDate,
+        parts
+      });
     },
 
-    moveMessages: function (messageSuids, targetFolderId, callback) {
-      // XXX OLD
+    clearNewTrackingForAccount: function ({ accountId, silent }) {
+      this.taskManager.scheduleTasks([{
+        type: 'new_tracking',
+        accountId,
+        op: 'clear',
+        silent
+      }]);
     },
 
-    deleteMessages: function (messageSuids) {
-      // XXX OLD
+    /**
+     * Cause a new_flush task to be scheduled so that the broadcast message gets
+     * re-sent.  Assuming persistent notifications are generated, this should
+     * not be needed outside of simplifying debugging logic.  If you really need
+     * to be able to access this data on command, something needs to be rethought.
+     */
+    flushNewAggregates: function () {
+      this.taskManager.scheduleTasks([{
+        type: 'new_flush'
+      }]);
     },
 
     /**

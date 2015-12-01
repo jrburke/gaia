@@ -1,18 +1,16 @@
 define(function (require) {
   'use strict';
 
-  var co = require('co');
-  var logic = require('logic');
+  const co = require('co');
+  const logic = require('logic');
 
-  var util = require('../util');
-  var bsearchMaybeExists = util.bsearchMaybeExists;
-  var bsearchForInsert = util.bsearchForInsert;
+  const util = require('../util');
+  const bsearchMaybeExists = util.bsearchMaybeExists;
+  const bsearchForInsert = util.bsearchForInsert;
 
-  var RefedResource = require('../refed_resource');
+  const BaseTOC = require('./base_toc');
 
-  var evt = require('evt');
-
-  var { conversationMessageComparator } = require('./comparators');
+  const { conversationMessageComparator } = require('./comparators');
 
   /**
    * The Conversation Table-of-Contents is in charge of backing view slices
@@ -31,16 +29,13 @@ define(function (require) {
    * view slice is requested for a given conversation and destroyed once no more
    * view slices care about.
    */
-  function ConversationTOC({ db, conversationId, dataOverlayManager,
-    onForgotten }) {
-    RefedResource.call(this);
-    evt.Emitter.call(this);
+  function ConversationTOC({ db, conversationId, dataOverlayManager }) {
+    BaseTOC.apply(this, arguments);
 
     logic.defineScope(this, 'ConversationTOC');
 
     this._db = db;
     this.convId = conversationId;
-    this._onForgotten = onForgotten;
     // id for toc-style changes to the ordered set of messages in the conversation
     this._tocEventId = '';
     // id for the conversation summary; used to detect the deletion of the
@@ -57,12 +52,12 @@ define(function (require) {
 
     this.__deactivate(true);
   }
-  ConversationTOC.prototype = evt.mix(RefedResource.mix({
+  ConversationTOC.prototype = BaseTOC.mix({
     type: 'ConversationTOC',
     overlayNamespace: 'messages',
     heightAware: false,
 
-    __activate: co.wrap(function* () {
+    __activateTOC: co.wrap(function* () {
       // NB: Although our signature is for this to just provide us with the id's,
       // this actually has the byproduct of loading the header records and placing
       // them in the cache because we can't currently just get the keys.
@@ -80,14 +75,10 @@ define(function (require) {
       this._db.on(convEventId, this._bound_onConvChange);
     }),
 
-    __deactivate: function (firstTime) {
+    __deactivateTOC: function (firstTime) {
       this.idsWithDates = [];
       if (!firstTime) {
         this._db.removeListener(this._tocEventId, this._bound_onTOCChange);
-        if (this._onForgotten) {
-          this._onForgotten(this, this.convId);
-        }
-        this._onForgotten = null;
       }
     },
 
@@ -263,7 +254,7 @@ define(function (require) {
         newValidDataSet: newKnownSet
       };
     }
-  }));
+  });
 
   return ConversationTOC;
 });

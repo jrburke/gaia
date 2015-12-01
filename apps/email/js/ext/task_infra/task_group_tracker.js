@@ -1,5 +1,7 @@
-define(function () {
+define(function (require) {
   'use strict';
+
+  const logic = require('logic');
 
   /**
    * Tracks groups of one or more tasks and their spinoff tasks to provide higher
@@ -23,6 +25,20 @@ define(function () {
    * accomplish this by having groups be aware of their parent groups
    */
   function TaskGroupTracker(taskManager) {
+    logic.defineScope(this, 'TaskGroupTracker');
+
+    this.taskManager = taskManager;
+
+    /**
+     * Uniqueifying id helper so we can differentiate group "instances".  While
+     * it's great that we can use semantic names like "sync_refresh:2" for when
+     * we're syncing account 2, it's also useful to be able to distinguish one
+     * aggregated sync effort from one that happens later.  We use the group id's
+     * to this end.  We assume and require that group id's will only be compared
+     * within a single universe lifetime with any comparisons being "!==" tests
+     * initialized to null on each reset so this does not pose a problem.
+     */
+    this._nextGroupId = 1;
     this._groupsByName = new Map();
     this._taskIdsToGroups = new Map();
     // All task id's in this set are a case of a simple task reusing its id and
@@ -41,17 +57,19 @@ define(function () {
       emitter.on('executed', this, this._onExecuted);
     },
 
-    /**
-     * Ensure that a task group exists with the given name, and return a Promise
-     * that will be resolved when the last task in the group completes.
-     */
-    ensureNamedTaskGroup: function (groupName, taskId) {
+    // Internal heart of ensureNamedTaskGroup that exposes internal rep for reuse
+    // by other class code.
+    _ensureNamedTaskGroup: function (groupName, taskId) {
       var group = this._groupsByName.get(groupName);
       if (!group) {
         group = this._makeTaskGroup(groupName);
+        logic(this, 'createGroup', { groupName, taskId });
+      } else {
+        logic(this, 'reuseGroup', { groupName, taskId });
       }
 
-      var existingOwningGroup = this._taskIdsToGroups.get(taskId);
+      // (normalize to null from undefined)
+      var existingOwningGroup = this._taskIdsToGroups.get(taskId) || null;
       // It's possible the group already existed and we were already mapped into
       // the group.  (It's also possible the group existed but we weren't mapped
       // in.)
@@ -60,18 +78,61 @@ define(function () {
         // our group is assuming the pendingCount of the task.
       }
       group.pendingCount++;
+      group.totalCount++;
       this._taskIdsToGroups.set(taskId, group);
+      return group;
+    },
+
+    /**
+     * Ensure that a task group exists with the given name, and return a Promise
+     * that will be resolved when the last task in the group completes.
+     */
+    ensureNamedTaskGroup(groupName, taskId) {
+      var group = this._ensureNamedTaskGroup(groupName, taskId);
       return group.promise;
+    },
+
+    /**
+     * Return the root ancestor task group.  See TaskContext.rootTaskGroupId for
+     * the rationale for this existing.
+     */
+    getRootTaskGroupForTask: function (taskId) {
+      var taskGroup = this._taskIdsToGroups.get(taskId);
+      if (!taskGroup) {
+        return taskGroup;
+      }
+      while (taskGroup.parentGroup !== null) {
+        taskGroup = taskGroup.parentGroup;
+      }
+      return taskGroup;
+    },
+
+    ensureRootTaskGroupFollowOnTask: function (taskId, taskToPlan) {
+      var rootTaskGroup = this.getRootTaskGroupForTask(taskId);
+      if (!rootTaskGroup) {
+        // Create a group for the task if one didn't exist.
+        rootTaskGroup = this._ensureNamedTaskGroup('ensured:' + this._nextGroupId, taskId);
+      }
+      if (!rootTaskGroup.tasksToScheduleOnCompletion) {
+        rootTaskGroup.tasksToScheduleOnCompletion = new Set();
+      }
+      rootTaskGroup.tasksToScheduleOnCompletion.add(taskToPlan);
     },
 
     _makeTaskGroup: function (groupName) {
       var group = {
         groupName,
+        // (see the comment for _nextGroupId for rationale on this)
+        groupId: this._nextGroupId++,
         // The number of tasks or groups that have yet to complete.
         pendingCount: 0,
+        // Debugging support: track the number of things this group ever wanted to
+        // wait on.
+        totalCount: 0,
         parentGroup: null,
         promise: null,
-        resolve: null
+        resolve: null,
+        tasksToScheduleOnCompletion: null
       };
       group.promise = new Promise(function (resolve) {
         group.resolve = resolve;
@@ -93,6 +154,7 @@ define(function () {
       var sourceGroup = this._taskIdsToGroups.get(sourceId);
       if (sourceGroup) {
         sourceGroup.pendingCount++;
+        sourceGroup.totalCount++;
         this._taskIdsToGroups.set(taskThing.id, sourceGroup);
       }
     },
@@ -115,16 +177,27 @@ define(function () {
         // confusing in the debugger.
         if (sourceId === taskThing.id) {
           this._pendingTaskIdReuses.add(sourceId);
-        }
-        sourceGroup.pendingCount++;
+          // And we don't bump the pending count because we fast-path out when we
+          // see the above set entry.
+        } else {
+            sourceGroup.pendingCount++;
+          }
+        sourceGroup.totalCount++;
         this._taskIdsToGroups.set(taskThing.id, sourceGroup);
       }
     },
 
     _decrementGroupPendingCount(group) {
       if (--group.pendingCount === 0) {
+        logic(this, 'resolveGroup', {
+          groupName: group.groupName,
+          totalCount: group.totalCount
+        });
         group.resolve();
         this._groupsByName.delete(group.groupName);
+        if (group.tasksToScheduleOnCompletion) {
+          this.taskManager.scheduleTasks(Array.from(group.tasksToScheduleOnCompletion), 'deferred-group:' + group.groupName);
+        }
         if (group.parentGroup) {
           this._decrementGroupPendingCount(group.parentGroup);
         }

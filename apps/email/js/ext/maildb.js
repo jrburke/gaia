@@ -1,6 +1,10 @@
 define(function (require) {
   'use strict';
 
+  /**
+   * @module
+   */
+
   const co = require('co');
   const evt = require('evt');
   const logic = require('logic');
@@ -19,7 +23,7 @@ define(function (require) {
    * For convoy this gets bumped willy-nilly as I make minor changes to things.
    * We probably want to drop this way back down before merging anywhere official.
    */
-  const CUR_VERSION = 108;
+  const CUR_VERSION = 117;
 
   /**
    * What is the lowest database version that we are capable of performing a
@@ -68,23 +72,31 @@ define(function (require) {
   const TBL_TASKS = 'tasks';
 
   /**
-   * Complex task state.  When a complex task plans a raw task, the state goes in
-   * here and the original task is nuked.
+   * Complex task state to be loaded in its entirety when tasks are intialized for
+   * an account.  Complex tasks can store either a single object of their choosing
+   * in here, or have multiple keyed values that are automatically loaded into a
+   * map.
+   *
+   * Since the information is kept in-memory once loaded and should be of limited
+   * size, the single object form will usually be a good choice.  However, in
+   * cases involving DOM Blobs/Files where we need to write values to disk and
+   * then read them back to convert them from a memory-backed Blob to a
+   * disk-backed File and such manipulations may want to logically occur in
+   * parallel, the multi-record Map implementation may be preferable.  (Noting
+   * that the IndexedB transactions will be serialized.  But our tasks operate on
+   * a higher abstraction level and it's easier to reason about if we can view
+   * them as distinct records with orthogonal life cycles.)
    *
    * The key is a composite of:
    * - `AccountId`: Because complex tasks are managed on a per-account basis.
    * - `ComplexTaskName`: Namespaces the task.
+   * - Optional `ComplexTaskKey`: If doing the Map, this key will exist.
+   *   Otherwise the key will be a 2-item Array.
    *
-   * key: [`AccountId`, `ComplexTaskName`, ...]
-   *
-   * The value must include `key` as a property that is the key.  This is because
-   * of mozGetAll limitations.
+   * key: [`AccountId`, `ComplexTaskName`, ...key]
    *
    * This data is loaded at startup for task prioritization reasons.  Writes are
-   * made as part of task completing transactions.  Currently the complex task
-   * state has to be a simple (potentially giant) object because it's planned to
-   * simplify unit testing and we don't actually expect there to be that much
-   * data.
+   * made as part of task completing transactions.
    */
   const TBL_COMPLEX_TASKS = 'complexTasks';
 
@@ -186,11 +198,49 @@ define(function (require) {
   const TBL_UMID_NAME = 'umidNameMap';
 
   /**
+   * Log records for extremely significant events.  The first component of the
+   * composite key is a timestamp so that we can easily reap logs older than a
+   * given time-horizon.
+   *
+   * While logs may be added and/or updated as part of a task, we also support an
+   * API for writing these logs outside of a task for paranoia/failsafe reasons.
+   *
+   * key: [timestamp, type, id]
+   * - timestamp: Date.now() when whatever we're logging about was started.
+   * - type: The record type like 'cronsync'.  This is used in conjunction with
+   *   the id by the creator of the log entry to provide uniqueness while also
+   *   allowing easy fire-and-forget updates.  (AKA we could have IndexedDB
+   *   allocate id's to provide uniqueness, but then we have to wait around to
+   *   hear what id was issued, plus it complicates time-based reaping.)
+   * - id: An id allocated by the logger that should be unique for the given
+   *   timestamp and type.
+   *
+   * Examples of extremely significant events:
+   * - cronsync attempts/results.  We've had a history of our periodic sync not
+   *   being reliable.  To this end it's vital for us to know when we actually
+   *   woke up to try and periodically sync, whether we had the network access
+   *   we desired, what type of failures we encountered, if any, etc.  We perform
+   *   initial writes as part of cronsync outside the task infrastructure because
+   *   the task infrastructure may hang.
+   */
+  const TBL_BOUNDED_LOGS = 'logs';
+
+  /**
+   * How long should we keep circular logs around for?  Right now we're
+   * arbitrarily going with two weeks because:
+   * - The amount of data is not insane.
+   * - This should cover cases of dogfooders going on vacation for a week and
+   *   noticing something's not working, getting home, getting back in the groove,
+   *   and then pulling the logs off.
+   */
+  const BOUNDED_LOG_KEEP_TIME_MILLIS = 14 * 24 * 60 * 60 * 1000;
+
+  /**
    * The set of all object stores our tasks can mutate.  Which is all of them.
    * It's not worth it for us to actually figure the subset of these that's the
    * truth.
    */
-  const TASK_MUTATION_STORES = [TBL_CONFIG, TBL_SYNC_STATES, TBL_TASKS, TBL_COMPLEX_TASKS, TBL_FOLDER_INFO, TBL_CONV_INFO, TBL_CONV_IDS_BY_FOLDER, TBL_MESSAGES, TBL_HEADER_ID_MAP, TBL_UMID_LOCATION, TBL_UMID_NAME];
+  const TASK_MUTATION_STORES = [TBL_CONFIG, TBL_SYNC_STATES, TBL_TASKS, TBL_COMPLEX_TASKS, TBL_FOLDER_INFO, TBL_CONV_INFO, TBL_CONV_IDS_BY_FOLDER, TBL_MESSAGES, TBL_HEADER_ID_MAP, TBL_UMID_LOCATION, TBL_UMID_NAME, TBL_BOUNDED_LOGS];
 
   /**
    * Try and create a useful/sane error message from an IDB error and log it or
@@ -264,12 +314,27 @@ define(function (require) {
   };
 
   /**
-   * Given a dictionary of clobbers whose keys are fields and values are values
-   * to clobber onto the provided object.  Helper for atomicClobbers logic.
+   * Helper for atomicClobbers.
+   *
+   * We support two clobber styles:
+   * 1. Object with keys as simple string key names.
+   * 2. Map with keys as list of traversal keys for nested manipulation.
    */
   const applyClobbersToObj = function (clobbers, obj) {
-    for (var key of Object.keys(clobbers)) {
-      obj[key] = clobbers[key];
+    // -- Complex case, map whose keys are paths and values are values.
+    if (clobbers instanceof Map) {
+      for (var [keyPath, value] of clobbers) {
+        var effObj = obj;
+        for (var keyPart of keyPath.slice(0, -1)) {
+          effObj = effObj[keyPart];
+        }
+        effObj[keyPath.slice(-1)[0]] = value;
+      }
+    } else {
+      // -- Simple case: object with single string key and value.
+      for (var key of Object.keys(clobbers)) {
+        obj[key] = clobbers[key];
+      }
     }
   };
 
@@ -411,24 +476,23 @@ define(function (require) {
    *
    * See maildb.md for more info/context.
    *
-   * @args[
-   *   @param[testOptions #:optional @dict[
-   *     @key[dbVersion #:optional Number]{
-   *       Override the database version to treat as the database version to use.
-   *       This is intended to let us do simple database migration testing by
-   *       creating the database with an old version number, then re-open it
-   *       with the current version and seeing a migration happen.  To test
-   *       more authentic migrations when things get more complex, we will
-   *       probably want to persist JSON blobs to disk of actual older versions
-   *       and then pass that in to populate the database.
-   *     }
-   *     @key[nukeDb #:optional Boolean]{
-   *       Compel ourselves to nuke the previous database state and start from
-   *       scratch.  This only has an effect when IndexedDB has fired an
-   *       onupgradeneeded event.
-   *     }
-   *   ]]
-   * ]
+   * @constructor
+   * @memberof module:maildb
+   * @param arg
+   * @param arg.testOptions
+   * @param {Number} [arg.testOptions.dbVersion]
+   *   Override the database version to treat as the database version to use.
+   *   This is intended to let us do simple database migration testing by
+   *   creating the database with an old version number, then re-open it
+   *   with the current version and seeing a migration happen.  To test
+   *   more authentic migrations when things get more complex, we will
+   *   probably want to persist JSON blobs to disk of actual older versions
+   *   and then pass that in to populate the database.
+   * @param {Boolean} [arg.testOptions.nukeDb]
+   *   Compel ourselves to nuke the previous database state and start from
+   *   scratch.  This only has an effect when IndexedDB has fired an
+   *   onupgradeneeded event.
+   *
    */
   function MailDB({ universe, testOptions }) {
     var _this = this;
@@ -524,7 +588,7 @@ define(function (require) {
     });
   }
 
-  MailDB.prototype = evt.mix({
+  MailDB.prototype = evt.mix( /** @lends module:maildb.MailDB.prototype */{
     /**
      * Reset the contents of the database.
      */
@@ -538,7 +602,7 @@ define(function (require) {
       db.createObjectStore(TBL_CONFIG);
       db.createObjectStore(TBL_SYNC_STATES);
       db.createObjectStore(TBL_TASKS);
-      db.createObjectStore(TBL_COMPLEX_TASKS, { keyPath: 'key' });
+      db.createObjectStore(TBL_COMPLEX_TASKS);
       db.createObjectStore(TBL_FOLDER_INFO);
       db.createObjectStore(TBL_CONV_INFO);
       db.createObjectStore(TBL_CONV_IDS_BY_FOLDER);
@@ -546,6 +610,7 @@ define(function (require) {
       db.createObjectStore(TBL_HEADER_ID_MAP);
       db.createObjectStore(TBL_UMID_NAME);
       db.createObjectStore(TBL_UMID_LOCATION);
+      db.createObjectStore(TBL_BOUNDED_LOGS);
     },
 
     close: function () {
@@ -634,6 +699,54 @@ define(function (require) {
           callback();
         };
       }
+    },
+
+    /**
+     * Add one or more new bounded-log entries to disk outside of a task.  Entries
+     * should take the form of { timestamp, type, id, entry }.
+     */
+    addBoundedLogs: function (entries) {
+      var trans = this._db.transaction(TBL_BOUNDED_LOGS, 'readwrite');
+      var store = trans.objectStore(TBL_BOUNDED_LOGS);
+
+      for (var entry of entries) {
+        store.add(entry.entry, [entry.timestamp, entry.type, entry.id]);
+      }
+
+      return wrapTrans(trans);
+    },
+
+    /**
+     * Update one or more existing bounded-log entries to disk.  Entries should
+     * take the form of { timestamp, type, id, entry }.
+     */
+    updateBoundedLogs: function (entries) {
+      var trans = this._db.transaction(TBL_BOUNDED_LOGS, 'readwrite');
+      var store = trans.objectStore(TBL_BOUNDED_LOGS);
+
+      for (var entry of entries) {
+        store.put(entry.entry, [entry.timestamp, entry.type, entry.id]);
+      }
+
+      return wrapTrans(trans);
+    },
+
+    /**
+     * Reap bounded logs beyond our keep time horizon.
+     */
+    reapOldBoundedLogs: function () {
+      var trans = this._db.transaction(TBL_BOUNDED_LOGS, 'readwrite');
+      var store = trans.objectStore(TBL_BOUNDED_LOGS);
+
+      var deleteRange = IDBKeyRange.bound(
+      // Start at the dawn of time.
+      [0],
+      // And delete through 2 weeks ago or whatever or constant is.
+      [Date.now() - BOUNDED_LOG_KEEP_TIME_MILLIS, []], true, true);
+
+      store.delete(deleteRange);
+
+      return wrapTrans(trans);
     },
 
     /**
@@ -749,7 +862,7 @@ define(function (require) {
      *   cannot take advantage of the `messageCache`.  (There are some easy-ish
      *   things we could do to accomplish this, but it's not believed to be a
      *   major concern at this time.)
-     * @param {Map<[MessageId, DateMS], MessageInfo} requests.messages
+     * @param {Map<[MessageId, DateMS], MessageInfo>} requests.messages
      *   Load specific messages.  Note that we need the canonical MessageId plus
      *   the DateMS associated with the message to find the record if it's not in
      *   cache.  This is a little weird but it's assumed you have previously
@@ -805,6 +918,9 @@ define(function (require) {
         }
         if (requests.umidLocations) {
           dbReqCount += genericUncachedLookups(trans.objectStore(TBL_UMID_LOCATION), requests.umidLocations);
+        }
+        if (requests.complexTaskStates) {
+          dbReqCount += genericUncachedLookups(trans.objectStore(TBL_COMPLEX_TASKS), requests.complexTaskStates);
         }
 
         // -- Cached lookups
@@ -950,8 +1066,7 @@ define(function (require) {
         // (nothing to do for "accounts")
         // (nothing to do for "folders")
 
-        // Right now we only care about conversations because all other data types
-        // have no complicated indices to maintain.
+        // - conversations
         if (mutateRequests.conversations) {
           var preConv = preMutateStates.conversations = new Map();
           for (var conv of mutateRequests.conversations.values()) {
@@ -963,7 +1078,10 @@ define(function (require) {
 
             preConv.set(conv.id, {
               date: conv.date,
-              folderIds: conv.folderIds,
+              // A well-behaved mutation will not mutate the list an instead
+              // replace it with a new one, but we are not so naive as to
+              // have our correctness depend on that.
+              folderIds: new Set(conv.folderIds),
               hasUnread: conv.hasUnread,
               height: conv.height
             });
@@ -979,13 +1097,19 @@ define(function (require) {
           if (mutateRequests.messagesByConversation) {
             for (var convMessages of mutateRequests.messagesByConversation.values()) {
               for (var message of convMessages) {
-                preMessages.set(message.id, message.date);
+                preMessages.set(message.id, {
+                  date: message.date,
+                  folderIds: new Set(message.folderIds)
+                });
               }
             }
           }
           if (mutateRequests.messages) {
             for (var message of mutateRequests.messages.values()) {
-              preMessages.set(message.id, message.date);
+              preMessages.set(message.id, {
+                date: message.date,
+                folderIds: new Set(message.folderIds)
+              });
             }
           }
         }
@@ -995,15 +1119,18 @@ define(function (require) {
     },
 
     /**
-     * Load all tasks from the database.  Ideally this is called before any calls
+     * Load all tasks from thew database.  Ideally this is called before any calls
      * to addTasks if you want to avoid having a bad time.
      */
     loadTasks: function () {
       var trans = this._db.transaction([TBL_TASKS, TBL_COMPLEX_TASKS], 'readonly');
       var taskStore = trans.objectStore(TBL_TASKS);
       var complexTaskStore = trans.objectStore([TBL_COMPLEX_TASKS]);
-      return Promise.all([wrapReq(taskStore.mozGetAll()), wrapReq(complexTaskStore.mozGetAll())]).then(function ([wrappedTasks, complexTaskStates]) {
-        return { wrappedTasks, complexTaskStates };
+      return Promise.all([wrapReq(taskStore.getAll()), wrapReq(complexTaskStore.getAllKeys()), wrapReq(complexTaskStore.getAll())]).then(function ([wrappedTasks, complexTaskStateKeys, complexTaskStateValues]) {
+        return {
+          wrappedTasks,
+          complexTaskStates: [complexTaskStateKeys, complexTaskStateValues]
+        };
       });
     },
 
@@ -1216,6 +1343,7 @@ define(function (require) {
         store.add(message, key);
         messageCache.set(message.id, message);
 
+        this.emit('msg!*!add', message);
         var eventId = 'conv!' + convId + '!messages!tocChange';
         this.emit(eventId, message.id, null, message.date, message, true);
       }
@@ -1229,7 +1357,8 @@ define(function (require) {
       var messageCache = this.messageCache;
       for (var [messageId, message] of messages) {
         var convId = convIdFromMessageId(messageId);
-        var preDate = preStates.get(messageId);
+        var preInfo = preStates.get(messageId);
+        var preDate = preInfo.date;
         var postDate = message && message.date;
         var preKey = [convId, preDate, messageSpecificIdFromMessageId(messageId)];
 
@@ -1248,10 +1377,18 @@ define(function (require) {
           messageCache.set(messageId, message);
         }
 
+        var { added, kept, removed } = computeSetDelta(preInfo.folderIds, message ? message.folderIds : new Set());
+
         var convEventId = 'conv!' + convId + '!messages!tocChange';
         this.emit(convEventId, messageId, preDate, postDate, message, false);
         var messageEventId = 'msg!' + messageId + '!change';
         this.emit(messageEventId, messageId, message);
+
+        this.emit('msg!*!change', messageId, preInfo, message, added, kept, removed);
+        if (!message) {
+          this.emit('msg!' + messageId + '!remove', messageId);
+          this.emit('msg!*!remove', messageId);
+        }
       }
     },
 
@@ -1272,6 +1409,7 @@ define(function (require) {
      * @param {Object} [atomics.atomicDeltas.accounts]
      * @param {Object} [atomics.atomicDeltas.folders]
      * @param {Object} [atomics.atomicClobbers]
+     * @param {Object} [atomics.atomicClobbers.config]
      * @param {Object} [atomics.atomicClobbers.accounts]
      * @param {Object} [atomics.atomicClobbers.folders]
      * @param {Object} rootMutations
@@ -1356,7 +1494,23 @@ define(function (require) {
       // greater than any legal suffix (\ufff0 not being a legal suffix
       // in our key-space.)
       var accountStringPrefix = IDBKeyRange.bound(accountId + '.', accountId + '.\ufff0', true, true);
+      // A key range where the key is an array and the first item is a string that
+      // is a namespaced-suffix of the accountId.  For example, FolderId and
+      // ConversationId and MessageId are all suffixes.  If the first item is
+      // *only* the accountId,
       var accountArrayItemPrefix = IDBKeyRange.bound([accountId + '.'], [accountId + '.\ufff0'], true, true);
+      // A key range where the key is an array and the first item is the
+      // AccountId.
+      var accountFirstElementArray = IDBKeyRange.bound([accountId],
+      // We use an array as the second element since arrays are greater than
+      // all other key values.  We do this instead of suffixing the (variable
+      // length) AccountId because although this way is slightly more magic,
+      // I believe it's significantly easier to intuitively understand as
+      // correct.  If only because everyone should be innately terrified of
+      // string comparisons and unicode.  (It does, however forbid any of our
+      // data types from using nested arrays as the second element.  This is
+      // currently the case.)
+      [accountId, []], true, true);
 
       // We handle the syncStates, folders, conversations, and message
       // ranges here.
@@ -1368,6 +1522,8 @@ define(function (require) {
       trans.objectStore(TBL_SYNC_STATES).delete(accountId);
       trans.objectStore(TBL_SYNC_STATES).delete(accountStringPrefix);
 
+      trans.objectStore(TBL_COMPLEX_TASKS).delete(accountFirstElementArray);
+
       // Folders: Just delete by accountId
       trans.objectStore(TBL_FOLDER_INFO).delete(accountStringPrefix);
 
@@ -1378,9 +1534,9 @@ define(function (require) {
       // Messages: string ordering unicode tricks
       trans.objectStore(TBL_MESSAGES).delete(accountArrayItemPrefix);
 
-      trans.objectStore(TBL_HEADER_ID_MAP).delete(accountArrayItemPrefix);
-      trans.objectStore(TBL_UMID_NAME).delete(accountStringPrefix);
+      trans.objectStore(TBL_HEADER_ID_MAP).delete(accountFirstElementArray);
       trans.objectStore(TBL_UMID_LOCATION).delete(accountStringPrefix);
+      trans.objectStore(TBL_UMID_NAME).delete(accountStringPrefix);
     },
 
     _addRawTasks: function (trans, wrappedTasks) {
@@ -1434,9 +1590,10 @@ define(function (require) {
       logic(this, 'finishMutate:begin', { ctxId: ctx.id });
       var trans = this._db.transaction(TASK_MUTATION_STORES, 'readwrite');
 
-      // Correctness requires that we have a triggerManager, so this blind access
-      // and potentially resulting explosions are desired.
-      var derivedMutations = this.triggerManager.derivedMutations = [];
+      // The TriggerManager needs context for the events we will be
+      // (synchronously, unyieldingly) firing.  We clear the state below.
+      var derivedMutations = [];
+      this.triggerManager.__setState(ctx, derivedMutations);
 
       // -- New / Added data
       var newData = data.newData;
@@ -1481,66 +1638,86 @@ define(function (require) {
           this._processMessageMutations(trans, ctx._preMutateStates.messages, mutations.messages);
         }
 
-        if (mutations.complexTaskStates) {
-          for (var [key, complexTaskState] of mutations.complexTaskStates) {
-            complexTaskState.key = key;
-            logic(this, 'complexTaskStates', { complexTaskState });
-            trans.objectStore(TBL_COMPLEX_TASKS).put(complexTaskState);
-          }
-        }
+        // complexTaskStates are committed after merging in trigger side-effects.
       } else {
-        // atomics potentially need this.
-        mutations = {};
-      }
+          // atomics potentially need this.
+          mutations = {};
+        }
+
+      // Clear state; triggers have had their chance already, no point adding
+      // confusion.
+      this.triggerManager.__clearState();
 
       // -- Atomics
       this._applyAtomics(data, mutations);
       if (derivedMutations.length) {
         for (var derivedMut of derivedMutations) {
           this._applyAtomics(derivedMut, mutations);
+
+          // - Merge in complex task states.
+          // (It's very possible for a task-based trigger to fire multiple times
+          // in a single transaction.  In that case, there will be redundant state
+          // writes being made )
+          if (derivedMut.complexTaskStates) {
+            if (!mutations.complexTaskStates) {
+              mutations.complexTaskStates = new Map();
+            }
+            for (var [key, value] of derivedMut.complexTaskStates) {
+              mutations.complexTaskStates.set(key, value);
+            }
+          }
+
           // TODO: allow database triggers to contribute tasks too.
+          // sorta resolved by the rootGroupDeferredTask mechanism here...
+
+          if (derivedMut.rootGroupDeferredTask) {
+            ctx.ensureRootTaskGroupFollowOnTask(derivedMut.rootGroupDeferredTask);
+          }
         }
       }
-      this.triggerManager.derivedMutations = null;
 
       // -- Atomics-controlled writes
-      if (mutations) {
-        if (mutations.folders) {
-          var store = trans.objectStore(TBL_FOLDER_INFO);
-          for (var [folderId, folderInfo] of mutations.folders) {
-            var accountId = accountIdFromFolderId(folderId);
-            if (folderInfo !== null) {
-              store.put(folderInfo, folderId);
-            } else {
-              store.delete(folderId);
-            }
-            this.emit(`fldr!${ folderId }!change`, folderId, folderInfo);
-            this.emit(`acct!${ accountId }!folders!tocChange`, folderId, folderInfo, false);
+      if (mutations.complexTaskStates) {
+        for (var [key, complexTaskState] of mutations.complexTaskStates) {
+          trans.objectStore(TBL_COMPLEX_TASKS).put(complexTaskState, key);
+        }
+      }
+
+      if (mutations.folders) {
+        var store = trans.objectStore(TBL_FOLDER_INFO);
+        for (var [folderId, folderInfo] of mutations.folders) {
+          var accountId = accountIdFromFolderId(folderId);
+          if (folderInfo !== null) {
+            store.put(folderInfo, folderId);
+          } else {
+            store.delete(folderId);
           }
+          this.emit(`fldr!${ folderId }!change`, folderId, folderInfo);
+          this.emit(`acct!${ accountId }!folders!tocChange`, folderId, folderInfo, false);
         }
+      }
 
-        if (mutations.accounts) {
-          // (This intentionally comes after all other mutation types and newData
-          // so that our deletions should clobber new introductions of data,
+      if (mutations.accounts) {
+        // (This intentionally comes after all other mutation types and newData
+        // so that our deletions should clobber new introductions of data,
 
-          for (var [accountId, accountDef] of mutations.accounts) {
-            if (accountDef) {
-              // - Update
-              trans.objectStore(TBL_CONFIG).put(accountDef, CONFIG_KEYPREFIX_ACCOUNT_DEF + accountId);
-            } else {
-              // - Account Deletion!
-              this._processAccountDeletion(trans, accountId);
-            }
-
-            this.emit(`acct!${ accountId }!change`, accountId, accountDef);
-            this.emit('accounts!tocChange', accountId, accountDef, false);
+        for (var [accountId, accountDef] of mutations.accounts) {
+          if (accountDef) {
+            // - Update
+            trans.objectStore(TBL_CONFIG).put(accountDef, CONFIG_KEYPREFIX_ACCOUNT_DEF + accountId);
+          } else {
+            // - Account Deletion!
+            this._processAccountDeletion(trans, accountId);
           }
-        }
 
-        if (mutations.config) {
-          trans.objectStore(TBL_CONFIG).put(mutations.config, 'config');
-          this.emit('config', mutations.config);
+          this.emit(`acct!${ accountId }!change`, accountId, accountDef);
+          this.emit('accounts!tocChange', accountId, accountDef, false);
         }
+      }
+
+      if (mutations.config) {
+        trans.objectStore(TBL_CONFIG).put(mutations.config, 'config');
+        this.emit('config', mutations.config);
       }
 
       // -- Tasks

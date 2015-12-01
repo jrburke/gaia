@@ -4,7 +4,7 @@ define(function (require) {
   const logic = require('logic');
 
   const $router = require('./worker-router');
-  const sendMessage = $router.registerCallbackType('wakelocks');
+  const sendWakeLockMessage = $router.registerCallbackType('wakelocks');
 
   /**
    * SmartWakeLock: A renewable, failsafe Wake Lock manager.
@@ -25,15 +25,30 @@ define(function (require) {
    * @param {String[]} opts.locks
    *   Array of strings, e.g. ['cpu', 'wifi'], representing the locks
    *   you wish to acquire.
+   * @param {Function} [opts.imminentDoomHandler]
+   *   A function you can provide that we'll call when the timeout occurs.
+   *   We'll invoke it immediately prior to performing the unlock so that you
+   *   can front-run our removal of the wake-lock.  You can also clobber this
+   *   onto us later on or clear it.
    */
   function SmartWakeLock(opts) {
     var _this = this;
 
-    logic.defineScope(this, 'SmartWakeLock', { unique: Date.now() });
-    this.timeoutMs = opts.timeout || SmartWakeLock.DEFAULT_TIMEOUT_MS;
-    var locks = this.locks = {}; // map of lockType -> wakeLockInstance
+    logic.defineScope(this, 'SmartWakeLock', { types: opts.locks });
 
+    var locks = this.locks = {}; // map of lockType -> wakeLockInstance
+    this.timeoutMs = opts.timeout || SmartWakeLock.DEFAULT_TIMEOUT_MS;
     this._timeout = null; // The ID returned from our setTimeout.
+    this.imminentDoomHandler = opts.imminentDoomHandler || null;
+
+    // magic path for use by wrapMainThreadAcquiredWakelock ONLY
+    if (opts.__existingLockId) {
+      this.locks[opts.locks[0]] = opts.__existingLockId;
+      logic(this, 'reusedMainthreadLock');
+      this._readyPromise = Promise.resolve();
+      this.renew(); // start the clock ticking!
+      return;
+    }
 
     // Since we have to fling things over the bridge, requesting a
     // wake lock here is asynchronous. Using a Promise to track when
@@ -41,16 +56,13 @@ define(function (require) {
     // the methods on this class) ensures that folks can ignore the
     // ugly asynchronous parts and not worry about when things happen
     // under the hood.
+    logic(this, 'requestLock', { durationMs: this.timeoutMs });
     this._readyPromise = Promise.all(opts.locks.map(function (type) {
-      logic(_this, 'requestLock', { type, durationMs: _this.timeoutMs });
-      return new Promise(function (resolve) {
-        sendMessage('requestWakeLock', [type], function (lockId) {
-          logic(_this, 'locked', { type });
-          locks[type] = lockId;
-          resolve();
-        });
+      return sendWakeLockMessage('requestWakeLock', [type]).then(function (lockId) {
+        locks[type] = lockId;
       });
     })).then(function () {
+      logic(_this, 'locked', {});
       // For simplicity of implementation, we reuse the `renew` method
       // here to add the initial `opts.timeout` to the unlock clock.
       _this.renew(); // Start the initial timeout.
@@ -85,6 +97,14 @@ define(function (require) {
 
         _this2._timeout = setTimeout(function () {
           logic(_this2, 'timeoutUnlock');
+          if (_this2.imminentDoomHandler) {
+            try {
+              // doomity doom doom!
+              _this2.imminentDoomHandler();
+            } catch (ex) {
+              // do nothing, we just don't want to fail to unlock the wakelock.
+            }
+          }
           _this2.unlock('timeout');
         }, _this2.timeoutMs);
       });
@@ -107,15 +127,14 @@ define(function (require) {
         clearTimeout(_this3._timeout);
         _this3._timeout = null;
 
+        logic(_this3, 'unlock', { reason });
         // Wait for all of them to successfully unlock.
         return Promise.all(Object.keys(locks).map(function (type) {
-          return new Promise(function (resolve) {
-            sendMessage('unlock', [locks[type]], function () {
-              resolve(type);
-            });
+          return sendWakeLockMessage('unlock', [locks[type]], function () {
+            return type;
           });
-        })).then(function (type) {
-          logic(_this3, 'unlocked', { type, reason });
+        })).then(function () {
+          logic(_this3, 'unlocked', { reason });
         });
       });
     },
@@ -125,7 +144,27 @@ define(function (require) {
     }
   };
 
+  /**
+   * If your main-thread helper called wakelocks-main.js's requestWakeLock
+   * method and handed you the id, this is where you convert that id into your
+   * very own `SmartWakeLock` just like you had new'ed it.
+   *
+   * This method exists to make things very explicit and to avoid the subtle
+   * breakage that might occur if our contract was to use a dictionary arg
+   * (which can get typo'd or missed in a renaming pass, etc.).
+   */
+  function wrapMainThreadAcquiredWakelock({ wakelockId, timeout,
+    imminentDoomHandler }) {
+    return new SmartWakeLock({
+      locks: ['mainthread-acquired'],
+      timeout,
+      imminentDoomHandler,
+      __existingLockId: wakelockId
+    });
+  }
+
   return {
-    SmartWakeLock: SmartWakeLock
+    SmartWakeLock,
+    wrapMainThreadAcquiredWakelock
   };
 });

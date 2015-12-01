@@ -1,11 +1,11 @@
 define(function (require) {
   'use strict';
 
-  var co = require('co');
+  const co = require('co');
 
-  var TaskDefiner = require('../../task_infra/task_definer');
+  const TaskDefiner = require('../../task_infra/task_definer');
 
-  var GmailLabelMapper = require('../gmail/gmail_label_mapper');
+  const GmailLabelMapper = require('../gmail/gmail_label_mapper');
 
   return TaskDefiner.defineComplexTask([require('./mix_store'), {
     name: 'store_labels',
@@ -19,7 +19,7 @@ define(function (require) {
      */
     prepNormalizationLogic: co.wrap(function* (ctx, accountId) {
       var foldersTOC = yield ctx.universe.acquireAccountFoldersTOC(ctx, accountId);
-      return new GmailLabelMapper(foldersTOC);
+      return new GmailLabelMapper(ctx, foldersTOC);
     }),
 
     /**

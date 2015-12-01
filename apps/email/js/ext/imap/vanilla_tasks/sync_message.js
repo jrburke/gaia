@@ -1,19 +1,19 @@
 define(function (require) {
   'use strict';
 
-  var co = require('co');
-  var { shallowClone } = require('../../util');
-  var { prioritizeNewer } = require('../../date_priority_adjuster');
+  const co = require('co');
+  const { shallowClone } = require('../../util');
+  const { prioritizeNewer } = require('../../date_priority_adjuster');
 
-  var TaskDefiner = require('../../task_infra/task_definer');
+  const TaskDefiner = require('../../task_infra/task_definer');
 
-  var { resolveConversationTaskHelper } = require('../../task_mixins/conv_resolver');
+  const { resolveConversationTaskHelper } = require('../../task_mixins/conv_resolver');
 
-  var { chewMessageStructure } = require('../imapchew');
+  const { browserboxMessageToMimeHeaders, chewMessageStructure } = require('../imapchew');
 
-  var { conversationMessageComparator } = require('../../db/comparators');
+  const { conversationMessageComparator } = require('../../db/comparators');
 
-  var churnConversation = require('../../churn_drivers/conv_churn_driver');
+  const churnConversation = require('../../churn_drivers/conv_churn_driver');
 
   /**
    * What to fetch.  Note that we currently re-fetch the flags even though they're
@@ -21,7 +21,7 @@ define(function (require) {
    * debugging right now and may end up being conditionally necessary in the
    * smarter CONDSTORE/QRESYNC cases.
    */
-  var INITIAL_FETCH_PARAMS = ['uid', 'internaldate', 'bodystructure', 'flags', 'BODY.PEEK[' + 'HEADER.FIELDS ' + '(FROM TO CC BCC SUBJECT REPLY-TO MESSAGE-ID REFERENCES IN-REPLY-TO)]'];
+  const INITIAL_FETCH_PARAMS = ['uid', 'internaldate', 'bodystructure', 'flags', 'BODY.PEEK[' + 'HEADER.FIELDS ' + '(FROM TO CC BCC SUBJECT REPLY-TO MESSAGE-ID REFERENCES IN-REPLY-TO)]'];
 
   /**
    * @typedef {Object} SyncConvTaskArgs
@@ -66,13 +66,15 @@ define(function (require) {
       var account = yield ctx.universe.acquireAccount(ctx, req.accountId);
       var folderInfo = account.getFolderById(req.folderId);
 
-      var { result: rawMessages } = yield account.pimap.listMessages(folderInfo, [req.uid], INITIAL_FETCH_PARAMS, { byUid: true });
+      var { result: rawMessages } = yield account.pimap.listMessages(ctx, folderInfo, [req.uid], INITIAL_FETCH_PARAMS, { byUid: true });
       var msg = rawMessages[0];
 
-      // -- Resolve the conversation this goes in.
-      var { convId, existingConv, messageId, headerIdWrites, extraTasks } = yield* resolveConversationTaskHelper(ctx, msg, req.accountId, req.umid);
+      var headers = browserboxMessageToMimeHeaders(msg);
 
-      var messageInfo = chewMessageStructure(msg, [req.folderId], msg.flags, convId, req.umid, messageId);
+      // -- Resolve the conversation this goes in.
+      var { convId, existingConv, messageId, headerIdWrites, extraTasks } = yield* resolveConversationTaskHelper(ctx, headers, req.accountId, req.umid);
+
+      var messageInfo = chewMessageStructure(msg, headers, new Set([req.folderId]), msg.flags, convId, req.umid, messageId);
 
       // -- If the conversation existed, load it for re-churning
       var oldConvInfo = undefined;

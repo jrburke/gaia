@@ -1,12 +1,16 @@
-/*jshint browser: true */
-/*global define, console */
 define(function (require) {
   'use strict';
 
-  var evt = require('evt');
+  const logic = require('logic');
+  const requestWakeLock = require('./wakelocks-main').requestWakeLock;
 
-  function debug(str) {
-    console.log('cronsync-main: ' + str);
+  function makeData(accountIds, interval, date) {
+    return {
+      type: 'sync',
+      accountIds: accountIds,
+      interval: interval,
+      timestamp: date.getTime()
+    };
   }
 
   // Creates a string key from an array of string IDs. Uses a space
@@ -35,6 +39,46 @@ define(function (require) {
     return !hasMismatch;
   }
 
+  /**
+   * Super-hack that peeks at the notifications that are still present and
+   * figures out if they are from newness/syncs and what account id's they
+   * correspond to.  This allows gaia mail to continue to fast-close if a
+   * notification "close" event was sent while still maintaining the UX logic
+   * that if they closed the notification then they don't care about any of
+   * those messages being new.  What happens is we send this list and the
+   * cronsync logic gets to transform those missing id's into requests to clear
+   * the newness status before triggering the syncs.
+   *
+   * Note that the newness clears happen across all accounts, not just the
+   * accounts we are
+   */
+  function getAccountsWithOutstandingSyncNotifications() {
+    if (typeof Notification !== 'function' || !Notification.get) {
+      return Promise.resolve([]);
+    }
+
+    return Notification.get().then(function (notifications) {
+      var result = [];
+      notifications.forEach(function (notification) {
+        var data = notification.data;
+
+        if (data.v && data.ntype === 'sync') {
+          result.push(data.accountId);
+        }
+      });
+      return result;
+    }, function () {
+      return [];
+    });
+  }
+
+  // This weird circular registration is because of how the router works and
+  // does its registration via "dispatch"-table indirection which has wonky this
+  // implications.  It's a non-idiomatic legacy hackjob thing.  I'm writing this
+  // comment instead of fixing it because 1) I experienced a WTF when revising
+  // the app logic here, and 2) the "fixing" should entail moving to `bridge.js`
+  // rather than wasting more effort on our router impl.
+  var routeRegistration;
   var dispatcher = {
     _routeReady: false,
     _routeQueue: [],
@@ -62,190 +106,224 @@ define(function (require) {
     },
 
     /**
-     * Clears all sync-based tasks. Normally not called, except perhaps for
+     * Clears all sync-based alarms. Normally not called, except perhaps for
      * tests or debugging.
      */
     clearAll: function () {
-      var navSync = navigator.sync;
-      if (!navSync) {
+      var mozAlarms = navigator.mozAlarms;
+      if (!mozAlarms) {
         return;
       }
 
-      navSync.registrations().then((function (registrations) {
-        if (!registrations.length) {
+      var r = mozAlarms.getAll();
+
+      r.onsuccess = (function (event) {
+        var alarms = event.target.result;
+        if (!alarms) {
           return;
         }
 
-        registrations.forEach(function (registeredTask) {
-          navSync.unregister(registeredTask.task);
+        alarms.forEach(function (alarm) {
+          if (alarm.data && alarm.data.type === 'sync') {
+            mozAlarms.remove(alarm.id);
+          }
         });
-      }).bind(this), (function (err) {
-        console.error('cronsync-main clearAll navigator.sync.registrations ' + 'error: ' + err);
-      }).bind(this));
+      }).bind(this);
+      r.onerror = (function (err) {
+        console.error('cronsync-main clearAll mozAlarms.getAll: error: ' + err);
+      }).bind(this);
     },
 
     /**
-     * Makes sure there is an sync task set for every account in
-     * the list.
-     * @param  {Object} syncData. An object with keys that are
-     * 'interval' + intervalInMilliseconds, and values are arrays
-     * of account IDs that should be synced at that interval.
+     * Makes sure there is an alarm set for every account in the list.
+      * @param  {Object} syncData. An object with keys that are 'interval' +
+     * intervalInMilliseconds, and values are arrays of account IDs that should
+     * be synced at that interval.
      */
     ensureSync: function (syncData) {
-      var navSync = navigator.sync;
-      if (!navSync) {
-        console.warn('no navigator.sync support!');
-        // Let backend know work has finished, even though it was a no-op.
-        this._sendMessage('syncEnsured');
+      var _this = this;
+
+      var mozAlarms = navigator.mozAlarms;
+      if (!mozAlarms) {
+        console.warn('no mozAlarms support!');
         return;
       }
 
-      debug('ensureSync called');
+      logic(this, 'ensureSync:begin');
 
-      navSync.registrations().then((function (registrations) {
-        debug('success!');
+      var request = mozAlarms.getAll();
 
-        // Find all IDs being tracked by sync tasks
-        var expiredTasks = [],
-            okTaskIntervals = {},
-            uniqueTasks = {};
+      request.onsuccess = function (event) {
+        logic(_this, 'ensureSync:gotAlarms');
 
-        registrations.forEach(function (task) {
-          // minInterval in seconds, but use milliseconds for sync values
-          // internally.
-          var intervalKey = 'interval' + task.minInterval * 1000,
+        var alarms = event.target.result;
+        // If there are no alarms a falsey value may be returned.  We want
+        // to not die and also make sure to signal we completed, so just make
+        // an empty list.
+        if (!alarms) {
+          alarms = [];
+        }
+
+        // Find all IDs being tracked by alarms
+        var expiredAlarmIds = [],
+            okAlarmIntervals = {},
+            uniqueAlarms = {};
+
+        alarms.forEach(function (alarm) {
+          // Only care about sync alarms.
+          if (!alarm.data || !alarm.data.type || alarm.data.type !== 'sync') {
+            return;
+          }
+
+          var intervalKey = 'interval' + alarm.data.interval,
               wantedAccountIds = syncData[intervalKey];
 
-          if (!wantedAccountIds || !hasSameValues(wantedAccountIds, task.data.accountIds)) {
-            debug('account array mismatch, canceling existing sync task');
-            expiredTasks.push(task);
+          if (!wantedAccountIds || !hasSameValues(wantedAccountIds, alarm.data.accountIds)) {
+            logic(_this, 'ensureSyncAccountMismatch', {
+              alarmId: alarm.id,
+              alarmAccountIds: alarm.data.accountIds,
+              wantedAccountIds
+            });
+            expiredAlarmIds.push(alarm.id);
           } else {
-            // Confirm the existing sync task is still good.
+            // Confirm the existing alarm is still good.
             var interval = toInterval(intervalKey),
+                now = Date.now(),
+                alarmTime = alarm.data.timestamp,
                 accountKey = makeAccountKey(wantedAccountIds);
 
-            // If the interval is nonzero, and there is no other task found
+            // If the interval is nonzero, and there is no other alarm found
             // for that account combo, and if it is not in the past and if it
             // is not too far in the future, it is OK to keep.
-            if (interval && !uniqueTasks.hasOwnProperty(accountKey)) {
-              debug('existing sync task is OK: ' + interval);
-              uniqueTasks[accountKey] = true;
-              okTaskIntervals[intervalKey] = true;
+            if (interval && !uniqueAlarms.hasOwnProperty(accountKey) && alarmTime > now && alarmTime < now + interval) {
+              logic(_this, 'ensureSyncAlarmOK', { alarmId: alarm.id, accountKey, intervalKey });
+              uniqueAlarms[accountKey] = true;
+              okAlarmIntervals[intervalKey] = true;
             } else {
-              debug('existing sync task is out of interval range, canceling');
-              expiredTasks.push(task);
+              logic(_this, 'ensureSyncAlarmOutOfRange', { alarmId: alarm.id, accountKey, intervalKey });
+              expiredAlarmIds.push(alarm.id);
             }
           }
         });
 
-        expiredTasks.forEach(function (expiredTask) {
-          navSync.unregister(expiredTask.task);
+        expiredAlarmIds.forEach(function (alarmId) {
+          mozAlarms.remove(alarmId);
         });
 
-        var taskMax = 0,
-            taskCount = 0,
-            self = this;
+        var alarmMax = 0,
+            alarmCount = 0,
+            self = _this;
 
-        // Called when sync tasks are confirmed to be set.
-        function done() {
-          taskCount += 1;
-          if (taskCount < taskMax) {
+        // Called when alarms are confirmed to be set.
+        var done = function () {
+          alarmCount += 1;
+          if (alarmCount < alarmMax) {
             return;
           }
 
-          debug('ensureSync completed');
+          logic(_this, 'ensureSync:end');
           // Indicate ensureSync has completed because the
-          // back end is waiting to hear sync task was set
-          // before triggering sync complete.
+          // back end is waiting to hear alarm was set before
+          // triggering sync complete.
           self._sendMessage('syncEnsured');
-        }
+        };
 
         Object.keys(syncData).forEach(function (intervalKey) {
-          // Skip if the existing sync task is already good.
-          if (okTaskIntervals.hasOwnProperty(intervalKey)) {
+          // Skip if the existing alarm is already good.
+          if (okAlarmIntervals.hasOwnProperty(intervalKey)) {
             return;
           }
 
           var interval = toInterval(intervalKey),
-              accountIds = syncData[intervalKey];
+              accountIds = syncData[intervalKey],
+              date = new Date(Date.now() + interval);
 
           // Do not set an timer for a 0 interval, bad things happen.
           if (!interval) {
             return;
           }
 
-          taskMax += 1;
+          alarmMax += 1;
 
-          navSync.register('interval' + interval, {
-            // minInterval is in seconds.
-            minInterval: interval / 1000,
-            oneShot: false,
-            data: {
-              accountIds: accountIds,
-              interval: interval
-            },
-            wifiOnly: false,
-            // TODO: allow this to be more generic, getting this passed in
-            // from the page using this module. This assumes the current page
-            // without query strings or fragment IDs is the desired entry point.
-            wakeUpPage: location.href.split('?')[0].split('#')[0] }).then(function () {
-            debug('success: navigator.sync.register for ' + 'IDs: ' + accountIds + ' at ' + interval + 'ms');
+          var alarmRequest = mozAlarms.add(date, 'ignoreTimezone', makeData(accountIds, interval, date));
+
+          alarmRequest.onsuccess = function () {
+            logic(_this, 'ensureSyncAlarmAdded', { accountIds, interval });
             done();
-          }, function (err) {
-            console.error('cronsync-main navigator.sync.register for IDs: ' + accountIds + ' failed: ' + err);
-          });
+          };
+
+          alarmRequest.onerror = function (err) {
+            logic(_this, 'ensureSyncAlarmAddError', { accountIds, interval, err });
+            done();
+          };
         });
 
-        // If no sync tasks were added, indicate ensureSync is done.
-        if (!taskMax) {
+        // If no alarms were added, indicate ensureSync is done.
+        if (!alarmMax) {
           done();
         }
-      }).bind(this), function (err) {
-        console.error('cronsync-main ensureSync navigator.sync.register: ' + 'error: ' + err);
-      });
+      };
+
+      request.onerror = function (err) {
+        logic(_this, 'ensureSyncGetAlarmsError', { err });
+      };
     }
   };
+  logic.defineScope(dispatcher, 'CronsyncMain');
 
   if (navigator.mozSetMessageHandler) {
-    navigator.mozSetMessageHandler('request-sync', function onRequestSync(e) {
-      console.log('mozSetMessageHandler: received a request-sync');
+    navigator.mozSetMessageHandler('alarm', function (alarm) {
+      logic(dispatcher, 'alarmFired');
 
-      // Important for gaia email app to know when a mozSetMessageHandler has
-      // been dispatched. Could be removed if notification close events did not
-      // open the email app, or if we wanted to be less efficient on closing
-      // down the email app on those events. Although the email app would not be
-      // a good memory citizen in that case.
-      if (window.hasOwnProperty('appDispatchedMessage')) {
-        window.appDispatchedMessage = true;
+      // !! Coordinate with the gaia mail app frontend logic !!
+      // html_cache_restore.js has some logic that tries to cleverly close the
+      // app if the app was only woken up because the user closed a
+      // notification.  (This is not something the front-end or we in the
+      // back-end care about.)
+      //
+      // Previously, our setting this variable might matter.  As of the writing
+      // of this comment, it's technically impossible for us to matter.
+      // However, we still look for this flag and set it in order to provide a
+      // strong observable invariant about our message handler.  We do this
+      // even though it's a little paranoid because once this message handler
+      // fires, the system message/alarm will have been eaten and so it would
+      // super-suck to race front-end logic somehow.
+      if (window.hasOwnProperty('appShouldStayAlive')) {
+        window.appShouldStayAlive = 'alarmFired';
       }
 
-      var data = e.data;
-
-      // Need to acquire the wake locks during this notification
-      // turn of the event loop -- later turns are not guaranteed to
-      // be up and running. However, knowing when to release the locks
-      // is only known to the front end, so publish event about it.
-      // Need a CPU lock since otherwise the app can be paused
-      // mid-function, which could lead to unexpected behavior, and the
-      // sync should be completed as quick as possible to then close
-      // down the app.
-      // TODO: removed wifi wake lock due to network complications, to
-      // be addressed in a separate changset.
-      if (navigator.requestWakeLock) {
-        var locks = [navigator.requestWakeLock('cpu')];
-
-        debug('wake locks acquired: ' + locks + ' for account IDs: ' + data.accountIds);
-
-        evt.emitWhenListener('cronSyncWakeLocks', makeAccountKey(data.accountIds), locks);
+      // If this is not a notification displaying cronsync results, ignore it.
+      // The other known message types at this time are:
+      // - message_reader: Used for background send error notifications.
+      var data = alarm.data;
+      if (!data || data.type !== 'sync') {
+        return;
       }
 
-      debug('request-sync started at ' + new Date());
+      // We must acquire a CPU wakelock before we return to the caller for
+      // correctness reasons.  (SystemMessagesInternal holds a wakelock on our
+      // behalf until our callback returns.)  So we do that here.
+      //
+      // We acquire the wakelock using the main-side of our smart wakelock
+      // implementation.  When we send the notification to CronSyncSupport, we
+      // pass the lock id, allowing CronSyncSupport to assume responsbility for
+      // the wakelock, including upgrading it to a full smart wakelock.
+      //
+      // (Previously we had an "evt" convention with the front-end logic, but
+      // that was done for hacky stop-gap reasons and because GELAM did not have
+      // explicit wakelock support itself.)
 
-      dispatcher._sendMessage('requestSync', [data.accountIds, data.interval]);
+      var wakelockId = requestWakeLock('cpu');
+
+      getAccountsWithOutstandingSyncNotifications().then(function (accountIdsWithNotifications) {
+        logic(dispatcher, 'alarmDispatch');
+
+        dispatcher._sendMessage('alarm', [data.accountIds, data.interval, wakelockId, accountIdsWithNotifications]);
+      });
     });
   }
 
-  var routeRegistration = {
+  routeRegistration = {
     name: 'cronsync',
     sendMessage: null,
     dispatch: dispatcher

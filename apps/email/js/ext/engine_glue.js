@@ -42,6 +42,49 @@ define(function () {
     engineTaskMappings: new Map([['gmailImap', '../imap/gmail_tasks'], ['vanillaImap', '../imap/vanilla_tasks'], ['activesync', '../activesync/activesync_tasks'], ['pop3', '../pop3/pop3_tasks']]),
 
     /**
+     * In those cases where there's something that we need to hack because of
+     * current engine limitations, put it here.  All the guilt in one place.
+     */
+    engineHacks: new Map([['gmailImap', {
+      // For various reasons of things not exploding, we are disabling
+      // certain folder types.  See below for details.
+      unselectableFolderTypes: new Set([
+      // Currently if the user ever enters the "all mail" folder, we will
+      // end up synchronizing every new message the user ever receives after
+      // this point.  This will turn out badly.
+      'all',
+      // The sync engine doesn't know how to deal with folders that aren't
+      // covered by all mail.
+      'junk', 'trash'])
+    }], ['vanillaImap', {
+      unselectableFolderTypes: new Set()
+    }], ['activesync', {
+      unselectableFolderTypes: new Set()
+    }], ['pop3', {
+      unselectableFolderTypes: new Set()
+    }]]),
+
+    /**
+     * Maps engine id's to metadata about engines for use by the back-end.
+     * Exposed by AccountManager.getAccountEngineFacts(accountId), but you could
+     * also access it directly yourself.
+     *
+     * While it looks like there's a lot of overlap/duplication with
+     * engineFrontEndAccountMeta and engineFrontEndFolderMeta, and there is, it's
+     * desirable to avoid overloading any of these.  Also, we can safely be more
+     * cavalier in our naming for the back-end since it's all internal API.
+     */
+    engineBackEndFacts: new Map([['gmailImap', {
+      syncGranularity: 'account'
+    }], ['vanillaImap', {
+      syncGranularity: 'folder'
+    }], ['activesync', {
+      syncGranularity: 'folder'
+    }], ['pop3', {
+      syncGranularity: 'folder'
+    }]]),
+
+    /**
      * Maps engine id's to metadata about engines to tell the front-end by
      * annotating stuff onto the account wire rep.  This was brought into
      * existence for syncGranularity purposes, but the idea is that anything that
@@ -57,22 +100,26 @@ define(function () {
     engineFrontEndAccountMeta: new Map([['gmailImap', {
       engineFacts: {
         syncGranularity: 'account'
-      }
+      },
+      usesArchiveMetaphor: true
     }], ['vanillaImap', {
       engineFacts: {
         syncGranularity: 'folder'
-      }
+      },
+      usesArchiveMetaphor: false
     }], ['activesync', {
       engineFacts: {
         syncGranularity: 'folder'
-      }
+      },
+      usesArchiveMetaphor: false
     }], ['pop3', {
       engineFacts: {
         // This could arguably be 'account' too, but that would hinge on us
         // having some type of local folder stuff going on.  We can of course
         // revisit this as needed.
         syncGranularity: 'folder'
-      }
+      },
+      usesArchiveMetaphor: false
     }]]),
 
     /**

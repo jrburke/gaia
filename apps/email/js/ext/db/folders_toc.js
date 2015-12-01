@@ -9,7 +9,7 @@ define(function (require) {
   const { encodeInt: encodeA64Int } = require('../a64');
   const { decodeSpecificFolderIdFromFolderId } = require('../id_conversions');
 
-  const { engineFrontEndFolderMeta } = require('../engine_glue');
+  const { engineFrontEndFolderMeta, engineHacks } = require('../engine_glue');
 
   var FOLDER_TYPE_TO_SORT_PRIORITY = {
     account: 'a',
@@ -56,6 +56,7 @@ define(function (require) {
 
     this.accountDef = accountDef;
     this.engineFolderMeta = engineFrontEndFolderMeta.get(accountDef.engine);
+    this.engineHacks = engineHacks.get(accountDef.engine);
     this.accountId = accountDef.id;
     this._dataOverlayManager = dataOverlayManager;
 
@@ -295,7 +296,11 @@ define(function (require) {
         };
       }
 
-      return Object.assign({}, folder, this.engineFolderMeta, mixFromAccount);
+      return Object.assign({}, folder, this.engineFolderMeta,
+      // engine hack contributions.
+      {
+        engineSaysUnselectable: this.engineHacks.unselectableFolderTypes.has(folder.type)
+      }, mixFromAccount);
     }
   });
 

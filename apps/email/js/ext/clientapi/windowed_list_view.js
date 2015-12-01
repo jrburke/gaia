@@ -25,8 +25,7 @@ define(function (require) {
    */
 
   /**
-   * A windowed (subset) view into a conceptually much larger list view.  Because
-   * a variety of complicated things can happen
+   * A windowed (subset) view into a conceptually much larger list view.
    *
    * ## Events ##
    * - `seeked` (SeekChangeInfo): Fired when anything happens.  ANYTHING.  This is
@@ -68,6 +67,8 @@ define(function (require) {
      * flow.)
      */
     this._itemsById = new Map();
+
+    this.tocMeta = {};
 
     /**
      * Has this slice been completely initially populated?  If you want to wait
@@ -158,7 +159,18 @@ define(function (require) {
       this.items = newItems;
       this._itemsById = newSet;
 
+      if (details.tocMeta) {
+        this.tocMeta = details.tocMeta;
+        this.emit('metaChange', this.tocMeta);
+      }
+
       this.emit('seeked', whatChanged);
+
+      if (details.events) {
+        for (var { name: _name, data } of details.events) {
+          this.emit(_name, data);
+        }
+      }
     },
 
     // TODO: determine whether these are useful at all; seems like the virtual

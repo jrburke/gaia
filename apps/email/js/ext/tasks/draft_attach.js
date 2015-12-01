@@ -72,6 +72,9 @@ define(function (require) {
         name: attachmentDef.name,
         type: wholeBlob.type,
         sizeEstimate: wholeBlob.size,
+        // Tell everyone this is a encoded draft attachment and not appropriate
+        // for anyone to try and use other than draft logic.
+        downloadState: 'draft',
         // this is where we put the Blob segments...
         file: []
       });

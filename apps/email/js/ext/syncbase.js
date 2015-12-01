@@ -21,22 +21,6 @@ define(['./date', 'exports'], function ($date, exports) {
   ////////////////////////////////////////////////////////////////////////////////
   // IMAP time constants
 
-  /**
-   * How recently synchronized does a time range have to be for us to decide that
-   * we don't need to refresh the contents of the time range when opening a slice?
-   * If the last full synchronization is more than this many milliseconds old, we
-   * will trigger a refresh, otherwise we will skip it.
-   */
-  exports.OPEN_REFRESH_THRESH_MS = 10 * 60 * 1000;
-
-  /**
-   * How recently synchronized does a time range have to be for us to decide that
-   * we don't need to refresh the contents of the time range when growing a slice?
-   * If the last full synchronization is more than this many milliseconds old, we
-   * will trigger a refresh, otherwise we will skip it.
-   */
-  exports.GROW_REFRESH_THRESH_MS = 60 * 60 * 1000;
-
   ////////////////////////////////////////////////////////////////////////////////
   // POP3 Sync Constants
 
@@ -86,11 +70,6 @@ define(['./date', 'exports'], function ($date, exports) {
   exports.SYNC_FOLDER_LIST_EVERY_MS = $date.DAY_MILLIS;
 
   /**
-   * How many messages should we send to the UI in the first go?
-   */
-  exports.INITIAL_FILL_SIZE = 15;
-
-  /**
    * How many days in the past should we first look for messages.
    *
    * IMAP only.
@@ -104,19 +83,10 @@ define(['./date', 'exports'], function ($date, exports) {
   exports.INITIAL_SYNC_GROWTH_DAYS = 3;
 
   /**
-   * What should be multiple the current number of sync days by when we perform
-   * a sync and don't find any messages?  There are upper bounds in
-   * `ImapFolderSyncer.onSyncCompleted` that cap this and there's more comments
-   * there.  Note that we keep moving our window back as we go.
-   *
-   * This was 1.6 for a while, but it was proving to be a bit slow when the first
-   * messages start a ways back.  Also, once we moved to just syncing headers
-   * without bodies, the cost of fetching more than strictly required went way
-   * down.
-   *
-   * IMAP only.
+   * When growing in a folder, what's the approximate number of messages we should
+   * target to synchronize?  Note that this is in messages, not conversations.
    */
-  exports.TIME_SCALE_FACTOR_ON_NO_MESSAGES = 2;
+  exports.GROWTH_MESSAGE_COUNT_TARGET = 32;
 
   /**
    * What is the furthest back in time we are willing to go?  This is an
@@ -163,33 +133,19 @@ define(['./date', 'exports'], function ($date, exports) {
   exports.BYTES_PER_IMAP_FETCH_CHUNK_REQUEST = 1024 * 1024;
 
   ////////////////////////////////////////////////////////////////////////////////
-  // Error / Retry Constants
+  // Download Stuff
 
   /**
-   * What is the maximum number of tries we should give an operation before
-   * giving up on the operation as hopeless?  Note that in some suspicious
-   * error cases, the try cont will be incremented by more than 1.
-   *
-   * This value is somewhat generous because we do assume that when we do
-   * encounter a flakey connection, there is a high probability of the connection
-   * being flakey in the short term.  The operations will not be excessively
-   * penalized for this since IMAP connections have to do a lot of legwork to
-   * establish the connection before we start the operation (CAPABILITY, LOGIN,
-   * CAPABILITY).
+   * The device storage name to use when saving downloaded files.  It has always
+   * been 'sdcard', it will probably always be 'sdcard'.  The choice of which
+   * of internal/external storage is handled by DeviceStorage and the system
+   * itself, not us.  You probably don't want to be changing this unless we change
+   * on devices to store the other storage names in places that don't overlap with
+   * 'sdcard'.  (As of this writing, on desktop the hacky/unsupported
+   * devicestorage implementation does use disparate places unless in testing
+   * mode.)
    */
-  exports.MAX_OP_TRY_COUNT = 10;
-
-  /**
-   * The value to increment the operation tryCount by if we receive an
-   * unexpected error.
-   */
-  exports.OP_UNKNOWN_ERROR_TRY_COUNT_INCREMENT = 5;
-
-  /**
-   * If we need to defer an operation because the folder/resource was not
-   * available, how long should we defer for?
-   */
-  exports.DEFERRED_OP_DELAY_MS = 30 * 1000;
+  exports.DEVICE_STORAGE_NAME = 'sdcard';
 
   ////////////////////////////////////////////////////////////////////////////////
   // General defaults
@@ -295,47 +251,13 @@ define(['./date', 'exports'], function ($date, exports) {
   // Cronsync/periodic sync stuff
 
   /**
-   * Caps the number of quas-headers we report to the front-end via cronsync
-   * completion notifications (per-account).  We report the newest headers from
-   * each sync.
+   * What is the longest allowable cronsync before we should infer that something
+   * is badly broken and we should declare an epic failure that we report to the
+   * front-end.
    *
-   * The value 5 was arbitrarily chosen, but per :jrburke, the current (hamachi,
-   * flame) phone devices in portrait orientation "can fit about three unique
-   * names in a grouped notification", so 5 still seems like a pretty good value.
-   * This may want to change on landscape devices or devices with more screen
-   * real-estate, like tablets.
+   * While ideally this would be shorter than valid sync intervals
    */
-  exports.CRONSYNC_MAX_MESSAGES_TO_REPORT_PER_ACCOUNT = 5;
-
-  /**
-   * Caps the number of snippets we are willing to fetch as part of each cronsync
-   * for each account.  We fetch snippets for the newest headers.
-   *
-   * The primary factors here are:
-   * - Latency of sync reporting.  Right now, snippet fetches will defer the
-   *   cronsync completion notification.
-   * - Optimizing UX by having the snippets already available when the user goes
-   *   to view the message list, at least the top of the message list.  An
-   *   interacting factor is how good the UI is at requesting snippets in
-   *   advance of messages being displayed on the screen.
-   *
-   * The initial/current value of 5 was chosen because a Hamachi device could
-   * show 5 messages on the screen at a time.  On fancier devices like the flame,
-   * this is still approximately right; about 5.5 messages are visible on 2.0,
-   * with the snippet part for the last one not displayed.
-   */
-  exports.CRONSYNC_MAX_SNIPPETS_TO_FETCH_PER_ACCOUNT = 5;
-
-  /**
-   * What's the largest portion of a message's body content to fetch in order
-   * to generate a snippet?
-   *
-   * The 4k value is chosen to match the Gaia mail app's use of 4k in its
-   * snippet fetchin as we scroll.  Arguably that choice should be superseded
-   * by this constant in the future.
-   * TODO: make front-end stop specifying snippet size.
-   */
-  exports.MAX_SNIPPET_BYTES = 4 * 1024;
+  exports.CRONSYNC_MAX_DURATION_MS = 60 * 1000;
 
   ////////////////////////////////////////////////////////////////////////////////
   // Unit test support
@@ -345,12 +267,10 @@ define(['./date', 'exports'], function ($date, exports) {
    * syncbase can be overridden.
    */
   exports.TEST_adjustSyncValues = function TEST_adjustSyncValues(syncValues) {
-
     // Legacy values: This function used to accept a mapping that didn't
     // match one-to-one with constant names, but was changed to map
     // directly to constant names for simpler grepping.
     var legacyKeys = {
-      fillSize: 'INITIAL_FILL_SIZE',
       days: 'INITIAL_SYNC_DAYS',
       growDays: 'INITIAL_SYNC_GROWTH_DAYS',
       wholeFolderSync: 'SYNC_WHOLE_FOLDER_AT_N_MESSAGES',

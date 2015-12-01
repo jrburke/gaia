@@ -5,7 +5,7 @@ define(function (require) {
 
   const { accountIdFromFolderId } = require('../id_conversions');
 
-  const { accountModules, engineTaskMappings } = require('../engine_glue');
+  const { accountModules, engineTaskMappings, engineBackEndFacts } = require('../engine_glue');
 
   const AccountsTOC = require('../db/accounts_toc');
   const FoldersTOC = require('../db/folders_toc');
@@ -40,7 +40,7 @@ define(function (require) {
    * Manages account instance life-cycles, and the TOC of accounts and the
    * per-account folder TOC's.
    */
-  function AccountManager({ db, universe, taskRegistry }) {
+  function AccountManager({ db, universe, taskRegistry, taskResources }) {
     logic.defineScope(this, 'AccountManager');
 
     this.db = db;
@@ -49,6 +49,7 @@ define(function (require) {
     db.accountManager = this;
     this.universe = universe;
     this.taskRegistry = taskRegistry;
+    this.taskResources = taskResources;
 
     /**
      * Maps account id's to their accountDef instances from the moment we hear
@@ -213,6 +214,33 @@ define(function (require) {
     },
 
     /**
+     * Return the back-end engine facts for the engine for the given account.  The
+     * account is synchronously looked-up without waiting for it to be fully
+     * loaded, just like getAccountDefById.
+     */
+    getAccountEngineBackEndFacts(accountId) {
+      var accountDef = this._immediateAccountDefsById.get(accountId);
+      return engineBackEndFacts.get(accountDef.engine);
+    },
+
+    /**
+     * Get all account currently known account definitions *even if we have not
+     * completed all the load steps for the accounts*.  Use this if all you need
+     * are the accountDefs and there is zero chance of you trying to schedule a
+     * task or talk to the account and you are absurdly time sensitive.  Otherwise
+     * you really want to be using the accountsTOC and its events.
+     *
+     * Right now, if you are not the cronsync code trying to call ensureSync() as
+     * early as possible in order to avoid worst-case mozAlarm lossages, then you
+     * do not meet these requirements.
+     *
+     * @return {Iterator}
+     */
+    getAllAccountDefs: function () {
+      return this._immediateAccountDefsById.values();
+    },
+
+    /**
      * Return the FolderInfo for the given FolderId.  This is only safe to call
      * after the universe has fully loaded.
      */
@@ -258,6 +286,11 @@ define(function (require) {
       var _this4 = this;
 
       logic(this, 'accountExists', { accountId: accountDef.id });
+
+      // XXX put these resources into place that we don't actually properly
+      // control yet.
+      this.taskResources.resourceAvailable(`credentials!${ accountDef.id }`);
+      this.taskResources.resourceAvailable(`happy!${ accountDef.id }`);
 
       this._immediateAccountDefsById.set(accountDef.id, accountDef);
 

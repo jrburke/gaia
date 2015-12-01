@@ -548,6 +548,8 @@
           return;
         }
 
+        var isMultipart = aOpts && aOpts.extraHeaders && aOpts.extraHeaders['MS-ASAcceptMultiPart'] === 'T';
+
         // Build the URL parameters.
         var params = [['Cmd', aCommand], ['User', _this._username], ['DeviceId', _this._deviceId], ['DeviceType', _this._deviceType]];
         if (aOpts && aOpts.extraParams) {
@@ -625,14 +627,18 @@
             return;
           }
 
-          var response = null;
-          if (xhr.response.byteLength > 0) {
-            response = new WBXML.Reader(new Uint8Array(xhr.response), ASCP);
+          if (isMultipart) {
+            resolve(null);
+          } else {
+            var response = null;
+            if (xhr.response.byteLength > 0) {
+              response = new WBXML.Reader(new Uint8Array(xhr.response), ASCP);
+            }
+            if (conn.onmessage) {
+              conn.onmessage(aCommand, 'ok', xhr, params, aOpts && aOpts.extraHeaders, aData, response);
+            }
+            resolve(response);
           }
-          if (conn.onmessage) {
-            conn.onmessage(aCommand, 'ok', xhr, params, aOpts && aOpts.extraHeaders, aData, response);
-          }
-          resolve(response);
         };
 
         xhr.ontimeout = xhr.onerror = (function (evt) {
@@ -644,7 +650,9 @@
           reject(errObj);
         }).bind(_this);
 
-        xhr.responseType = 'arraybuffer';
+        // TODO: CROSS-BROWSER-ISSUE: moz-chunked-arraybuffer is nonstandard,
+        // when Gecko's fetch() gets streams, switch to that.
+        xhr.responseType = isMultipart ? 'moz-chunked-arraybuffer' : 'arraybuffer';
         xhr.send(aData);
       });
     }

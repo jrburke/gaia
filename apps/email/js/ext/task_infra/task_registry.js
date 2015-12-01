@@ -13,15 +13,22 @@ define(function (require) {
    *   primarily happens on the basis of accountId if the task type was not in
    *   the global registry.
    */
-  function TaskRegistry({ dataOverlayManager }) {
+  function TaskRegistry({ dataOverlayManager, triggerManager, taskResources }) {
     logic.defineScope(this, 'TaskRegistry');
 
     this._dataOverlayManager = dataOverlayManager;
+    this._triggerManager = triggerManager;
+    this._taskResources = taskResources;
 
     this._globalTasks = new Map();
     this._globalTaskRegistry = new Map();
     this._perAccountTypeTasks = new Map();
     this._perAccountIdTaskRegistry = new Map();
+    // To simplify some logic, use `null` as the sentinel value for account type
+    // and accountId in our maps above.  Namely, initializing complex tasks is
+    // complex and we don't want to duplicate that logic.
+    this._perAccountTypeTasks.set(null, this._globalTasks);
+    this._perAccountIdTaskRegistry.set(null, this._globalTaskRegistry);
 
     this._dbDataByAccount = new Map();
   }
@@ -29,15 +36,6 @@ define(function (require) {
     registerGlobalTasks: function (taskImpls) {
       for (var taskImpl of taskImpls) {
         this._globalTasks.set(taskImpl.name, taskImpl);
-        // currently all global tasks must be simple
-        if (taskImpl.isComplex) {
-          throw new Error('hey, no complex global tasks yet!');
-        }
-        this._globalTaskRegistry.set(taskImpl.name, {
-          impl: taskImpl,
-          persistent: null,
-          transient: null
-        });
       }
     },
 
@@ -65,29 +63,55 @@ define(function (require) {
      * The loaded complex task states which we stash until we hear about the
      * account existing with `accountExists`.
      */
-    initializeFromDatabaseState: function (complexStates) {
-      for (var rec of complexStates) {
-        var [accountId, taskType] = rec.key;
+    initializeFromDatabaseState: function ([stateKeys, stateValues]) {
+      if (stateKeys.length !== stateValues.length) {
+        throw new Error('impossible complex state inconsistency issue');
+      }
+      for (var i = 0; i < stateKeys.length; i++) {
+        var [accountId, taskType, taskKey] = stateKeys[i];
+        var value = stateValues[i];
+        // NB: The data we receive from IndexedDB has a known ordering that could
+        // allow this loop to avoid wasted Map lookups, although it's unlikely
+        // to ever matter.
+
+        // - Binned by account
         var dataByTaskType = this._dbDataByAccount.get(accountId);
         if (!dataByTaskType) {
           dataByTaskType = new Map();
           this._dbDataByAccount.set(accountId, dataByTaskType);
         }
-        dataByTaskType.set(taskType, rec);
+
+        // - Binned by task type
+        // Is this a multi-valued Map?
+        if (taskKey !== undefined) {
+          // Multi-valued Map stored as multiple keyed records
+          var map = dataByTaskType.get(taskType);
+          if (!map) {
+            map = new Map();
+            dataByTaskType.set(taskType, map);
+          }
+          map.set(taskKey, value);
+        } else {
+          // Single object, no key.
+          dataByTaskType.set(taskType, value);
+        }
       }
     },
 
     /**
      * Given a complex task implementation bound to an account (which is tracked
-     * in a taskMeta dict), find methods named like "overlay_NAMESPACE", and
-     * dynamically register them with the `DataOverlayManager`.
+     * in a taskMeta dict), find methods named like "overlay_NAMESPACE" and
+     * "trigger_EVENTNAME" and register them with the `DataOverlayManager` and
+     * `TriggerManager`.
      *
      * We currently do not support unregistering which is consistent with other
      * simplifications we've made like this.  We would implement all of that at
      * the same time.
      */
-    _registerComplexTaskImplWithDataOverlayManager: function (accountId, meta) {
+    _registerComplexTaskImplWithEventSources: function (accountId, meta) {
       var taskImpl = meta.impl;
+
+      var blockedTaskChecker = this._taskResources.whatIsTaskBlockedBy.bind(this._taskResources);
 
       // (Tasks are strictly mix-in based and do not use the prototype chain.
       // Obviously, if this changes, this traversal needs to change.)
@@ -99,9 +123,28 @@ define(function (require) {
             taskName: taskImpl.name,
             overlayType: overlayMatch[1]
           });
-          this._dataOverlayManager.registerProvider(overlayMatch[1], taskImpl.name, taskImpl[key].bind(taskImpl, meta.persistentState, meta.memoryState));
+          this._dataOverlayManager.registerProvider(overlayMatch[1], taskImpl.name, taskImpl[key].bind(taskImpl, meta.persistentState, meta.memoryState, blockedTaskChecker));
+        }
+
+        var triggerMatch = /^trigger_(.+$)$/.exec(key);
+        if (triggerMatch) {
+          logic(this, 'registerTriggerHandler', {
+            accountId,
+            taskName: taskImpl.name,
+            trigger: triggerMatch[1]
+          });
+          this._triggerManager.registerTriggerFunc(triggerMatch[1], taskImpl.name, taskImpl[key].bind(taskImpl, meta.persistentState, meta.memoryState));
         }
       }
+    },
+
+    /**
+     * Initialize global tasks by reusing accountExistsInitTasks.  A simple
+     * function to make it clear what's going on and keep the horror confined to
+     * one spot.
+     */
+    initGlobalTasks: function () {
+      return this.accountExistsInitTasks(null, null, null, null);
     },
 
     /**
@@ -110,10 +153,10 @@ define(function (require) {
      * themselves, some may be async and may return a promise.  For that reason,
      * this method is async.
      */
-    accountExistsInitTasks: function (accountId, accountType) {
+    accountExistsInitTasks: function (accountId, accountType, accountInfo, foldersTOC) {
       var _this = this;
 
-      logic(this, 'accountExistsInitTasks', { accountId, accountType });
+      logic(this, 'accountExistsInitTasks:begin', { accountId, accountType });
       // Get the implementations known for this account type
       var taskImpls = this._perAccountTypeTasks.get(accountType);
       if (!taskImpls) {
@@ -130,8 +173,15 @@ define(function (require) {
       }
 
       // Populate the { impl, persistent, transient } instances keyed by task type
-      var taskMetas = new Map();
-      this._perAccountIdTaskRegistry.set(accountId, taskMetas);
+      // (the global account sentinel null will already be in here...)
+      var taskMetas = this._perAccountIdTaskRegistry.get(accountId);
+      if (!taskMetas) {
+        taskMetas = new Map();
+        this._perAccountIdTaskRegistry.set(accountId, taskMetas);
+      }
+
+      var simpleCount = 0;
+      var complexCount = 0;
 
       var _loop = function (unlatchedTaskImpl) {
         var taskImpl = unlatchedTaskImpl; // (let limitations in gecko right now)
@@ -142,6 +192,7 @@ define(function (require) {
           memoryState: null
         };
         if (taskImpl.isComplex) {
+          complexCount++;
           logic(_this, 'initializingComplexTask', { accountId, taskType, hasPersistentState: !!meta.persistentState });
           if (!meta.persistentState) {
             meta.persistentState = taskImpl.initPersistentState();
@@ -149,7 +200,7 @@ define(function (require) {
           // Invoke the complex task's real init logic that may need to do some
           // async db stuff if its state isn't in the persistent state we
           // helpfully loaded.
-          var maybePromise = taskImpl.deriveMemoryStateFromPersistentState(meta.persistentState, accountId);
+          var maybePromise = taskImpl.deriveMemoryStateFromPersistentState(meta.persistentState, accountId, accountInfo, foldersTOC);
           var saveOffMemoryState = function ({ memoryState, markers }) {
             meta.memoryState = memoryState;
             if (markers) {
@@ -158,13 +209,15 @@ define(function (require) {
               accountMarkers.push(...markers);
             }
 
-            _this._registerComplexTaskImplWithDataOverlayManager(accountId, meta);
+            _this._registerComplexTaskImplWithEventSources(accountId, meta);
           };
           if (maybePromise.then) {
             pendingPromises.push(maybePromise.then(saveOffMemoryState));
           } else {
             saveOffMemoryState(maybePromise);
           }
+        } else {
+          simpleCount++;
         }
 
         taskMetas.set(taskType, meta);
@@ -175,12 +228,44 @@ define(function (require) {
       }
 
       return Promise.all(pendingPromises).then(function () {
+        logic(_this, 'accountExistsInitTasks:end', {
+          accountId,
+          accountType,
+          simpleCount,
+          complexCount,
+          markerCount: accountMarkers.length
+        });
         return accountMarkers;
       });
     },
 
     accountRemoved: function () /*accountId*/{
       // TODO: properly handle and propagate account removal
+    },
+
+    /**
+     * Helper for planTask and executeTask to help ensure that the task context
+     * gets a chance to clean up.  See internal comments; this probably needs
+     * enhancements.
+     */
+    _forceFinalize: function (ctx, maybePromiseResult) {
+      // We need to force tasks to finalize if they don't do so themselves.  This
+      // is true for both rejections and returns without finalization.
+      if (maybePromiseResult.then) {
+        var doFinalize = function () {
+          ctx.__failsafeFinalize();
+        };
+        // I'm intentionally not forcing the return to wait on the failsafe
+        // finalization to happen out of paranoia.  It might be a good idea,
+        // though.
+        //
+        // And note that because of this choice, it doesn't matter that we're
+        // doing the same thing for the callback and errback... because we don't
+        // do anything with this then()'s returned promise.
+        maybePromiseResult.then(doFinalize, doFinalize);
+      } else {
+        ctx.__failsafeFinalize();
+      }
     },
 
     planTask: function (ctx, wrappedTask) {
@@ -194,6 +279,7 @@ define(function (require) {
         var perAccountTasks = this._perAccountIdTaskRegistry.get(accountId);
         if (!perAccountTasks) {
           // This means the account is no longer known to us.  Return immediately,
+          logic(this, 'noSuchAccount', { taskType, accountId });
           return null;
         }
         taskMeta = perAccountTasks.get(taskType);
@@ -203,13 +289,22 @@ define(function (require) {
         }
       }
 
-      if (taskMeta.impl.isComplex) {
-        return taskMeta.impl.plan(ctx, taskMeta.persistentState, taskMeta.memoryState, rawTask);
-      } else {
-        // All tasks have a plan stage.  Even if it's only the default one that
-        // just chucks it in the priority bucket.
-        return taskMeta.impl.plan(ctx, rawTask);
+      ctx.__taskInstance = taskMeta.impl;
+      var maybePromiseResult = undefined;
+      try {
+        if (taskMeta.impl.isComplex) {
+          maybePromiseResult = taskMeta.impl.plan(ctx, taskMeta.persistentState, taskMeta.memoryState, rawTask);
+        } else {
+          // All tasks have a plan stage.  Even if it's only the default one that
+          // just chucks it in the priority bucket.
+          return taskMeta.impl.plan(ctx, rawTask);
+        }
+      } catch (ex) {
+        logic.fail(ex);
       }
+
+      this._forceFinalize(ctx, maybePromiseResult);
+      return maybePromiseResult;
     },
 
     executeTask: function (ctx, taskThing) {
@@ -231,11 +326,15 @@ define(function (require) {
         throw new Error('Trying to exec ' + taskType + ' but isComplex:' + taskMeta.impl.isComplex);
       }
 
+      ctx.__taskInstance = taskMeta.impl;
+      var maybePromiseResult = undefined;
       if (isMarker) {
-        return taskMeta.impl.execute(ctx, taskMeta.persistentState, taskMeta.memoryState, taskThing);
+        maybePromiseResult = taskMeta.impl.execute(ctx, taskMeta.persistentState, taskMeta.memoryState, taskThing);
       } else {
-        return taskMeta.impl.execute(ctx, taskThing.plannedTask);
+        maybePromiseResult = taskMeta.impl.execute(ctx, taskThing.plannedTask);
       }
+      this._forceFinalize(ctx, maybePromiseResult);
+      return maybePromiseResult;
     },
 
     __synchronouslyConsultOtherTask: function (ctx, consultWhat, argDict) {

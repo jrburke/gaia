@@ -1,47 +1,39 @@
 define(function (require) {
   'use strict';
 
-  var co = require('co');
-  var logic = require('logic');
+  const co = require('co');
+  const logic = require('logic');
 
-  var util = require('../util');
-  var bsearchMaybeExists = util.bsearchMaybeExists;
-  var bsearchForInsert = util.bsearchForInsert;
+  const util = require('../util');
+  const bsearchMaybeExists = util.bsearchMaybeExists;
+  const bsearchForInsert = util.bsearchForInsert;
 
-  var RefedResource = require('../refed_resource');
+  const { folderConversationComparator } = require('./comparators');
 
-  var evt = require('evt');
-
-  var { folderConversationComparator } = require('./comparators');
+  const BaseTOC = require('./base_toc');
 
   /**
    * Backs view-slices listing the conversations in a folder.
    *
    * The current approach is that at activation time we load the entirety of the
-   * ordered conversations for a folder, but just their conversation id and most
-   * recent message, which constitute our ordering/identifying composite key.
+   * ordered conversations for a folder, but just their conversation id, most
+   * recent message date, and churned height.  These constitute our
+   * ordering/identifying composite key and size information to translate offsets.
    * This is a small enough amount of information that it is not unreasonable to
    * have it in memory given that we only list synchronized messages and that our
-   * correlated resource constraints limit how much we sync.  In a fancy future
-   * maybe we would not keep everything in memory.  However this strategy also
-   * potentially could be beneficial with supporting full-sorting.  In any event,
-   * we assume this means that once activated that we can synchronously tell you
-   * everything you want to know about the ordering of the list.
+   * correlated resource constraints limit how much we sync.
    *
    * Our composite key is { date, id }, ordered thusly.  From a seek/persistence
    * perspective, if a conversation gets updated, it is no longer the same and
    * we instead treat the position where the { date, id } would be inserted now.
    */
-  function FolderConversationsTOC({ db, folderId, dataOverlayManager,
-    onForgotten }) {
-    RefedResource.call(this);
-    evt.Emitter.call(this);
+  function FolderConversationsTOC({ db, folderId, dataOverlayManager }) {
+    BaseTOC.apply(this, arguments);
 
     logic.defineScope(this, 'FolderConversationsTOC');
 
     this._db = db;
     this.folderId = folderId;
-    this._onForgotten = onForgotten;
     this._eventId = '';
 
     // We share responsibility for providing overlay data with the list proxy.
@@ -53,12 +45,12 @@ define(function (require) {
 
     this.__deactivate(true);
   }
-  FolderConversationsTOC.prototype = evt.mix(RefedResource.mix({
+  FolderConversationsTOC.prototype = BaseTOC.mix({
     type: 'FolderConversationsTOC',
     overlayNamespace: 'conversations',
     heightAware: true,
 
-    __activate: co.wrap(function* () {
+    __activateTOC: co.wrap(function* () {
       var { idsWithDates, drainEvents, eventId } = yield this._db.loadFolderConversationIdsAndListen(this.folderId);
 
       this.idsWithDates = idsWithDates;
@@ -74,15 +66,11 @@ define(function (require) {
       this._db.on(eventId, this._bound_onTOCChange);
     }),
 
-    __deactivate: function (firstTime) {
+    __deactivateTOC: function (firstTime) {
       this.idsWithDates = [];
       this.totalHeight = 0;
       if (!firstTime) {
         this._db.removeListener(this._eventId, this._bound_onTOCChange);
-        if (this._onForgotten) {
-          this._onForgotten(this, this.convId);
-        }
-        this._onForgotten = null;
       }
     },
 
@@ -91,7 +79,7 @@ define(function (require) {
     },
 
     /**
-     * Handle a change from the database.
+     * Handle a TOC change on this specific folderId from the database.
      *
      * @param {Object} change
      * @param {ConvId} id
@@ -101,9 +89,10 @@ define(function (require) {
      * @param {Number} oldHeight
      */
     onTOCChange: function (change) {
-      var metadataOnly = change.removeDate === change.addDate;
+      // Is this just a change in the data rather than in the ordering?
+      var dataOnly = change.removeDate === change.addDate;
 
-      if (!metadataOnly) {
+      if (!dataOnly) {
         var oldIndex = -1;
         if (change.removeDate) {
           var oldKey = { date: change.removeDate, id: change.id };
@@ -127,10 +116,12 @@ define(function (require) {
           this.idsWithDates.splice(newIndex, 0, newKey);
         }
 
+        this.emit('_indexChange', oldIndex, newIndex);
+
         // If we did end up keeping the conversation in place, then it was just
-        // a metadata change as far as our consumers know/care.
+        // a data change as far as our consumers know/care.
         if (oldIndex === newIndex) {
-          metadataOnly = true;
+          dataOnly = true;
         }
       } else {
         this.totalHeight += change.item.height - change.oldHeight;
@@ -140,7 +131,7 @@ define(function (require) {
       // don't expose it yet.  If we end up with a fancier consumer (maybe a neat
       // debug visualization?), it could make sense to expose the indices being
       // impacted.
-      this.emit('change', change.id, metadataOnly);
+      this.emit('change', change.id, dataOnly);
     },
 
     /**
@@ -372,7 +363,7 @@ define(function (require) {
         newValidDataSet: newKnownSet
       };
     }
-  }));
+  });
 
   return FolderConversationsTOC;
 });

@@ -122,17 +122,7 @@ define(function (require) {
     },
 
     /**
-     * @args[
-     *   @param[mods @dict[
-     *     @key[password String]
-     *     @key[incomingPassword String]
-     *     @key[outgoingPassword String]
-     *     @key[username String]
-     *     @key[incomingUsername String]
-     *     @key[outgoingUsername String]
-     *   ]]
-     *   @param[callback function]
-     * ]{
+     * @param {Object} mods
      *   Modify properties on the account.
      *
      *   In addition to regular account property settings,
@@ -159,10 +149,20 @@ define(function (require) {
      *   passwords/usernames should match when they actually should
      *   differ, we'll safely recover becuase we'll then ask for a
      *   corrected SMTP password.
-     * }
+     * @param {String} [mods.password]
+     * @param {String} [mods.incomingPassword]
+     * @param {String} [mods.outgoingPassword]
+     * @param {String} [mods.username]
+     * @param {String} [mods.incomingUsername]
+     * @param {String} [mods.outgoingUsername]
+     * @param {Boolean} [mods.setAsDefault]
+     *
+     * @return {Promise}
+     *   A promise that is resolved when the back-end has applied the changes to
+     *   the account and propagated them.
      */
-    modifyAccount: function (mods, callback) {
-      this._api._modifyAccount(this, mods, callback);
+    modifyAccount: function (mods) {
+      return this._api._modifyAccount(this, mods);
     },
 
     /**
@@ -188,6 +188,17 @@ define(function (require) {
       this._api.__bridgeSend({
         type: 'syncFolderList',
         accountId: this.id
+      });
+    },
+
+    /**
+     * Clear the new-tracking state for this account.  Also accessible as
+     * `MailAPI.clearNewTrackingForAccount`.
+     */
+    clearNewTracking: function (opts) {
+      this._api.clearNewTrackingForAccount({
+        accountId: this.id,
+        silent: opts && opts.silent || false
       });
     },
 

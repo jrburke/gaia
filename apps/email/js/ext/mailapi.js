@@ -1,3 +1,6 @@
+/**
+ * @module
+ */
 define(function (require, exports) {
   'use strict';
 
@@ -11,7 +14,6 @@ define(function (require, exports) {
   const addressparser = require('./ext/addressparser');
   const evt = require('evt');
 
-  const MailAccount = require('./clientapi/mail_account');
   const MailFolder = require('./clientapi/mail_folder');
 
   const MailConversation = require('./clientapi/mail_conversation');
@@ -47,30 +49,7 @@ define(function (require, exports) {
   // For testing
   exports._MailFolder = MailFolder;
 
-  var LEGAL_CONFIG_KEYS = [];
-
-  /**
-   * Error reporting helper; we will probably eventually want different behaviours
-   * under development, under unit test, when in use by QA, advanced users, and
-   * normal users, respectively.  By funneling all errors through one spot, we
-   * help reduce inadvertent breakage later on.
-   */
-  function reportError() {
-    console.error.apply(console, arguments);
-    var msg = null;
-    for (var i = 0; i < arguments.length; i++) {
-      if (msg) {
-        msg += ' ' + arguments[i];
-      } else {
-        msg = '' + arguments[i];
-      }
-    }
-    // When in tests, this will fail the test; when not in tests, we just log.
-    logic.fail(new Error(msg));
-  }
-  var unexpectedBridgeDataError = reportError,
-      internalError = reportError,
-      reportClientCodeError = reportError;
+  const LEGAL_CONFIG_KEYS = ['debugLogging'];
 
   /**
    * The public API exposed to the client via the MailAPI global.
@@ -78,6 +57,9 @@ define(function (require, exports) {
    * TODO: Implement a failsafe timeout mechanism for returning Promises for
    * requests that will timeout and reject or something.  The idea is to allow
    * code that
+   *
+   * @constructor
+   * @memberof module:mailapi
    */
   function MailAPI() {
     evt.Emitter.call(this);
@@ -85,7 +67,7 @@ define(function (require, exports) {
     this._nextHandle = 1;
 
     /**
-     * @type Map<BridgeHandle, Object>
+     * @type {Map<BridgeHandle, Object>}
      *
      * Holds live list views (what were formerly called slices) and live tracked
      * one-off items (ex: viewConversation/friends that call
@@ -148,7 +130,7 @@ define(function (require, exports) {
     this.accounts = this.viewAccounts({ autoViewFolders: true });
   }
   exports.MailAPI = MailAPI;
-  MailAPI.prototype = evt.mix({
+  MailAPI.prototype = evt.mix( /** @lends module:mailapi.MailAPI.prototype */{
     toString: function () {
       return '[MailAPI]';
     },
@@ -222,7 +204,7 @@ define(function (require, exports) {
     _processMessage: function (msg) {
       var methodName = '_recv_' + msg.type;
       if (!(methodName in this)) {
-        unexpectedBridgeDataError('Unsupported message type:', msg.type);
+        logic.fail(new Error('Unsupported message type:', msg.type));
         return;
       }
       try {
@@ -233,7 +215,11 @@ define(function (require, exports) {
           promise.then(this._doneProcessingMessage.bind(this, msg));
         }
       } catch (ex) {
-        internalError('Problem handling message type:', msg.type, ex, '\n', ex.stack);
+        logic(this, 'processMessageError', {
+          type: msg.type,
+          ex,
+          stack: ex.stack
+        });
         return;
       }
     },
@@ -247,10 +233,6 @@ define(function (require, exports) {
       while (this._processingMessage === null && this._deferredMessages.length) {
         this._processMessage(this._deferredMessages.shift());
       }
-    },
-
-    _recv_badLogin: function (msg) {
-      this.emit('badlogin', new MailAccount(this, msg.account, null), msg.problem, msg.whichSide);
     },
 
     /** @see ContactCache.shoddyAutocomplete */
@@ -316,6 +298,11 @@ define(function (require, exports) {
       var pending = this._pendingRequests[handle];
       delete this._pendingRequests[handle];
       pending.resolve(msg.data);
+    },
+
+    _recv_broadcast: function (msg) {
+      var { name, data } = msg.payload;
+      this.emit(name, data);
     },
 
     /**
@@ -451,26 +438,6 @@ define(function (require, exports) {
         id: messageId,
         date: messageDate
       });
-    },
-
-    _recv_bodyModified: function (msg) {
-      var body = this._liveBodies[msg.handle];
-
-      if (!body) {
-        unexpectedBridgeDataError('body modified for dead handle', msg.handle);
-        // possible but very unlikely race condition where body is modified while
-        // we are removing the reference to the observer...
-        return;
-      }
-
-      var wireRep = msg.bodyInfo;
-      // We update the body representation regardless of whether there is an
-      // onchange listener because the body may contain Blob handles that need to
-      // be updated so that in-memory blobs that have been superseded by on-disk
-      // Blobs can be garbage collected.
-      body.__update(wireRep, msg.detail);
-
-      body.emit('change', msg.detail, body);
     },
 
     _downloadAttachments: function (downloadReq) {
@@ -726,24 +693,14 @@ define(function (require, exports) {
       req.callback && req.callback();
     },
 
-    _modifyAccount: function ma__modifyAccount(account, mods, callback) {
-      var handle = this._nextHandle++;
-      this._pendingRequests[handle] = {
-        type: 'modifyAccount',
-        callback: callback
-      };
-      this.__bridgeSend({
+    _modifyAccount: function (account, mods) {
+      return this._sendPromisedRequest({
         type: 'modifyAccount',
         accountId: account.id,
-        mods: mods,
-        handle: handle
+        mods
+      }).then(function () {
+        return null;
       });
-    },
-
-    _recv_modifyAccount: function (msg) {
-      var req = this._pendingRequests[msg.handle];
-      delete this._pendingRequests[msg.handle];
-      req.callback && req.callback();
     },
 
     _recreateAccount: function (account) {
@@ -760,24 +717,14 @@ define(function (require, exports) {
       });
     },
 
-    _modifyIdentity: function ma__modifyIdentity(identity, mods, callback) {
-      var handle = this._nextHandle++;
-      this._pendingRequests[handle] = {
-        type: 'modifyIdentity',
-        callback: callback
-      };
-      this.__bridgeSend({
+    _modifyIdentity: function (identity, mods) {
+      return this._sendPromisedRequest({
         type: 'modifyIdentity',
         identityId: identity.id,
-        mods: mods,
-        handle: handle
+        mods
+      }).then(function () {
+        return null;
       });
-    },
-
-    _recv_modifyIdentity: function (msg) {
-      var req = this._pendingRequests[msg.handle];
-      delete this._pendingRequests[msg.handle];
-      req.callback && req.callback();
     },
 
     /**
@@ -1095,26 +1042,7 @@ define(function (require, exports) {
         var mailbox = addressparser.parse(email);
         return mailbox.length >= 1 ? mailbox[0] : null;
       } catch (ex) {
-        reportClientCodeError('parse mailbox error', ex, '\n', ex.stack);
         return null;
-      }
-    },
-
-    _recv_mutationConfirmed: function (msg) {
-      var req = this._pendingRequests[msg.handle];
-      if (!req) {
-        unexpectedBridgeDataError('Bad handle for mutation:', msg.handle);
-        return;
-      }
-
-      req.undoableOp._tempHandle = null;
-      req.undoableOp._longtermIds = msg.longtermIds;
-      if (req.undoableOp._undoRequested) {
-        req.undoableOp.undo();
-      }
-
-      if (req.callback) {
-        req.callback(msg.result);
       }
     },
 
@@ -1238,24 +1166,6 @@ define(function (require, exports) {
     },
 
     //////////////////////////////////////////////////////////////////////////////
-    // cron syncing
-
-    /**
-     * Receive events about the start and stop of periodic syncing
-     */
-    _recv_cronSyncStart: function ma__recv_cronSyncStart(msg) {
-      this.emit('cronsyncstart', msg.accountIds);
-    },
-
-    _recv_cronSyncStop: function ma__recv_cronSyncStop(msg) {
-      this.emit('cronsyncstop', msg.accountsResults);
-    },
-
-    _recv_backgroundSendStatus: function (msg) {
-      this.emit('backgroundsendstatus', msg.data);
-    },
-
-    //////////////////////////////////////////////////////////////////////////////
     // Localization
 
     /**
@@ -1317,9 +1227,11 @@ define(function (require, exports) {
           throw new Error(key + ' is not a legal config key!');
         }
       }
-      this.__bridgeSend({
+      return this._sendPromisedRequest({
         type: 'modifyConfig',
-        mods: mods
+        mods
+      }).then(function () {
+        return null;
       });
     },
 
@@ -1367,14 +1279,91 @@ define(function (require, exports) {
       req.callback();
     },
 
+    /**
+     * Legacy means of setting the debug logging level.  Probably wants to go away
+     * in favor of just using modifyConfig directly.  Other debugging-y stuff
+     * probably will operate similarly or get its own explicit API calls.
+     */
     debugSupport: function (command, argument) {
       if (command === 'setLogging') {
         this.config.debugLogging = argument;
+        return this.modifyConfig({
+          debugLogging: argument
+        });
+      } else if (command === 'dumpLog') {
+        throw new Error('XXX circular logging currently not implemented');
+      }
+    },
+
+    /**
+     * Clear the set of new messages associated with the given account.  Also
+     * exposed on MailAccount as clearNewTracking.
+     */
+    clearNewTrackingForAccount: function ({ account, accountId, silent }) {
+      if (account && !accountId) {
+        accountId = account.id;
       }
       this.__bridgeSend({
-        type: 'debugSupport',
-        cmd: command,
-        arg: argument
+        type: 'clearNewTrackingForAccount',
+        accountId,
+        silent
+      });
+    },
+
+    /**
+     * Cause the 'newMessagesUpdate' message to be re-derived and re-broadcast.
+     * This should only be used in exceptional circumstances because the whole
+     * implementation of this assumes that persistent notifications are generated
+     * by the broadcast.  Since the message will also automatically be sent when
+     * the set of new messages changes, if you are calling this, you are by
+     * definition asking for redundant data you should already have heard about.
+     * I would prefix this with `debug` but it's possible there's a reason to
+     * expose this that's not horrible.
+     */
+    flushNewAggregates: function () {
+      this.__bridgeSend({
+        type: 'flushNewAggregates'
+      });
+    },
+
+    /**
+     * Compel the backend to act like it received a cronsync.
+     *
+     * @param {AccountId[]} [arg.accountIds]
+     *   The list of account ids to act like we are being told to sync.  If
+     *   omitted, the list of all accounts is used.
+     * @param {AccountId[]} [arg.notificationAccountIds]
+     *   The list of account ids to act like we have outstanding notifications for
+     *   (so as to not trigger a new_tracking status clearing).  If omitted, the
+     *   list of all accounts is used.
+     */
+    debugForceCronSync: function ({ accountIds, notificationAccountIds }) {
+      var allAccountIds = this.accounts.items.map(function (account) {
+        return account.id;
+      });
+
+      if (!accountIds) {
+        accountIds = allAccountIds;
+      }
+      if (!notificationAccountIds) {
+        notificationAccountIds = allAccountIds;
+      }
+      this.__bridgeSend({
+        type: 'debugForceCronSync',
+        accountIds,
+        notificationAccountIds
+      });
+    },
+
+    /**
+     * Retrieve the persisted-to-disk log entries we create for things like
+     * cronsync.
+     *
+     * @return {Promise<Object[]>}
+     */
+    getPersistedLogs: function () {
+      return this._sendPromisedRequest({
+        type: 'getPersistedLogs'
       });
     }
 

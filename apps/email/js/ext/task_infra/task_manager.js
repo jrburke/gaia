@@ -28,16 +28,17 @@ define(function (require) {
    * `__restoreFromDB` method and we have fully initialized all complex tasks.
    * (Complex task initialization can be async.)
    */
-  function TaskManager({ universe, db, registry, resources, priorities,
-    accountsTOC }) {
+  function TaskManager({ universe, db, taskRegistry, taskResources,
+    taskPriorities, accountManager }) {
     evt.Emitter.call(this);
     logic.defineScope(this, 'TaskManager');
     this._universe = universe;
     this._db = db;
-    this._registry = registry;
-    this._resources = resources;
-    this._priorities = priorities;
-    this._accountsTOC = accountsTOC;
+    this._registry = taskRegistry;
+    this._resources = taskResources;
+    this._priorities = taskPriorities;
+    this._accountManager = accountManager;
+    this._accountsTOC = accountManager.accountsTOC;
 
     // XXX SADNESS.  So we wanted to use autoincrement to avoid collisions or us
     // having to manage a counter.  Unfortunately, we want to use mozGetAll for
@@ -58,6 +59,11 @@ define(function (require) {
      * to disk.)
      */
     this._tasksToPlan = [];
+    /**
+     * Track the number of plan writes so that we can avoid declaring the queue
+     * empty if there will soon be enqueued tasks once the write completes.
+     */
+    this._pendingPlanWrites = 0;
 
     // Wedge our processing infrastructure until we have loaded everything from
     // the database.  Note that nothing will actually .then() off of this, and
@@ -105,13 +111,20 @@ define(function (require) {
       // -- Push complex task state into complex tasks
       var pendingInitPromises = [];
       this._registry.initializeFromDatabaseState(complexTaskStates);
+      // Initialize the global tasks.
+      pendingInitPromises.push(this._registry.initGlobalTasks().then(function (markers) {
+        _this.__queueTasksOrMarkers(markers, 'restored:complex', true);
+      }));
+
       this._accountsTOC.getAllItems().forEach(function (accountInfo) {
-        pendingInitPromises.push(_this._registry.accountExistsInitTasks(accountInfo.id, accountInfo.engine).then(function (markers) {
+        var foldersTOC = _this._accountManager.accountFoldersTOCs.get(accountInfo.id);
+        pendingInitPromises.push(_this._registry.accountExistsInitTasks(accountInfo.id, accountInfo.engine, accountInfo, foldersTOC).then(function (markers) {
           _this.__queueTasksOrMarkers(markers, 'restored:complex', true);
         }));
       });
       this._accountsTOC.on('add', function (accountInfo) {
-        _this._registry.accountExistsInitTasks(accountInfo.id, accountInfo.engine).then(function (markers) {
+        var foldersTOC = _this._accountManager.accountFoldersTOCs.get(accountInfo.id);
+        _this._registry.accountExistsInitTasks(accountInfo.id, accountInfo.engine, accountInfo, foldersTOC).then(function (markers) {
           _this.__queueTasksOrMarkers(markers, 'restored:complex', true);
         });
       });
@@ -123,6 +136,10 @@ define(function (require) {
       // -- Trigger processing when all initialization has completed.
       Promise.all(pendingInitPromises).then(function () {
         _this._activePromise = null;
+        logic(_this, 'starting', {
+          numTasksToPlan: _this._tasksToPlan.length,
+          numPrioritizedTasks: _this._priorities.numTasksToExecute
+        });
         _this._maybeDoStuff();
       });
     }),
@@ -192,7 +209,9 @@ define(function (require) {
 
       logic(this, 'schedulePersistent', { why: why, tasks: wrappedTasks });
 
+      this._pendingPlanWrites++;
       return this._db.addTasks(wrappedTasks).then(function () {
+        _this2._pendingPlanWrites--;
         _this2.__enqueuePersistedTasksForPlanning(wrappedTasks);
         return wrappedTasks.map(function (x) {
           return x.id;
@@ -337,7 +356,7 @@ define(function (require) {
       return rawTasks.map(function (rawTask) {
         return {
           id: _this9._nextId++,
-          rawTask: rawTask,
+          rawTask,
           state: null // => planned => (deleted)
         };
       });
@@ -422,6 +441,15 @@ define(function (require) {
         this._activePromise = this._executeNextTask();
       } else {
         logic(this, 'nothingToDo');
+        // Indicate the queue is empty if we're here and there aren't tasks that
+        // will imminently be placed in the plan queue.  This primarily matters
+        // for task groups with tasks to schedule when the group completes.  In
+        // that case the call to scheduleTasks will occur before this code is
+        // reached, but the writes will almost certainly not complete until after
+        // this code has been reached.
+        if (this._pendingPlanWrites === 0) {
+          this.emit('taskQueueEmpty');
+        }
         this._releaseWakeLock();
         // bail, intentionally doing nothing.
         return;
@@ -468,10 +496,15 @@ define(function (require) {
       var ctx = new TaskContext(wrappedTask, this._universe);
       var planResult = this._registry.planTask(ctx, wrappedTask);
       if (planResult) {
-        planResult.then(function (returnedResult) {
-          logic(_this12, 'planning:end', { task: wrappedTask });
-          _this12.emit('planned:' + wrappedTask.id, returnedResult);
-          _this12.emit('planned', wrappedTask.id, returnedResult);
+        planResult.then(function (maybeResult) {
+          var result = maybeResult && maybeResult.wrappedResult || undefined;
+          logic(_this12, 'planning:end', { success: true, task: wrappedTask });
+          _this12.emit('planned:' + wrappedTask.id, result);
+          _this12.emit('planned', wrappedTask.id, result);
+        }, function (err) {
+          logic(_this12, 'planning:end', { success: false, err, task: wrappedTask });
+          _this12.emit('planned:' + wrappedTask.id, null);
+          _this12.emit('planned', wrappedTask.id, null);
         });
       } else {
         logic(this, 'planning:end', { moot: true, task: wrappedTask });
@@ -490,10 +523,15 @@ define(function (require) {
       var ctx = new TaskContext(taskThing, this._universe);
       var execResult = this._registry.executeTask(ctx, taskThing);
       if (execResult) {
-        execResult.then(function (returnedResult) {
-          logic(_this13, 'executing:end', { task: taskThing });
-          _this13.emit('executed:' + taskThing.id, returnedResult);
-          _this13.emit('executed', taskThing.id, returnedResult);
+        execResult.then(function (maybeResult) {
+          var result = maybeResult && maybeResult.wrappedResult || undefined;
+          logic(_this13, 'executing:end', { success: true, task: taskThing });
+          _this13.emit('executed:' + taskThing.id, result);
+          _this13.emit('executed', taskThing.id, result);
+        }, function (err) {
+          logic(_this13, 'executing:end', { success: false, err, task: taskThing });
+          _this13.emit('executed:' + taskThing.id, null);
+          _this13.emit('executed', taskThing.id, null);
         });
       } else {
         logic(this, 'executing:end', { moot: true, task: taskThing });
@@ -501,6 +539,41 @@ define(function (require) {
         this.emit('executed', taskThing.id, undefined);
       }
       return execResult;
+    },
+
+    /**
+     * Used by `TaskContext.spawnSubtask` to tell us about subtasks it is
+     * spawning.  From a scheduling/management/ownership perspective, we don't
+     * care about them at all.  But from a logging perspective we do care and
+     * we want them to pass through us.
+     *
+     * Currently we are treating subtasks very explicitly to logging as their own
+     * thing and not pretending they are tasks being executed.  Likewise, we do
+     * not expose them to task groups, etc.  The rationale is that subtasks'
+     * life-cycles are strictly bound by their parent tasks, so they are boring on
+     * their own.  (Also, they're basically just a hack to reuse all the
+     * read/mutate/lock semantics while still maintaining our rules about
+     * locking.)
+     *
+     * @param {TaskContext} subctx
+     *   The task context created for the subtask.
+     * @param {Function} subtaskFunc
+     *   The subtask function to be invoked and which is expected to return a
+     *   Promise (presumably the function is wrapped using co.wrap()).  We use
+     *   subctx.__taskInstance as the `this`, the `subctx` as the first argument,
+     *   and the `subtaskArg` as the second argument.
+     * @param Object [subtaskArg]
+     */
+    __trackAndWrapSubtask: function (ctx, subctx, subtaskFunc, subtaskArg) {
+      var _this14 = this;
+
+      logic(this, 'subtask:begin', { taskId: ctx.id, subtaskId: subctx.id });
+      var subtaskResult = subtaskFunc.call(subctx.__taskInstance, subctx, subtaskArg);
+      // (we want our logging to definitely happen before any result is returned)
+      return subtaskResult.then(function (result) {
+        logic(_this14, 'subtask:end', { taskId: ctx.id, subtaskId: subctx.id });
+        return result;
+      });
     }
   });
 

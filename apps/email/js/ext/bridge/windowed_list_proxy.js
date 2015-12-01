@@ -1,4 +1,4 @@
-define(function (require) {
+define(function () {
   'use strict';
 
   /**
@@ -62,6 +62,9 @@ define(function (require) {
     this.ctx = ctx;
     this.batchManager = ctx.batchManager;
 
+    this.dirty = false;
+    this.dirtyMeta = true;
+
     /**
      * The set of id's for which we have provided still-valid data to the
      * front-end/our view counterpart.  As items are modified and the data
@@ -71,16 +74,25 @@ define(function (require) {
     this.validDataSet = new Set();
 
     /**
+     * Events for the WindowedListView to emit after perform all its updates.
+     */
+    this.pendingBroadcastEvents = [];
+
+    /**
      * The same rationale as `validDataSet`, but for overlays.
      */
     this.validOverlaySet = new Set();
 
     this._bound_onChange = this.onChange.bind(this);
+    this._bound_onTOCMetaChange = this.onTOCMetaChange.bind(this);
+    this._bound_onBroadcastEvent = this.onBroadcastEvent.bind(this);
     this._bound_onOverlayPush = this.onOverlayPush.bind(this);
   }
   WindowedListProxy.prototype = {
     __acquire: function () {
       this.toc.on('change', this._bound_onChange);
+      this.toc.on('tocMetaChange', this._bound_onTOCMetaChange);
+      this.toc.on('broadcastEvent', this._bound_onBroadcastEvent);
 
       this.ctx.dataOverlayManager.on(this.toc.overlayNamespace, this._bound_onOverlayPush);
 
@@ -89,6 +101,8 @@ define(function (require) {
 
     __release: function () {
       this.toc.removeListener('change', this._bound_onChange);
+      this.toc.removeListener('tocMetaChange', this._bound_onTOCMetaChange);
+      this.toc.removeListener('broadcastEvent', this._bound_onBroadcastEvent);
 
       this.ctx.dataOverlayManager.removeListener(this.toc.overlayNamespace, this._bound_onOverlayPush);
     },
@@ -154,7 +168,7 @@ define(function (require) {
         }
 
       this.dirty = true;
-      this.batchManager.registerDirtyView(this, /* immediate */true);
+      this.batchManager.registerDirtyView(this, 'immediate');
     },
 
     /**
@@ -169,13 +183,15 @@ define(function (require) {
      *   currently something we have reported, this method call becomes a no-op.
      *   Pass null if an ordering change has occurred.  If both things have
      *   occurred, call us twice!
+     * @param {Boolean} dataOnly
+     *   Is this only a data change AKA the item ordering did not change?
      */
-    onChange: function (id, metadataOnly) {
+    onChange: function (id, dataOnly) {
       if (id !== null) {
         // If we haven't told the view about the data, there's no need for us to
         // do anything.  Note that this also covers the case where we have an
         // async read in flight.
-        if (!this.validDataSet.has(id) && metadataOnly) {
+        if (!this.validDataSet.has(id) && dataOnly) {
           return;
         }
         this.validDataSet.delete(id);
@@ -185,11 +201,15 @@ define(function (require) {
         return;
       }
       this.dirty = true;
-      this.batchManager.registerDirtyView(this, /* immediate */false);
+      this.batchManager.registerDirtyView(this);
     },
 
+    /**
+     * Dirty ourselves if the overlay data for an item we know about has changed.
+     */
     onOverlayPush: function (id) {
       if (!this.validOverlaySet.has(id)) {
+        // (We didn't know about the item, this does not affect us.  Bail.)
         return;
       }
       this.validOverlaySet.delete(id);
@@ -198,7 +218,26 @@ define(function (require) {
         return;
       }
       this.dirty = true;
-      this.batchManager.registerDirtyView(this, /* immediate */false);
+      this.batchManager.registerDirtyView(this);
+    },
+
+    /**
+     * The TOC Meta changed, dirty ourselves.
+     */
+    onTOCMetaChange: function () {
+      this.dirtyMeta = true;
+      if (this.dirty) {
+        return;
+      }
+      this.dirty = true;
+      this.batchManager.registerDirtyView(this);
+    },
+
+    onBroadcastEvent: function (eventName, eventData) {
+      this.pendingBroadcastEvents.push({ name: eventName, data: eventData });
+
+      this.dirty = true;
+      this.batchManager.registerDirtyView(this, 'soon');
     },
 
     /**
@@ -259,8 +298,19 @@ define(function (require) {
       if (readPromise) {
         readPromise.then(function () {
           // Trigger an immediate dirtying/flush.
-          _this.batchManager.registerDirtyView(_this, /* immediate */true);
+          _this.batchManager.registerDirtyView(_this, 'immediate');
         });
+      }
+
+      var sendMeta = null;
+      if (this.dirtyMeta) {
+        sendMeta = this.toc.tocMeta;
+        this.dirtyMeta = false;
+      }
+      var sendEvents = null;
+      if (this.pendingBroadcastEvents.length) {
+        sendEvents = this.pendingBroadcastEvents;
+        this.pendingBroadcastEvents = [];
       }
 
       return {
@@ -268,8 +318,10 @@ define(function (require) {
         heightOffset: heightOffset || beginBufferedInclusive,
         totalCount: this.toc.length,
         totalHeight: this.toc.totalHeight,
+        tocMeta: sendMeta,
         ids: ids,
-        values: state
+        values: state,
+        events: sendEvents
       };
     }
   };

@@ -7,12 +7,8 @@
 define(function () {
   'use strict';
 
-  function debug(str) {
-    dump('WakeLocks: ' + str + '\n');
-  }
-
   var nextId = 1;
-  var locks = {};
+  var locks = new Map();
 
   function requestWakeLock(type) {
     var lock;
@@ -20,7 +16,7 @@ define(function () {
       lock = navigator.requestWakeLock(type);
     }
     var id = nextId++;
-    locks[id] = lock;
+    locks.set(id, lock);
     return id;
   }
 
@@ -28,7 +24,6 @@ define(function () {
     name: 'wakelocks',
     sendMessage: null,
     process: function (uid, cmd, args) {
-      debug('process ' + cmd + ' ' + JSON.stringify(args));
       switch (cmd) {
         case 'requestWakeLock':
           var type = args[0];
@@ -36,14 +31,21 @@ define(function () {
           break;
         case 'unlock':
           var id = args[0];
-          var lock = locks[id];
+          var lock = locks.get(id);
           if (lock) {
             lock.unlock();
-            delete locks[id];
+            locks.delete(id);
           }
           self.sendMessage(uid, cmd, []);
+          break;
+        default:
+          break;
       }
-    }
+    },
+
+    // Expose the request method locally so that cronsync-main can acquire a
+    // wake-lock to hand off to the back-end.
+    requestWakeLock
   };
   return self;
 });

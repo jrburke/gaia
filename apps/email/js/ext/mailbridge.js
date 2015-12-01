@@ -21,6 +21,9 @@ define(function (require) {
     logic.defineScope(this, 'MailBridge', { name: name });
     this.name = name;
     this.universe = universe;
+    // If you're thinking of registering listeners on the universe, please check
+    // out MailUniverse.registerBridge and MailUniverse.broadcastOverBridges
+    // before committing to any design choices.
     this.universe.registerBridge(this);
     this.db = db;
 
@@ -93,9 +96,6 @@ define(function (require) {
       promise.then(runNext, runNext);
     },
 
-    /**
-     * Whenever
-     */
     _commandCompletedProcessNextCommandInQueue: function (namedContext) {
       var _this2 = this;
 
@@ -111,6 +111,17 @@ define(function (require) {
       } else {
         namedContext.pendingCommand = null;
       }
+    },
+
+    /**
+     * Used by MailUniverse.broadcastOverBridges to send a message to the MailAPI
+     * instance to be emitted.
+     */
+    broadcast: function (name, data) {
+      this.__sendMessage({
+        type: 'broadcast',
+        payload: { name, data }
+      });
     },
 
     /**
@@ -149,38 +160,6 @@ define(function (require) {
         type: 'pong',
         handle: msg.handle
       });
-    },
-
-    _cmd_modifyConfig: function (msg) {
-      this.universe.modifyConfig(msg.mods);
-    },
-
-    notifyConfig: function (config) {
-      this.__sendMessage({
-        type: 'config',
-        config: config
-      });
-    },
-
-    _cmd_debugSupport: function (msg) {
-      switch (msg.cmd) {
-        case 'setLogging':
-          this.universe.modifyConfig({ debugLogging: msg.arg });
-          break;
-
-        case 'dumpLog':
-          switch (msg.arg) {
-            case 'storage':
-              this.universe.dumpLogToDeviceStorage();
-              break;
-            default:
-              break;
-          }
-          break;
-
-        default:
-          break;
-      }
     },
 
     _cmd_setInteractive: function () /*msg*/{
@@ -252,7 +231,15 @@ define(function (require) {
     },
 
     _cmd_modifyAccount: function (msg) {
-      // TODO: implement; existing logic has been moved to tasks/modify_account.js
+      var _this5 = this;
+
+      this.universe.modifyAccount(msg.accountId, msg.mods, 'bridge').then(function () {
+        _this5.__sendMessage({
+          type: 'promisedResult',
+          handle: msg.handle,
+          data: null
+        });
+      });
     },
 
     _cmd_recreateAccount: function (msg) {
@@ -264,7 +251,15 @@ define(function (require) {
     },
 
     _cmd_modifyIdentity: function (msg) {
-      // TODO: implement; existing logic moved to tasks/modify_identity.js
+      var _this6 = this;
+
+      this.universe.modifyIdentity(msg.identityId, msg.mods, 'bridge').then(function () {
+        _this6.__sendMessage({
+          type: 'promisedResult',
+          handle: msg.handle,
+          data: null
+        });
+      });
     },
 
     /**
@@ -368,7 +363,7 @@ define(function (require) {
     },
 
     _cmd_getItemAndTrackUpdates: co.wrap(function* (msg) {
-      var _this5 = this;
+      var _this7 = this;
 
       // XXX implement priority tags support
 
@@ -462,9 +457,8 @@ define(function (require) {
       };
       this.db.on(eventId, dataEventHandler);
       dataOverlayManager.on(readKey, overlayEventHandler);
-      this.universe.dataOverlayManager.on(readKey);
       ctx.runAtCleanup(function () {
-        _this5.db.removeListener(eventId, dataEventHandler);
+        _this7.db.removeListener(eventId, dataEventHandler);
         dataOverlayManager.removeListener(readKey, overlayEventHandler);
       });
 
@@ -499,10 +493,10 @@ define(function (require) {
     },
 
     _cmd_downloadAttachments: function (msg) {
-      var _this6 = this;
+      var _this8 = this;
 
       this.universe.downloadMessageAttachments(msg.downloadReq).then(function () {
-        _this6.__sendMessage({
+        _this8.__sendMessage({
           type: 'promisedResult',
           handle: msg.handle,
           data: null
@@ -529,10 +523,10 @@ define(function (require) {
     },
 
     _cmd_outboxSetPaused: function (msg) {
-      var _this7 = this;
+      var _this9 = this;
 
       this.universe.outboxSetPaused(msg.accountId, msg.bePaused).then(function () {
-        _this7.__sendMessage({
+        _this9.__sendMessage({
           type: 'promisedResult',
           handle: msg.handle,
           data: null
@@ -549,7 +543,7 @@ define(function (require) {
     // Composition
 
     _cmd_createDraft: function (msg) {
-      var _this8 = this;
+      var _this10 = this;
 
       this.universe.createDraft({
         draftType: msg.draftType,
@@ -558,7 +552,7 @@ define(function (require) {
         refMessageDate: msg.refMessageDate,
         folderId: msg.folderId
       }).then(function ({ messageId, messageDate }) {
-        _this8.__sendMessage({
+        _this10.__sendMessage({
           type: 'promisedResult',
           handle: msg.handle,
           data: {
@@ -584,7 +578,7 @@ define(function (require) {
      * told about attachments via their Blobs.
      */
     _cmd_doneCompose: function (msg) {
-      var _this9 = this;
+      var _this11 = this;
 
       // Delete and be done if delete.
       if (msg.command === 'delete') {
@@ -597,7 +591,7 @@ define(function (require) {
       // Actually send if send.
       if (msg.command === 'send') {
         this.universe.outboxSendDraft(msg.messageId).then(function (sendProblem) {
-          _this9.__sendMessage({
+          _this11.__sendMessage({
             type: 'promisedResult',
             handle: msg.handle,
             data: sendProblem
@@ -606,29 +600,24 @@ define(function (require) {
       }
     },
 
-    notifyCronSyncStart: function mb_notifyCronSyncStart(accountIds) {
-      this.__sendMessage({
-        type: 'cronSyncStart',
-        accountIds: accountIds
+    _cmd_clearNewTrackingForAccount: function (msg) {
+      this.universe.clearNewTrackingForAccount({
+        accountId: msg.accountId,
+        silent: msg.silent
       });
     },
 
-    notifyCronSyncStop: function mb_notifyCronSyncStop(accountsResults) {
-      this.__sendMessage({
-        type: 'cronSyncStop',
-        accountsResults: accountsResults
-      });
+    _cmd_flushNewAggregates: function () {
+      this.universe.flushNewAggregates();
     },
 
-    /**
-     * Notify the frontend about the status of message sends. Data has
-     * keys like 'state', 'error', etc, per the sendOutboxMessages job.
-     */
-    notifyBackgroundSendStatus: function (data) {
-      this.__sendMessage({
-        type: 'backgroundSendStatus',
-        data: data
-      });
+    //////////////////////////////////////////////////////////////////////////////
+    // Debug Stuff
+
+    _cmd_debugForceCronSync: function (msg) {
+      this.universe.cronSyncSupport.onAlarm(msg.accountIds, 'fake-interval', // this is not a real sync and the logic doesn't care.
+      'fake-wakelock', // uh, so, this could end badly...
+      msg.notificationAccountIds);
     }
 
   };

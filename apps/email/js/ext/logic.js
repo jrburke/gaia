@@ -155,6 +155,7 @@
  * See test_disaster_recovery.js for an example test using these primitives.
  */
 define(function (require) {
+  'use strict';
   var evt = require('evt');
   var equal = require('gelam/ext/equal');
 
@@ -281,7 +282,8 @@ define(function (require) {
     logic.emit('event', event);
 
     if (logic.realtimeLogEverything) {
-      dump('logic: ' + event.toString() + '\n');
+      //dump('logic: ' + event.toString() + '\n');
+      dump('logic: ' + JSON.stringify(event) + '\n');
     }
 
     return event;
@@ -860,6 +862,7 @@ define(function (require) {
       logic(scope, type, {
         awaitStatus: 2, // 'rejected'
         error: error,
+        stack: error && error.stack,
         sourceEventIds: resultEvent ? [resultEvent.id, awaitEvent.id] : [awaitEvent.id]
       });
       throw error;

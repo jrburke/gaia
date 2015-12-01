@@ -13,6 +13,8 @@ define(function (require) {
   const imapchew = require('../imapchew');
   const parseImapDateTime = imapchew.parseImapDateTime;
 
+  const { syncNormalOverlay } = require('../../task_helpers/sync_overlay_helpers');
+
   /**
    * Steady state vanilla IMAP folder sync.
    */
@@ -20,15 +22,7 @@ define(function (require) {
     name: 'sync_refresh',
     binByArg: 'folderId',
 
-    helped_overlay_folders: function (folderId, marker, inProgress) {
-      if (!marker) {
-        return null;
-      } else if (inProgress) {
-        return 'active';
-      } else {
-        return 'pending';
-      }
-    },
+    helped_overlay_folders: syncNormalOverlay,
 
     helped_invalidate_overlays: function (folderId, dataOverlayManager) {
       dataOverlayManager.announceUpdatedOverlayData('folders', folderId);
@@ -66,7 +60,7 @@ define(function (require) {
 
       // - Plan!
       var plannedTask = shallowClone(rawTask);
-      plannedTask.exclusiveResources = [`sync:${ rawTask.folderId }`];
+      plannedTask.resources = ['online', `credentials!${ rawTask.accountId }`, `happy!${ rawTask.accountId }`];
       plannedTask.priorityTags = [`view:folder:${ rawTask.folderId }`];
 
       // Create a task group that follows this task and all its offspring.  This
@@ -118,7 +112,7 @@ define(function (require) {
       // number of the highest UID.  Oh. Hm.  Could it be the "*" that causes
       // the range to be N+1:N ?  Maybe that's it.  Anyways, be smarter by
       // adding a step that selects the folder first and checks UIDNEXT.
-      var parallelNewMessages = account.pimap.listMessages(folderInfo, syncState.lastHighUid + 1 + ':*', ['UID', 'INTERNALDATE', 'FLAGS'], {
+      var parallelNewMessages = account.pimap.listMessages(ctx, folderInfo, syncState.lastHighUid + 1 + ':*', ['UID', 'INTERNALDATE', 'FLAGS'], {
         byUid: true,
         changedSince: syncState.modseq
       });
@@ -149,12 +143,12 @@ define(function (require) {
         // XXX have range-generation logic
         uid: syncState.getAllUids().join(',')
       };
-      var { result: searchedUids } = yield account.pimap.search(folderInfo, searchSpec, { byUid: true });
+      var { result: searchedUids } = yield account.pimap.search(ctx, folderInfo, searchSpec, { byUid: true });
       syncState.inferDeletionFromExistingUids(searchedUids);
 
       // - Do envelope fetches on the non-deleted messages
       // XXX use SEARCHRES here when possible!
-      var { result: currentFlagMessages } = yield account.pimap.listMessages(folderInfo, searchedUids.join(','), ['UID', 'FLAGS'], {
+      var { result: currentFlagMessages } = yield account.pimap.listMessages(ctx, folderInfo, searchedUids.join(','), ['UID', 'FLAGS'], {
         byUid: true
       });
       for (var msg of currentFlagMessages) {

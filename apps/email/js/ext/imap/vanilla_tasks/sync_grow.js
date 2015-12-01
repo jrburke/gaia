@@ -1,38 +1,73 @@
 define(function (require) {
   'use strict';
 
-  var co = require('co');
-  var logic = require('logic');
+  const co = require('co');
+  const logic = require('logic');
 
-  var TaskDefiner = require('../../task_infra/task_definer');
+  const { shallowClone } = require('../../util');
 
-  var { makeDaysAgo, makeDaysBefore, quantizeDate, NOW } = require('../../date');
+  const TaskDefiner = require('../../task_infra/task_definer');
 
-  var imapchew = require('../imapchew');
-  var parseImapDateTime = imapchew.parseImapDateTime;
+  const { quantizeDate, NOW } = require('../../date');
 
-  var FolderSyncStateHelper = require('../vanilla/folder_sync_state_helper');
+  const imapchew = require('../imapchew');
+  const parseImapDateTime = imapchew.parseImapDateTime;
 
-  var syncbase = require('../../syncbase');
+  const FolderSyncStateHelper = require('../vanilla/folder_sync_state_helper');
+
+  const { OLDEST_SYNC_DATE, SYNC_WHOLE_FOLDER_AT_N_MESSAGES,
+    GROWTH_MESSAGE_COUNT_TARGET } = require('../../syncbase');
+
+  const { syncNormalOverlay } = require('../../task_helpers/sync_overlay_helpers');
 
   /**
-   * Expand the date-range of known messages for the given folder/label.
+   * Expand the date-range of known messages for the given folder.
+   *
+   * This is now relatively clever and uses the following two heuristics to ensure
+   * that we always learn about at least one message:
+   * - If there's only a small number of messages in the folder that we don't
+   *   know about, we just move our sync range to be everything since the oldest
+   *   sync date.  TODO: In the future change this to have us remove date
+   *   constraints entirely.  It's likely much friendlier to the server to do
+   *   this.
+   * - Use sequence numbers to figure out an appropriate date to use to grow our
+   *   date-based sync window.  This is intended to help us bridge large time
+   *   gaps between messages.
    */
-  return TaskDefiner.defineSimpleTask([{
+  return TaskDefiner.defineAtMostOnceTask([require('../task_mixins/imap_mix_probe_for_date'), {
     name: 'sync_grow',
-    args: ['accountId', 'folderId', 'minDays'],
+    binByArg: 'folderId',
 
-    exclusiveResources: function (args) {
-      return [
-      // Only one of us/sync_refresh is allowed to be active at a time.
-      `sync:${ args.accountId }`];
+    helped_overlay_folders: syncNormalOverlay,
+
+    helped_invalidate_overlays: function (folderId, dataOverlayManager) {
+      dataOverlayManager.announceUpdatedOverlayData('folders', folderId);
     },
 
-    priorityTags: function (args) {
-      return [`view:folder:${ args.folderId }`];
+    helped_already_planned: function (ctx, rawTask) {
+      // The group should already exist; opt into its membership to get a
+      // Promise
+      return Promise.resolve({
+        result: ctx.trackMeInTaskGroup('sync_grow:' + rawTask.folderId)
+      });
     },
 
-    execute: co.wrap(function* (ctx, req) {
+    helped_plan: function (ctx, rawTask) {
+      var plannedTask = shallowClone(rawTask);
+      plannedTask.resources = ['online', `credentials!${ rawTask.accountId }`, `happy!${ rawTask.accountId }`];
+      plannedTask.priorityTags = [`view:folder:${ rawTask.folderId }`];
+
+      // Create a task group that follows this task and all its offspring.  This
+      // will define the lifetime of our overlay as well.
+      var groupPromise = ctx.trackMeInTaskGroup('sync_grow:' + rawTask.folderId);
+      return Promise.resolve({
+        taskState: plannedTask,
+        remainInProgressUntil: groupPromise,
+        result: groupPromise
+      });
+    },
+
+    helped_execute: co.wrap(function* (ctx, req) {
       // -- Exclusively acquire the sync state for the folder
       var fromDb = yield ctx.beginMutate({
         syncStates: new Map([[req.folderId, null]])
@@ -40,34 +75,43 @@ define(function (require) {
 
       var syncState = new FolderSyncStateHelper(ctx, fromDb.syncStates.get(req.folderId), req.accountId, req.folderId, 'grow');
 
+      // -- Enter the folder to get an estimate of the number of messages
+      var account = yield ctx.universe.acquireAccount(ctx, req.accountId);
+      var folderInfo = account.getFolderById(req.folderId);
+      var mailboxInfo = yield account.pimap.selectMailbox(ctx, folderInfo);
+
+      // Figure out an upper bound on the number of messages in the folder that
+      // we have not synchronized.
+      var estimatedUnsyncedMessages = mailboxInfo.exists - syncState.knownMessageCount;
+
       // -- Issue a search for the new date range we're expanding to cover.
-      // TODO: consider the fast full folder sync heuristic where if the folder
-      // only has a few messages we just sync them all.
-      // TODO: consider some type of statistical shenanigans based on message
-      // sequence number.  Like fetch the dates of N messages around
-      // (EXISTS - 50) and then extrapolate a reasonable date choice based on
-      // that.
       var searchSpec = { not: { deleted: true } };
 
       var existingSinceDate = syncState.sinceDate;
       var newSinceDate = undefined;
-      if (existingSinceDate) {
-        searchSpec.before = new Date(quantizeDate(existingSinceDate));
-        newSinceDate = makeDaysBefore(existingSinceDate, syncbase.INITIAL_SYNC_GROWTH_DAYS);
-        searchSpec.since = new Date(newSinceDate);
+
+      // If there are fewer messages left to sync than our constant for this
+      // purpose, then just set the date range to our oldest sync date.
+      if (!isNaN(estimatedUnsyncedMessages) && estimatedUnsyncedMessages < Math.max(SYNC_WHOLE_FOLDER_AT_N_MESSAGES, GROWTH_MESSAGE_COUNT_TARGET)) {
+        newSinceDate = OLDEST_SYNC_DATE;
       } else {
-        newSinceDate = makeDaysAgo(syncbase.INITIAL_SYNC_DAYS);
-        searchSpec.since = new Date(newSinceDate);
+        newSinceDate = yield this._probeForDateUsingSequenceNumbers({
+          ctx, account, folderInfo,
+          startSeq: mailboxInfo.exists - syncState.knownMessageCount,
+          curDate: existingSinceDate || quantizeDate(NOW())
+        });
       }
 
-      var account = yield ctx.universe.acquireAccount(ctx, req.accountId);
+      if (existingSinceDate) {
+        searchSpec.before = new Date(quantizeDate(existingSinceDate));
+      }
+      searchSpec.since = new Date(newSinceDate);
 
       var syncDate = NOW();
 
       logic(ctx, 'searching', { searchSpec: searchSpec });
-      var folderInfo = account.getFolderById(req.folderId);
       // Find out new UIDs covering the range in question.
-      var { mailboxInfo, result: uids } = yield account.pimap.search(folderInfo, searchSpec, { byUid: true });
+      var { result: uids } = yield account.pimap.search(ctx, folderInfo, searchSpec, { byUid: true });
 
       // -- Fetch flags and the dates for the new messages
       // We want the date so we can prioritize the synchronization of the
@@ -76,7 +120,7 @@ define(function (require) {
       if (uids.length) {
         var newUids = syncState.filterOutKnownUids(uids);
 
-        var { result: messages } = yield account.pimap.listMessages(folderInfo, newUids, ['UID', 'INTERNALDATE', 'FLAGS'], { byUid: true });
+        var { result: messages } = yield account.pimap.listMessages(ctx, folderInfo, newUids, ['UID', 'INTERNALDATE', 'FLAGS'], { byUid: true });
 
         for (var msg of messages) {
           var dateTS = parseImapDateTime(msg.internaldate);
@@ -107,7 +151,7 @@ define(function (require) {
             }
       }
 
-      yield ctx.finishTask({
+      return {
         mutations: {
           syncStates: new Map([[req.folderId, syncState.rawSyncState]]),
           umidLocations: syncState.umidLocationWrites
@@ -117,12 +161,15 @@ define(function (require) {
         },
         atomicClobbers: {
           folders: new Map([[req.folderId, {
+            fullySynced: syncState.sinceDate === OLDEST_SYNC_DATE.valueOf(),
+            estimatedUnsyncedMessages,
+            syncedThrough: syncState.sinceDate,
             lastSuccessfulSyncAt: syncDate,
             lastAttemptedSyncAt: syncDate,
             failedSyncsSinceLastSuccessfulSync: 0
           }]])
         }
-      });
+      };
     })
   }]);
 });
