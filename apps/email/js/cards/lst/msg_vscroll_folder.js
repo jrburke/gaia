@@ -17,7 +17,6 @@ require('element!./msg_vscroll');
 
 return [
   require('../base_render')(['folder'], function(html) {
-console.log('IN THE MSG VSCROLL FOLDER RENDER: ' + this.state.folder);
     var folder = this.state.folder;
     if (!folder || this.curFolder === folder) {
       return;
@@ -26,28 +25,26 @@ console.log('IN THE MSG VSCROLL FOLDER RENDER: ' + this.state.folder);
 //Object.keys(folder).forEach((k) => console.log(k, ': ', folder[k]));
 
     html`
-    <div data-prop="scrollContainer" class="msg-list-scrollouter">
-      <!-- exists so we can force a minimum height -->
-      <div class="msg-list-scrollinner">
-        <!-- The search textbox hides under the lip of the messages.
-             As soon as any typing happens in it, we push the search
-             controls card. -->
-        <form role="search" data-prop="searchBar"
-              class="msg-search-tease-bar">
-          <p>
-            <input data-event="focus:onSearchButton"
-                   data-prop="searchTextTease"
-                   class="msg-search-text-tease" type="text"
-                   dir="auto"
-                   data-l10n-id="message-search-input" />
-          </p>
-        </form>
-        <lst-msg-vscroll data-prop="msgVScroll"
-                         aria-label="${folder.name}"
-                         data-event="messageClick:onClickMessage"
-                         data-empty-l10n-id="messages-folder-empty">
-        </lst-msg-vscroll>
-      </div>
+    <!-- exists so we can force a minimum height -->
+    <div class="msg-list-scrollinner">
+      <!-- The search textbox hides under the lip of the messages.
+           As soon as any typing happens in it, we push the search
+           controls card. -->
+      <form role="search" data-prop="searchBar"
+            class="msg-search-tease-bar">
+        <p>
+          <input data-event="focus:onSearchButton"
+                 data-prop="searchTextTease"
+                 class="msg-search-text-tease" type="text"
+                 dir="auto"
+                 data-l10n-id="message-search-input" />
+        </p>
+      </form>
+      <lst-msg-vscroll data-prop="msgVScroll"
+                       aria-label="${folder.name}"
+                       data-event="messageClick:onClickMessage"
+                       data-empty-l10n-id="messages-folder-empty">
+      </lst-msg-vscroll>
     </div>
 
     <!-- New email notification bar -->
@@ -83,16 +80,8 @@ console.log('IN THE MSG VSCROLL FOLDER RENDER: ' + this.state.folder);
       this._topBar = new MessageListTopBar(
         this.querySelector('.message-list-topbar')
       );
-      this._topBar.bindToElements(this.scrollContainer,
+      this._topBar.bindToElements(this,
                                   this.msgVScroll.vScroll);
-
-      //todo: figure out when this makes sense to do. Always, since renderEnd?
-      // If using a cache, do not clear the HTML as it will
-      // be cleared once real data has been fetched.
-      // if (!this.usingCachedNode) {
-        // This inherently scrolls us back up to the top of the list.
-      //   this.msgVScroll.vScroll.clearDisplay();
-      // }
 
       this.msgVScroll.on('messagesSpliceStart', this, function(whatChanged) {
 //todo: reconsider how to do this communication.
@@ -161,7 +150,7 @@ console.log('IN THE MSG VSCROLL FOLDER RENDER: ' + this.state.folder);
         this.updateMessageDom(model);
       };
 
-      this.msgVScroll.init(this.scrollContainer,
+      this.msgVScroll.init(this,
                            vScrollBindData,
                            defaultVScrollData);
 
@@ -175,6 +164,15 @@ console.log('IN THE MSG VSCROLL FOLDER RENDER: ' + this.state.folder);
         }
       });
 
+
+      //todo: figure out when this makes sense to do. Always, since renderEnd?
+      // If using a cache, do not clear the HTML as it will
+      // be cleared once real data has been fetched.
+      // if (!this.usingCachedNode) {
+        // This inherently scrolls us back up to the top of the list.
+      //   this.msgVScroll.vScroll.clearDisplay();
+      // }
+      this.msgVScroll._needVScrollData = true;
 
       var listCursor = this.listCursor = new ListCursor();
       this.listCursor.bindToList(this.renderModel.api
@@ -223,7 +221,7 @@ console.log('IN THE MSG VSCROLL FOLDER RENDER: ' + this.state.folder);
     _hideSearchBoxByScrolling: function() {
       // scroll the search bit out of the way
       var searchBar = this.searchBar,
-          scrollContainer = this.scrollContainer;
+          scrollContainer = this;
 
       // Search bar could have been collapsed with a cache load,
       // make sure it is visible, but if so, adjust the scroll
@@ -392,7 +390,8 @@ console.log('IN THE MSG VSCROLL FOLDER RENDER: ' + this.state.folder);
       }
 
       // edit mode select state, defined in lst/edit_controller
-      this.updateDomSelectState(msgNode, message);
+      //todo: re-enable this, tricky since uses editMode.
+      //this.updateDomSelectState(msgNode, message);
     }
 
 

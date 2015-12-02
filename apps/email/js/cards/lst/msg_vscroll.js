@@ -60,6 +60,7 @@ return [
       this.waitingOnChunk = true;
       this._loadNextChunkArgs = null;
       this._needVScrollData = false;
+
       this.vScroll = new VScroll(
         this.vScrollContainer,
         this.scrollContainer,
@@ -239,7 +240,6 @@ return [
     },
 
     onWinListChange: function() {
-console.log('@@@@@@@@@onWinListChange');
       // If the list cursor's list has changed, it could be for length reasons.
 //todo: need to revisit, distinguish between cangrow and count, once backend has
 //those properties.
