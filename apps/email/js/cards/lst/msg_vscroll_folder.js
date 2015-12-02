@@ -61,6 +61,9 @@ return [
       // Workaround to multiple notifications on the same folder for minor
       // changes (sync status pending active switching mostly).
       this.curFolder = null;
+
+      // This is set by the custom element that owns this element.
+      this.editController = null;
     },
 
     renderEnd: function() {
@@ -76,12 +79,6 @@ return [
       // Wires up the data-prop properties.
       dataProp.templateInsertedCallback.call(this);
       dataEvent.templateInsertedCallback.call(this);
-
-      this._topBar = new MessageListTopBar(
-        this.querySelector('.message-list-topbar')
-      );
-      this._topBar.bindToElements(this,
-                                  this.msgVScroll.vScroll);
 
       this.msgVScroll.on('messagesSpliceStart', this, function(whatChanged) {
 //todo: reconsider how to do this communication.
@@ -179,7 +176,6 @@ return [
                                   .viewFolderConversations(folder));
       this.msgVScroll.setListCursor(listCursor, this.renderModel);
 
-
       this._hideSearchBoxByScrolling();
 
       // Now that _hideSearchBoxByScrolling has activated the display
@@ -189,14 +185,20 @@ return [
       this.msgVScroll.vScroll.visibleOffset =
                                   this.searchBar.getBoundingClientRect().height;
 
-      // Also tell the MessageListTopBar
-      this._topBar.visibleOffset = this.msgVScroll.vScroll.visibleOffset;
-
       // For search we want to make sure that we capture the screen size prior
       // to focusing the input since the FxOS keyboard will resize our window to
       // be smaller which messes up our logic a bit.  We trigger metric
       // gathering in non-search cases too for consistency.
       this.msgVScroll.vScroll.captureScreenMetrics();
+
+      // Create topbar. Do this **after** calling init on msgVScroll.
+      this._topBar = new MessageListTopBar(
+        this.querySelector('.message-list-topbar')
+      );
+      this._topBar.bindToElements(this,
+                                  this.msgVScroll.vScroll);
+      // Also tell the MessageListTopBar about vScroll offset.
+      this._topBar.visibleOffset = this.msgVScroll.vScroll.visibleOffset;
 
       // If user tapped in search box before the JS for the card is attached,
       // then treat that as the signal to go to search. Only do this when first
@@ -243,6 +245,15 @@ return [
       // old folder.)
       if (scrollContainer.scrollTop === 0) {
         scrollContainer.scrollTop = searchBar.offsetHeight;
+      }
+    },
+
+    // Reset checked mode for all message items. Called by the owner of this
+    // element.
+    resetEditSelection: function() {
+      var msgNodes = this.msgVScroll.querySelectorAll('.msg-message-item');
+      for (var i = 0; i < msgNodes.length; i++) {
+        this.editController.updateDomMessageChecked(msgNodes[i], false);
       }
     },
 
@@ -390,8 +401,7 @@ return [
       }
 
       // edit mode select state, defined in lst/edit_controller
-      //todo: re-enable this, tricky since uses editMode.
-      //this.updateDomSelectState(msgNode, message);
+      this.editController.updateDomSelectState(msgNode, message);
     }
 
 

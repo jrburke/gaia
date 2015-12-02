@@ -1,25 +1,10 @@
 'use strict';
-define(function () {
-  var slice = Array.prototype.slice;
+define(function (require) {
+  var selectOwnElements = require('./select_own_elements');
 
   return {
     onArgs: function (args) {
-      slice.call(this.querySelectorAll('[data-model-args]'))
-      .forEach((node) => {
-        var parent = node;
-        // Make sure the node is not nested in another component.
-        while ((parent = parent.parentNode)) {
-          if (parent.nodeName.indexOf('-') !== -1) {
-            if (parent !== this) {
-              return;
-            }
-            break;
-          }
-        }
-        if (!parent) {
-          return;
-        }
-
+      selectOwnElements('[data-model-args]', this, (node) => {
         node.args = {
           model: args.model
         };
@@ -27,7 +12,6 @@ define(function () {
         if (node.onArgs) {
           node.onArgs(node.args);
         }
-
       });
     }
   };

@@ -27,8 +27,6 @@ define(function(require, exports) {
     // This function is called from setEditMode() after ensuring that
     // the backend is in a state where we can safely use edit mode.
     _setEditMode: function(editMode) {
-      var i;
-
       this.editMode = editMode;
 
       if (editMode) {
@@ -44,10 +42,7 @@ define(function(require, exports) {
       }
 
       // Reset checked mode for all message items.
-      var msgNodes = this.msgVScroll.querySelectorAll('.msg-message-item');
-      for (i = 0; i < msgNodes.length; i++) {
-        this.updateDomMessageChecked(msgNodes[i], false);
-      }
+      this.msgVScrollFolder.resetEditSelection();
 
       if (this.editModeChanged) {
         this.editModeChanged(editMode);

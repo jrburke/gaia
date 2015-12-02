@@ -52,6 +52,7 @@ return [
   require('./base_card')(require('template!./message_list.html')),
   require('./lst/edit_controller'),
   require('./mixins/data-model-args'),
+  require('./mixins/data-pass-prop'),
   require('./lst/message_list_cache'),
   {
     createdCallback: function() {
