@@ -787,6 +787,10 @@ html[dir="rtl"] .bb-tablist .icon.msg-edit-btn {
   background-image: url("images/icons/mark_unread.png");
 }
 
+lst-msg-vscroll-folder {
+  display: block;
+}
+
 /* Scrollable Area has to have a solid
   * opaque background to optimize Gecko.
   * See Bug 962699. */

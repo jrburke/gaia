@@ -46,8 +46,8 @@ function htemplate(renderFn) {
 
     // If there is no result text, but this is a custom element upgraded from
     // cached HTML, then do not mess with the innerHTML.
-    if (tagResult.text || this.dataset.cached !== 'cached' ||
-        !this.htemplateIgnoreEmptyRender) {
+    if (tagResult.text || (this.dataset.cached !== 'cached' &&
+        !this.htemplateIgnoreEmptyRender)) {
       this.innerHTML = tagResult.text;
 
       var bindingId = tagResult.bindingId;

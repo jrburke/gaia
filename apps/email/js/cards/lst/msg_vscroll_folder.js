@@ -23,7 +23,7 @@ console.log('IN THE MSG VSCROLL FOLDER RENDER: ' + this.state.folder);
       return;
     }
 
-Object.keys(folder).forEach((k) => console.log(k, ': ', folder[k]));
+//Object.keys(folder).forEach((k) => console.log(k, ': ', folder[k]));
 
     html`
     <div data-prop="scrollContainer" class="msg-list-scrollouter">
