@@ -42,7 +42,11 @@ define(function(require, exports) {
       }
 
       // Reset checked mode for all message items.
-      this.msgVScrollFolder.resetEditSelection();
+      var msgNodes = (this.msgVScrollFolder || this.msgVScroll)
+                     .querySelectorAll('.msg-message-item');
+      for (var i = 0; i < msgNodes.length; i++) {
+        this.updateDomMessageChecked(msgNodes[i], false);
+      }
 
       if (this.editModeChanged) {
         this.editModeChanged(editMode);

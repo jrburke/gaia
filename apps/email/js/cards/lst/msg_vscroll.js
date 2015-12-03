@@ -397,7 +397,9 @@ return [
         this.model.removeObjectListener(this);
       }
       this.releaseFromListCursor();
-      this.vScroll.destroy();
+      if (this.vScroll) {
+        this.vScroll.destroy();
+      }
     }
   }
 ];

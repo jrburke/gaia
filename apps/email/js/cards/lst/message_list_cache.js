@@ -54,7 +54,7 @@ return {
 
     // Hide search field as it will not operate and gets scrolled out
     // of view after real load.
-    var removableCacheNode = cacheNode.querySelector('.msg-search-tease-bar');
+    var removableCacheNode = cacheNode.querySelector('lst-search-link');
     if (removableCacheNode) {
       removableCacheNode.classList.add('collapsed');
     }

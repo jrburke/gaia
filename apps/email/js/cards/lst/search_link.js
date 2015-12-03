@@ -63,16 +63,15 @@ return [
 
     scrollAreaInitialized: function() {
       // Hide the search box by scrolling it out of view.
-      var searchBar = this,
-          scrollContainer = this.scrollContainer;
+      var scrollContainer = this.scrollContainer;
 
       // Search bar could have been collapsed with a cache load,
       // make sure it is visible, but if so, adjust the scroll
       // position in case the user has scrolled before this code
       // runs.
-      if (searchBar.classList.contains('collapsed')) {
-        searchBar.classList.remove('collapsed');
-        scrollContainer.scrollTop += searchBar.offsetHeight;
+      if (this.classList.contains('collapsed')) {
+        this.classList.remove('collapsed');
+        scrollContainer.scrollTop += this.offsetHeight;
       }
 
       // Adjust scroll position now that there is something new in
@@ -85,7 +84,7 @@ return [
       // index 50 in our new folder because we were at index 50 in our
       // old folder.)
       if (scrollContainer.scrollTop === 0) {
-        scrollContainer.scrollTop = searchBar.offsetHeight;
+        scrollContainer.scrollTop = this.offsetHeight;
       }
     }
   }

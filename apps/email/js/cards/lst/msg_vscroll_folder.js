@@ -10,6 +10,7 @@ var date = require('date'),
     mozL10n = require('l10n!'),
     messageDisplay = require('message_display'),
     MessageListTopBar = require('message_list_topbar'),
+    selectOwnElements = require('../mixins/select_own_elements'),
     updatePeepDom = require('./peep_dom').update;
 
 // Custom elements used in the template.
@@ -62,6 +63,15 @@ return [
 
       // This is set by the custom element that owns this element.
       this.editController = null;
+
+      // If this is a cached content, hold on to the slotted IDs.
+      if (this.dataset.cached === 'cached') {
+        selectOwnElements('[data-slot-id]', this, (element) => {
+          var slotId = element.dataset.slotId;
+          var slots = this.slots || (this.slots = {});
+          slots[slotId] = element;
+        });
+      }
     },
 
     renderEnd: function() {
@@ -136,15 +146,6 @@ return [
     scrollAreaInitialized: function() {
       if (this.slots.headerElement.scrollAreaInitialized) {
         this.slots.headerElement.scrollAreaInitialized();
-      }
-    },
-
-    // Reset checked mode for all message items. Called by the owner of this
-    // element.
-    resetEditSelection: function() {
-      var msgNodes = this.msgVScroll.querySelectorAll('.msg-message-item');
-      for (var i = 0; i < msgNodes.length; i++) {
-        this.editController.updateDomMessageChecked(msgNodes[i], false);
       }
     },
 
