@@ -136,7 +136,7 @@ return [
       }
     },
 
-    //todo: what to do here, now that msg_vscroll_folder has _topBar too.
+    //todo: what to do here, now that msg_vscroll_folder has topBar too.
     onNewMail: function(newEmailCount) {
       var folder = this.model.folder;
 
@@ -152,7 +152,7 @@ return [
           this.msgVScroll.vScroll.jumpToIndex(0);
         } else {
           // Update the existing status bar.
-          this._topBar.showNewEmailCount(newEmailCount);
+          this.topBar.showNewEmailCount(newEmailCount);
         }
       }
     },
@@ -230,6 +230,54 @@ return [
       }
 
       this.lastSynced.nowVisible();
+    },
+
+    // Listener for msg_vscroll event.
+    messagesSeekStart: function() {
+      this._clearCachedMessages(this);
+    },
+
+    // Listener for msg_vscroll event.
+    messagesSeekEnd: function(event) {
+      var { index, totalCount } = event.detail;
+
+      // Only cache if it is an add or remove of items
+      if (totalCount) {
+        this._considerCacheDom(
+          index,
+          module.id
+        );
+      }
+
+      // Inform that content is ready. There could actually be a small delay
+      // with vScroll.updateDataBind from rendering the final display, but it
+      // is small enough that it is not worth trying to break apart the design
+      // to accommodate this metrics signal.
+      if (!this._emittedContentEvents) {
+        evt.emit('metrics:contentDone');
+        this._emittedContentEvents = true;
+      }
+    },
+
+    // Listener for msg_vscroll event.
+    messagesChange: function(event) {
+      var { index } = event;
+
+      // Since the DOM change, cache may need to change.
+      this._considerCacheDom(index, module.id);
+    },
+
+    // Listener for msg_vscroll event.
+    emptyLayoutShown: function() {
+      this._clearCachedMessages(this);
+      this.editBtn.disabled = true;
+
+      this.scrollAreaInitialized();
+    },
+
+    // Listener for msg_vscroll event.
+    emptyLayoutHidden: function() {
+      this.editBtn.disabled = false;
     },
 
     //todo: test this, might need to do more here. Binds to

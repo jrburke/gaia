@@ -27,7 +27,8 @@ return {
     return false;
   },
 
-  onClickMessage: function(event) {
+  // Event triggered by msg_vscroll.
+  messageClick: function(event) {
     var messageNode = event.detail,
         model = this.model,
         folder = model && model.folder;

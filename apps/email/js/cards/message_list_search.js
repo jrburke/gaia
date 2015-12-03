@@ -99,10 +99,10 @@ return [
                            vScrollBindData,
                            defaultSearchVScrollData);
 
-      this._topBar = new MessageListTopBar(
+      this.topBar = new MessageListTopBar(
         this.querySelector('.message-list-topbar')
       );
-      this._topBar.bindToElements(this.scrollContainer,
+      this.topBar.bindToElements(this.scrollContainer,
                                   this.msgVScroll.vScroll);
     },
 

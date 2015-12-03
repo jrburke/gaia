@@ -62,7 +62,7 @@ return {
     // Hide "new mail" topbar too
     removableCacheNode = cacheNode.querySelector('.message-list-topbar');
     if (removableCacheNode) {
-      this._topBar.resetNodeForCache(removableCacheNode);
+      this.msgVScrollFolder.topBar.resetNodeForCache(removableCacheNode);
     }
 
     // Hide the last sync number
@@ -97,7 +97,7 @@ return {
         this._isCacheableCardState() &&
         // if the scroll area is at the top (otherwise the
         // virtual scroll may be showing non-top messages)
-        this.msgVScroll.vScroll.firstRenderedIndex === 0 &&
+        this.msgVScrollFolder.msgVScroll.vScroll.firstRenderedIndex === 0 &&
         // if actually got a numeric index and
         (index || index === 0) &&
         // if it affects the data we cache
@@ -122,7 +122,7 @@ return {
    */
   _clearCachedMessages: function(refNode) {
     if (this.usingCachedNode) {
-      refNode.msgVScroll.removeMessagesHtml();
+      refNode.msgVScrollFolder.msgVScroll.removeMessagesHtml();
       this.usingCachedNode = false;
     }
   }

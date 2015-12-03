@@ -24,8 +24,8 @@ define(function(require) {
        * bubble) that was based on a plain DOM event that happened inside the
        * custom element.
        *
-       * @param  {String} eventName The event name
-       * @param  {Object} detail    The state info passed in event.detail
+       * @param  {String} eventName The event name.
+       * @param  {Object} detail    The state info passed in event.detail.
        */
       emitDomEvent: function(eventName, detail) {
         this.dispatchEvent(new CustomEvent(eventName, {
@@ -33,6 +33,20 @@ define(function(require) {
           bubbles: true,
           cancelable: true
         }));
+      },
+
+      /**
+       * Listens one time to a DOM event.
+       * @param  {Element}   target   The element to receive the listener.
+       * @param  {String}   eventName The event name.
+       * @param  {Function} fn        Function to call, receives the event.
+       */
+      onceDomEvent: function(target, eventName, fn, capture = false) {
+        var onceFn = function(event) {
+          target.removeEventListener(eventName, onceFn, capture);
+          fn(event);
+        };
+        target.addEventListener(eventName, onceFn, capture);
       }
     }
   ];

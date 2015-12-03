@@ -20,21 +20,8 @@ return [
   {
     createdCallback: function() {
       // Binding "this" to some functions as they are used for event listeners.
-      this.msgVScroll.on('messageClicked', this.onClickMessage.bind(this));
       this.advanceMessagesListCursor = this.advanceMessagesListCursor
                                        .bind(this);
-
-      this.msgVScroll.on('emptyLayoutShown', this, function() {
-        this.editBtn.disabled = true;
-      });
-
-      this.msgVScroll.on('emptyLayoutHidden', this, function() {
-        this.editBtn.disabled = false;
-      });
-
-      this.msgVScroll.on('messagesChange', this, function(message, index) {
-        this.updateMessageDom(message);
-      });
 
       var vScrollBindData = (model, node) => {
         model.element = node;
@@ -47,10 +34,10 @@ return [
                            convMessageItemNode);
 
 
-      this._topBar = new MessageListTopBar(
+      this.topBar = new MessageListTopBar(
         this.querySelector('.message-list-topbar')
       );
-      this._topBar.bindToElements(this.scrollContainer,
+      this.topBar.bindToElements(this.scrollContainer,
                                   this.msgVScroll.vScroll);
     },
 
@@ -60,6 +47,22 @@ return [
       if (args.onBack) {
         this.onBack = args.onBack;
       }
+    },
+
+    // Listener for msg_vscroll event.
+    emptyLayoutShown: function() {
+      this.editBtn.disabled = true;
+    },
+
+    // Listener for msg_vscroll event.
+    emptyLayoutHidden: function() {
+      this.editBtn.disabled = false;
+    },
+
+    // Listener for msg_vscroll event.
+    messagesChange: function(event) {
+      var { message } = event;
+      this.updateMessageDom(message);
     },
 
     /**
@@ -75,10 +78,6 @@ return [
       this.updateTitle(mailConversation);
 
       this.msgVScroll.setListCursor(listCursor, this.model);
-
-      // Now that a folder is available, enable edit mode toggling.
-      this.editModeEnabled = true;
-
 
       // Now that a folder is available, enable edit mode toggling.
       this.editModeEnabled = true;

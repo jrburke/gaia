@@ -9,7 +9,7 @@ define(function (require) {
     //if render did actually change the DOM.
     if (element.slots) {
       selectOwnElements('data-slot', element, function(slotElement) {
-        var replacement = element.slots[slotElement.dataset.id];
+        var replacement = element.slots[slotElement.dataset.slotId];
         if (replacement) {
           replacement.setAttribute('data-slotted', 'slotted');
           slotElement.parentNode.replaceChild(replacement, slotElement);
@@ -40,7 +40,7 @@ define(function (require) {
         // Find any children that are data-slots and hold on to them for
         // later. Only consider direct children.
         [...this.children].forEach((element) => {
-          var slotName = element.dataset.slot;
+          var slotName = element.dataset.slotId;
           if (slotName) {
             var slots = this.slots || (this.slots = {});
             slots[slotName] = element;

@@ -37,7 +37,8 @@
   <div class="msg-list-scrollinner">
     <div dir="auto" data-prop="subjectDisplay" class="conv-list-subject"></div>
     <lst-msg-vscroll data-prop="msgVScroll"
-                     data-event="messageClick:onClickMessage"
+                     data-event="messageClick,emptyLayoutShown,
+                                 emptyLayoutHidden,messagesChange"
                      data-empty-l10n-id="messages-folder-empty">
     </lst-msg-vscroll>
   </div>
