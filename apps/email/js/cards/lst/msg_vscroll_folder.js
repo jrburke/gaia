@@ -3,6 +3,7 @@ define(function(require) {
 
 var date = require('date'),
     dataEvent = require('../mixins/data-event'),
+    dataPassProp = require('../mixins/data-pass-prop'),
     dataProp = require('../mixins/data-prop'),
     defaultVScrollData = require('./default_vscroll_data'),
     evt = require('evt'),
@@ -13,6 +14,7 @@ var date = require('date'),
     updatePeepDom = require('./peep_dom').update;
 
 // Custom elements used in the template.
+require('element!./search_link');
 require('element!./msg_vscroll');
 
 return [
@@ -34,24 +36,11 @@ return [
         break;
     }
 
-//Object.keys(folder).forEach((k) => console.log(k, ': ', folder[k]));
-
     html`
     <!-- exists so we can force a minimum height -->
     <div class="msg-list-scrollinner">
-      <!-- The search textbox hides under the lip of the messages.
-           As soon as any typing happens in it, we push the search
-           controls card. -->
-      <form role="search" data-prop="searchBar"
-            class="msg-search-tease-bar">
-        <p>
-          <input data-event="focus:onSearchButton"
-                 data-prop="searchTextTease"
-                 class="msg-search-text-tease" type="text"
-                 dir="auto"
-                 data-l10n-id="message-search-input" />
-        </p>
-      </form>
+      <lst-search-link data-prop="headerElement"
+                       data-pass-prop=":scrollContainer"></lst-search-link>
       <lst-msg-vscroll data-prop="msgVScroll"
                        data-event="messageClick:onClickMessage"
                        aria-label="${folder.name}"
@@ -87,6 +76,7 @@ return [
       this.curFolder = folder;
 
       // Wires up the data-prop properties.
+      dataPassProp.templateInsertedCallback.call(this);
       dataProp.templateInsertedCallback.call(this);
       dataEvent.templateInsertedCallback.call(this);
 
@@ -116,6 +106,8 @@ return [
         }
       });
 
+      this.msgVScroll.once('messagesSpliceEnd', this, 'scrollAreaInitialized');
+
       this.msgVScroll.on('messagesChange', this, function(message, index) {
         this.onMessagesChange(message, index);
       });
@@ -141,11 +133,9 @@ return [
       this.msgVScroll.on('emptyLayoutShown', this, function() {
 //todo: reconsider how to do this communication.
         this.parentNode._clearCachedMessages(this);
-
         this.editBtn.disabled = true;
 
-        this._hideSearchBoxByScrolling();
-
+        this.scrollAreaInitialized();
       });
       this.msgVScroll.on('emptyLayoutHidden', this, function() {
         this.editBtn.disabled = false;
@@ -161,23 +151,6 @@ return [
                            vScrollBindData,
                            defaultVScrollData);
 
-      // Event listeners for VScroll events.
-      this.msgVScroll.vScroll.on('inited', this, '_hideSearchBoxByScrolling');
-      this.msgVScroll.vScroll.on('dataChanged',
-                                 this, '_hideSearchBoxByScrolling');
-      this.msgVScroll.vScroll.on('recalculated', this, function(calledFromTop) {
-        if (calledFromTop) {
-          this._hideSearchBoxByScrolling();
-        }
-      });
-
-      //todo: figure out when this makes sense to do. Always, since renderEnd?
-      // If using a cache, do not clear the HTML as it will
-      // be cleared once real data has been fetched.
-      // if (!this.usingCachedNode) {
-        // This inherently scrolls us back up to the top of the list.
-      //   this.msgVScroll.vScroll.clearDisplay();
-      // }
       this.msgVScroll._needVScrollData = true;
 
       var listCursor = this.listCursor = new ListCursor();
@@ -185,20 +158,16 @@ return [
                                   .viewFolderConversations(folder));
       this.msgVScroll.setListCursor(listCursor, this.model);
 
-      this._hideSearchBoxByScrolling();
-
-      // Now that _hideSearchBoxByScrolling has activated the display
-      // of the search box, get the height of the search box and tell
-      // vScroll about it, but only do this once the DOM is displayed
-      // so the ClientRect gives an actual height.
-      this.msgVScroll.vScroll.visibleOffset =
-                                  this.searchBar.getBoundingClientRect().height;
-
       // For search we want to make sure that we capture the screen size prior
       // to focusing the input since the FxOS keyboard will resize our window to
       // be smaller which messes up our logic a bit.  We trigger metric
       // gathering in non-search cases too for consistency.
       this.msgVScroll.vScroll.captureScreenMetrics();
+
+      // Once the real render is called, this element is already in the DOM,
+      // so can do the DOM calculations.
+      this.setHeaderElementHeight();
+      this.msgVScroll.vScroll.nowVisible();
 
       // Create topbar. Do this **after** calling init on msgVScroll.
       this._topBar = new MessageListTopBar(
@@ -208,52 +177,17 @@ return [
                                   this.msgVScroll.vScroll);
       // Also tell the MessageListTopBar about vScroll offset.
       this._topBar.visibleOffset = this.msgVScroll.vScroll.visibleOffset;
-
-      // If user tapped in search box before the JS for the card is attached,
-      // then treat that as the signal to go to search. Only do this when first
-      // starting up though.
-      //todo: test this still works.
-      if (document.activeElement === this.searchTextTease) {
-        this.onSearchButton();
-      }
     },
 
-    // Called by owning card.
-    nowVisible: function() {
-      // In case the vScroll was initialized when the card was not visible, like
-      // in an activity/notification flow when this card is created in the
-      // background behind the compose/reader card, let it know it is visible
-      // now in case it needs to finish initializing and initial display.
-      if (this.msgVScroll) {
-        this.msgVScroll.vScroll.nowVisible();
-      }
+    setHeaderElementHeight: function() {
+      // Get the height of the top element and tell vScroll about it.
+      this.msgVScroll.vScroll.visibleOffset =
+                              this.headerElement.offsetHeight;
     },
 
-    _hideSearchBoxByScrolling: function() {
-      // scroll the search bit out of the way
-      var searchBar = this.searchBar,
-          scrollContainer = this;
-
-      // Search bar could have been collapsed with a cache load,
-      // make sure it is visible, but if so, adjust the scroll
-      // position in case the user has scrolled before this code
-      // runs.
-      if (searchBar.classList.contains('collapsed')) {
-        searchBar.classList.remove('collapsed');
-        scrollContainer.scrollTop += searchBar.offsetHeight;
-      }
-
-      // Adjust scroll position now that there is something new in
-      // the scroll region, but only if at the top. Otherwise, the
-      // user's purpose scroll positioning may be disrupted.
-      //
-      // Note that when we call vScroll.clearDisplay() we
-      // inherently scroll back up to the top, so this check is still
-      // okay even when switching folders.  (We do not want to start
-      // index 50 in our new folder because we were at index 50 in our
-      // old folder.)
-      if (scrollContainer.scrollTop === 0) {
-        scrollContainer.scrollTop = searchBar.offsetHeight;
+    scrollAreaInitialized: function() {
+      if (this.headerElement.scrollAreaInitialized) {
+        this.headerElement.scrollAreaInitialized();
       }
     },
 
@@ -264,20 +198,6 @@ return [
       for (var i = 0; i < msgNodes.length; i++) {
         this.editController.updateDomMessageChecked(msgNodes[i], false);
       }
-    },
-
-    onSearchButton: function() {
-      // Do not bother if there is no current folder.
-      if (!this.model || !this.model.folder) {
-        return;
-      }
-
-      //todo: commented out until search is usable.
-      require('not_implemented')('Search');
-      // cards.add('animate', 'message_list_search', {
-      //   model: this.model,
-      //   folder: this.model.folder
-      // });
     },
 
     // Override of msg_click's isEditModeClick, since

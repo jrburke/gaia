@@ -229,7 +229,6 @@ return [
         fn();
       }
 
-      this.msgVScrollFolder.nowVisible();
       this.lastSynced.nowVisible();
     },
 
