@@ -14,6 +14,7 @@ var date = require('date'),
     updatePeepDom = require('./peep_dom').update;
 
 // Custom elements used in the template.
+require('element!data_slot');
 require('element!./search_link');
 require('element!./msg_vscroll');
 
@@ -39,8 +40,7 @@ return [
     html`
     <!-- exists so we can force a minimum height -->
     <div class="msg-list-scrollinner">
-      <lst-search-link data-prop="headerElement"
-                       data-pass-prop=":scrollContainer"></lst-search-link>
+      <data-slot data-id="headerElement"></data-slot>
       <lst-msg-vscroll data-prop="msgVScroll"
                        data-event="messageClick:onClickMessage"
                        aria-label="${folder.name}"
@@ -79,6 +79,13 @@ return [
       dataPassProp.templateInsertedCallback.call(this);
       dataProp.templateInsertedCallback.call(this);
       dataEvent.templateInsertedCallback.call(this);
+
+      // If the headerElement cares about the scroll area, then also tell it
+      // the scrollContainer to use.
+      var headerElement = this.slots.headerElement;
+      if (headerElement.scrollAreaInitialized) {
+        headerElement.scrollContainer = this;
+      }
 
       this.msgVScroll.on('messagesSpliceStart', this, function(whatChanged) {
 //todo: reconsider how to do this communication.
@@ -182,12 +189,12 @@ return [
     setHeaderElementHeight: function() {
       // Get the height of the top element and tell vScroll about it.
       this.msgVScroll.vScroll.visibleOffset =
-                              this.headerElement.offsetHeight;
+                              this.slots.headerElement.offsetHeight;
     },
 
     scrollAreaInitialized: function() {
-      if (this.headerElement.scrollAreaInitialized) {
-        this.headerElement.scrollAreaInitialized();
+      if (this.slots.headerElement.scrollAreaInitialized) {
+        this.slots.headerElement.scrollAreaInitialized();
       }
     },
 

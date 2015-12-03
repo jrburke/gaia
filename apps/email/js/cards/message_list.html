@@ -31,8 +31,9 @@
 <!-- Scroll region -->
 <lst-msg-vscroll-folder class="msg-list-scrollouter"
                         data-prop="msgVScrollFolder"
-                        data-pass-prop=":editController"
+                        data-pass-prop="this:editController"
                         data-model-args>
+  <lst-search-link data-slot="headerElement"></lst-search-link>
 </lst-msg-vscroll-folder>
 
 <!-- Toolbar for non-multi-edit state -->

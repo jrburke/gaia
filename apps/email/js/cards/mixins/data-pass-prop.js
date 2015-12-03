@@ -16,7 +16,7 @@ define(function (require) {
           fromName = parts[0].trim();
           toName = parts[1].trim();
 
-          node[toName] = fromName ? this[fromName] : this;
+          node[toName] = fromName === 'this' ? this : this[fromName];
         });
       });
     }
