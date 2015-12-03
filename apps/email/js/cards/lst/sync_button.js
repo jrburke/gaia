@@ -83,7 +83,7 @@ return [
       // we follow up with a more comprehensive sync setting -- e.g. on
       // network change, on app startup, etc., so it's worth revisiting
       // this and how coupled we want incoming vs outgoing sync to be.
-      this.renderModel.api.sendOutboxMessages(this.renderModel.account);
+      this.model.api.sendOutboxMessages(this.model.account);
     }
   }
 ];

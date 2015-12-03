@@ -54,7 +54,7 @@ return [
                settings button. -->
           <cards-fld-accounts-folders class="fld-acct-scrollouter"
                  data-event="folderSelected,accountSelected"
-                 data-hfn-onArgs="${{model: this.renderModel}}">
+                 data-hfn-onArgs="${{model: this.model}}">
           </cards-fld-accounts-folders>
           <!-- settings button; always present; does not scroll -->
           <a data-hclick="onShowSettings"
@@ -73,7 +73,7 @@ return [
 
     onShowSettings: function(event) {
       cards.add('animate', 'settings_main', {
-        model: this.renderModel
+        model: this.model
       });
     },
 
@@ -93,7 +93,7 @@ return [
 
     folderSelected: function(event) {
       var folder = event.detail.folder;
-      this.renderModel.changeFolder(folder);
+      this.model.changeFolder(folder);
       this._closeCard();
     },
 
@@ -112,7 +112,7 @@ return [
         // After card is removed, then switch the account, to provide
         // smooth animation on closing of drawer.
         if (this._waitingAccountId) {
-          var model = this.renderModel;
+          var model = this.model;
           model.changeAccountFromId(this._waitingAccountId);
           this._waitingAccountId = null;
         }

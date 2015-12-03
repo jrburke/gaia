@@ -22,6 +22,18 @@ return [
       return;
     }
 
+    switch (folder.type) {
+      case 'drafts':
+      case 'localdrafts':
+      case 'outbox':
+      case 'sent':
+        this.isIncomingFolder = false;
+        break;
+      default:
+        this.isIncomingFolder = true;
+        break;
+    }
+
 //Object.keys(folder).forEach((k) => console.log(k, ': ', folder[k]));
 
     html`
@@ -41,8 +53,8 @@ return [
         </p>
       </form>
       <lst-msg-vscroll data-prop="msgVScroll"
-                       aria-label="${folder.name}"
                        data-event="messageClick:onClickMessage"
+                       aria-label="${folder.name}"
                        data-empty-l10n-id="messages-folder-empty">
       </lst-msg-vscroll>
     </div>
@@ -55,8 +67,6 @@ return [
   require('./msg_click'),
 
   {
-    htemplateIgnoreEmptyRender: true,
-
     createdCallback: function() {
       // Workaround to multiple notifications on the same folder for minor
       // changes (sync status pending active switching mostly).
@@ -161,7 +171,6 @@ return [
         }
       });
 
-
       //todo: figure out when this makes sense to do. Always, since renderEnd?
       // If using a cache, do not clear the HTML as it will
       // be cleared once real data has been fetched.
@@ -172,9 +181,9 @@ return [
       this.msgVScroll._needVScrollData = true;
 
       var listCursor = this.listCursor = new ListCursor();
-      this.listCursor.bindToList(this.renderModel.api
+      this.listCursor.bindToList(this.model.api
                                   .viewFolderConversations(folder));
-      this.msgVScroll.setListCursor(listCursor, this.renderModel);
+      this.msgVScroll.setListCursor(listCursor, this.model);
 
       this._hideSearchBoxByScrolling();
 
@@ -269,6 +278,16 @@ return [
       //   model: this.model,
       //   folder: this.model.folder
       // });
+    },
+
+    // Override of msg_click's isEditModeClick, since
+    // editController has the functionality here.
+    isEditModeClick: function(messageNode) {
+      if (this.editController.editMode) {
+        this.editController.toggleSelection(messageNode);
+        return true;
+      }
+      return false;
     },
 
     onMessagesChange: function(message, index) {

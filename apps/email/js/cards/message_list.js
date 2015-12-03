@@ -18,8 +18,6 @@ var cards = require('cards'),
  * state by looking at the use the usingCachedNode property. It also prevents
  * clicks from button actions that need back end data to complete if the click
  * would result in a card that cannot also handle delayed back end startup.
- * It tracks if the back end has started up by checking curFolder, which is
- * set to a data object sent from the back end.
  *
  * == Less-than-infinite scrolling ==
  *
@@ -56,8 +54,6 @@ return [
   require('./lst/message_list_cache'),
   {
     createdCallback: function() {
-      this.curFolder = null;
-      this.isIncomingFolder = true;
       this._emittedContentEvents = false;
 
 //todo: listen to some event for new email notifications, and do:
@@ -104,18 +100,6 @@ return [
       // Now that a folder is available, enable edit mode toggling.
       this.editModeEnabled = true;
 
-      switch (folder.type) {
-        case 'drafts':
-        case 'localdrafts':
-        case 'outbox':
-        case 'sent':
-          this.isIncomingFolder = false;
-          break;
-        default:
-          this.isIncomingFolder = true;
-          break;
-      }
-
       this.editToolbar.updateDomFolderType(folder.type,
                                            this.model.accountUsesArchive());
 
@@ -154,11 +138,9 @@ return [
 
     //todo: what to do here, now that msg_vscroll_folder has _topBar too.
     onNewMail: function(newEmailCount) {
-      var inboxFolder = this.model.account
-                        .folders.getFirstFolderWithType('inbox');
+      var folder = this.model.folder;
 
-      if (inboxFolder.id === this.curFolder.id &&
-          newEmailCount && newEmailCount > 0) {
+      if (folder.type === 'inbox' && newEmailCount && newEmailCount > 0) {
         if (!cards.isVisible(this)) {
           this._whenVisible = this.onNewMail.bind(this, newEmailCount);
           return;
@@ -179,7 +161,7 @@ return [
     // refresh), we'll receive notification here. Play a sound and
     // raise a toast, if appropriate.
     onBackgroundSendStatus: function(data) {
-      if (this.curFolder.type === 'outbox') {
+      if (this.model.folder.type === 'outbox') {
         if (data.state === 'sending') {
           // If the message is now sending, make sure we're showing the
           // outbox as "currently being synchronized".
@@ -213,15 +195,14 @@ return [
     onFolderShown: function() {
       var model = this.model,
           account = model.account,
-          folders = account.folders;
+          folder = model.folder;
 
       // The extra checks here are to allow for lazy startup when we might have
       // a card instance but not a full model available. Once the model is
       // available though, this method will get called again, so the event
       // emitting is still correctly done in the lazy startup case.
-      if (!document.hidden && account && folders && this.curFolder) {
-        var inboxFolder = folders.getFirstFolderWithType('inbox');
-        if (inboxFolder === this.curFolder) {
+      if (!document.hidden && account && folder) {
+        if (folder.type === 'inbox') {
           evt.emit('inboxShown', account.id);
         }
       }

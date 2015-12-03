@@ -29,7 +29,9 @@ define(function(require) {
        */
       emitDomEvent: function(eventName, detail) {
         this.dispatchEvent(new CustomEvent(eventName, {
-          detail: detail
+          detail: detail,
+          bubbles: true,
+          cancelable: true
         }));
       }
     }

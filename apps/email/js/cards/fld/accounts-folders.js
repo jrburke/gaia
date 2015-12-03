@@ -7,7 +7,7 @@ var dataProp = require('../mixins/data-prop'),
 
 return [
   require('../base_render')(['accounts', 'folders'], function(html) {
-    var account = this.renderModel.account;
+    var account = this.model.account;
     if (!account) {
       return;
     }
@@ -53,8 +53,8 @@ return [
         if (this.state.accounts) {
           this.state.accounts.items.forEach((account, index) => {
             // Highlight the account currently in use
-            var selectedClass = this.renderModel.account &&
-                                this.renderModel.account.id === account.id ?
+            var selectedClass = this.model.account &&
+                                this.model.account.id === account.id ?
                                 'fld-account-selected' : '';
 
             html`
@@ -90,7 +90,7 @@ return [
                 extraClasses.push('fld-folder-depthnonzero');
               }
 
-              if (folder === this.renderModel.folder) {
+              if (folder === this.model.folder) {
                 extraClasses.push('fld-folder-selected');
               }
 
@@ -126,7 +126,7 @@ return [
       this.measureAccountDisplay();
 
       // If more than one account, need to show the account dropdown
-      var accountCount = this.renderModel.getAccountCount();
+      var accountCount = this.model.getAccountCount();
 
       if (accountCount > 1) {
         this.hideAccounts();
@@ -148,7 +148,7 @@ return [
       }
 
       // If more than one account, need to show the account dropdown
-      var accountCount = this.renderModel.getAccountCount();
+      var accountCount = this.model.getAccountCount();
 
       if (accountCount > 1) {
         // Use the accountHeader as a unit of height and multiple by the number
@@ -227,7 +227,7 @@ return [
      */
     onClickAccount: function(event, hclickNode) {
       containerListen.handleEvent(hclickNode, (accountNode) => {
-        var oldAccountId = this.renderModel.account.id,
+        var oldAccountId = this.model.account.id,
             accountId = accountNode.dataset.accountId;
 
         if (oldAccountId !== accountId) {
@@ -238,7 +238,7 @@ return [
 
     onClickFolder: function(event, hclickNode) {
       containerListen.handleEvent(hclickNode, (folderNode) => {
-        var folder = this.renderModel.getFolder(folderNode.dataset.folderId);
+        var folder = this.model.getFolder(folderNode.dataset.folderId);
         if (!folder.selectable) {
           return;
         }

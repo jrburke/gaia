@@ -17,23 +17,23 @@ define(function () {
     return {
       // Custom element lifecycle method, called when the element is created.
       createdCallback: function () {
-        this.renderModel = null;
+        this.model = null;
         this.state = {};
       },
 
       onArgs: function(args) {
-        if (this.renderModel) {
-          this.renderModel.removeObjectListener(this);
+        if (this.model) {
+          this.model.removeObjectListener(this);
         }
 
-        this.renderModel = args.model;
+        this.model = args.model;
 
         // Listen for changes in the model IDs, but also set up initial state
         // values.
         modelIds.forEach((modelId) => {
           // Using the `this` form of on() so that it is easy to remove all
           // listeners tied to this object via removeObjectListener.
-          this.renderModel.on(modelId, this, (modelValue) => {
+          this.model.on(modelId, this, (modelValue) => {
             var oldValue = this.state[modelId];
 
             // Remove old change event listener.
@@ -53,15 +53,15 @@ define(function () {
             callRender(this);
           });
 
-          this.state[modelId] = this.renderModel[modelId];
+          this.state[modelId] = this.model[modelId];
         });
 
         callRender(this);
       },
 
       removeModelRenderListeners: function() {
-        if (this.renderModel) {
-          this.renderModel.removeObjectListener(this);
+        if (this.model) {
+          this.model.removeObjectListener(this);
         }
       },
 

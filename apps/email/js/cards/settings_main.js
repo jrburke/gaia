@@ -77,7 +77,7 @@ return [
         return;
       }
 
-      var account = this.renderModel.getAccount(accountId);
+      var account = this.model.getAccount(accountId);
       cards.add('animate', 'settings_account', {
         account: account
       });
