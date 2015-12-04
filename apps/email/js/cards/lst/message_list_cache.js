@@ -120,9 +120,9 @@ return {
    * to indicate that the main piece of content in the card, the message
    * list, is no longer from a cached node.
    */
-  _clearCachedMessages: function(refNode) {
+  _clearCachedMessages: function() {
     if (this.usingCachedNode) {
-      refNode.msgVScrollFolder.msgVScroll.removeMessagesHtml();
+      this.msgVScrollFolder.msgVScroll.removeMessagesHtml();
       this.usingCachedNode = false;
     }
   }

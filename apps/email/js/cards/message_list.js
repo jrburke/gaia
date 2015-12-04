@@ -149,7 +149,7 @@ return [
         // If the user manually synced, then want to jump to show the new
         // messages. Otherwise, show the top bar.
         if (this._manuallyTriggeredSync) {
-          this.msgVScroll.vScroll.jumpToIndex(0);
+          this.msgVScrollFolder.msgVScroll.vScroll.jumpToIndex(0);
         } else {
           // Update the existing status bar.
           this.topBar.showNewEmailCount(newEmailCount);
@@ -234,7 +234,7 @@ return [
 
     // Listener for msg_vscroll event.
     messagesSeekStart: function() {
-      this._clearCachedMessages(this);
+      this._clearCachedMessages();
     },
 
     // Listener for msg_vscroll event.
@@ -269,7 +269,7 @@ return [
 
     // Listener for msg_vscroll event.
     emptyLayoutShown: function() {
-      this._clearCachedMessages(this);
+      this._clearCachedMessages();
       this.editBtn.disabled = true;
 
       this.scrollAreaInitialized();
@@ -350,7 +350,7 @@ return [
 
 //todo: would be good to avoid reaching into vscroll for this.
       var i;
-      var items = this.msgVScroll.getElementsByClassName(
+      var items = this.msgVScrollFolder.msgVScroll.getElementsByClassName(
         'msg-message-syncing-section');
 
       if (syncing) {
@@ -369,7 +369,7 @@ return [
         // After sync, the edit button should remain disabled only if
         // the list is empty.
 //todo: would be good to avoid reaching into vscroll for this.
-        this.editBtn.disabled = this.msgVScroll.isEmpty();
+        this.editBtn.disabled = this.msgVScrollFolder.msgVScroll.isEmpty();
 
         // Similarly, we must stop the refresh icons for each message
         // from rotating further. For instance, if we are offline, we
