@@ -272,7 +272,7 @@ define(function (require) {
         });
       }
 
-      return groupPromise;
+      return ctx.returnValue(groupPromise);
     }),
 
     /**

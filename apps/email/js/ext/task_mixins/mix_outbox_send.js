@@ -193,7 +193,7 @@ define(function (require) {
         taskMarkers: modifyTaskMarkers,
         complexTaskState: persistentState
       });
-      return reportProblem;
+      return ctx.returnValue(reportProblem);
     }),
 
     /**

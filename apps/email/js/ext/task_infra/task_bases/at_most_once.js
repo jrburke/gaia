@@ -115,18 +115,21 @@ define(function () {
         persistentState.binToMarker.set(binId, marker);
         rval.complexTaskState = persistentState;
 
-        if (rval.remainInProgressUntil) {
-          memoryState.remainInProgressBins.add(binId);
-          rval.remainInProgressUntil.then(function () {
-            memoryState.remainInProgressBins.delete(binId);
-            _this.helped_progress_completed(binId, ctx.universe.dataOverlayManager);
-          });
-        }
-
         // The TaskContext doesn't actually know whether we're complex or not,
         // so we need to clobber this to be null to indicate that it should close
         // out the task.
         rval.taskState = null;
+      }
+
+      if (rval.remainInProgressUntil && this.helped_invalidate_overlays) {
+        (function () {
+          memoryState.remainInProgressBins.add(binId);
+          var dataOverlayManager = ctx.universe.dataOverlayManager;
+          rval.remainInProgressUntil.then(function () {
+            memoryState.remainInProgressBins.delete(binId);
+            _this.helped_invalidate_overlays(binId, dataOverlayManager);
+          });
+        })();
       }
 
       if (this.helped_invalidate_overlays) {
@@ -143,7 +146,7 @@ define(function () {
       }
 
       yield ctx.finishTask(rval);
-      return rval.result;
+      return ctx.returnValue(rval.result);
     }),
 
     execute: co.wrap(function* (ctx, persistentState, memoryState, marker) {
@@ -174,7 +177,7 @@ define(function () {
       }
 
       yield ctx.finishTask(rval);
-      return rval.result;
+      return ctx.returnValue(rval.result);
     })
   };
 });

@@ -31,12 +31,12 @@ define(function (require) {
     binByArg: 'accountId',
 
     helped_overlay_accounts: function (accountId, marker, inProgress) {
-      if (!marker) {
-        return null;
-      } else if (inProgress) {
+      if (inProgress) {
         return 'active';
-      } else {
+      } else if (marker) {
         return 'pending';
+      } else {
+        return null;
       }
     },
 
@@ -48,12 +48,12 @@ define(function (require) {
      * overlay pushes for all impacted folders.
      */
     helped_prefix_overlay_folders: [accountIdFromFolderId, function (folderId, accountId, marker, inProgress) {
-      if (!marker) {
-        return null;
-      } else if (inProgress) {
+      if (inProgress) {
         return 'active';
-      } else {
+      } else if (marker) {
         return 'pending';
+      } else {
+        return null;
       }
     }],
 

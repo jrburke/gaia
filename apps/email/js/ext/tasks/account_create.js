@@ -116,11 +116,11 @@ define(function (require) {
         }
       });
 
-      return {
+      return ctx.returnValue({
         accountId,
         error: null,
         errorDetails: null
-      };
+      });
     })
   }]);
 });

@@ -472,10 +472,11 @@ define(function (require) {
       var ctx = new TaskContext(wrappedTask, this._universe);
       var planResult = this._registry.planTask(ctx, wrappedTask);
       if (planResult) {
-        planResult.then(function (returnedResult) {
+        planResult.then(function (maybeResult) {
+          var result = maybeResult && maybeResult.wrappedResult || undefined;
           logic(_this12, 'planning:end', { task: wrappedTask });
-          _this12.emit('planned:' + wrappedTask.id, returnedResult);
-          _this12.emit('planned', wrappedTask.id, returnedResult);
+          _this12.emit('planned:' + wrappedTask.id, result);
+          _this12.emit('planned', wrappedTask.id, result);
         });
       } else {
         logic(this, 'planning:end', { moot: true, task: wrappedTask });
@@ -494,10 +495,11 @@ define(function (require) {
       var ctx = new TaskContext(taskThing, this._universe);
       var execResult = this._registry.executeTask(ctx, taskThing);
       if (execResult) {
-        execResult.then(function (returnedResult) {
+        execResult.then(function (maybeResult) {
+          var result = maybeResult && maybeResult.wrappedResult || undefined;
           logic(_this13, 'executing:end', { task: taskThing });
-          _this13.emit('executed:' + taskThing.id, returnedResult);
-          _this13.emit('executed', taskThing.id, returnedResult);
+          _this13.emit('executed:' + taskThing.id, result);
+          _this13.emit('executed', taskThing.id, result);
         });
       } else {
         logic(this, 'executing:end', { moot: true, task: taskThing });

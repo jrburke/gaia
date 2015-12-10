@@ -73,7 +73,8 @@ define(function (require) {
         // TODO: this is arguably expensive; investigate logic on-demand funcs
         tocTypes: Array.from(this._pendingProxies).map(function (proxy) {
           return proxy.toc.type;
-        })
+        }),
+        timerFired
       });
       for (var proxy of this._pendingProxies) {
         var payload = proxy.flush();
