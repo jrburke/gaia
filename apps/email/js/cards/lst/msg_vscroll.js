@@ -119,6 +119,7 @@ return [
 
       listCursor.on('change', this, 'onWinListChange');
       listCursor.on('seeked', this, 'onWinListSeeked');
+      listCursor.on('syncComplete', this, 'onWinListSyncComplete');
       listCursor.on('currentItem', this, 'onCurrentMessage');
 
       if (this.model) {
@@ -297,6 +298,12 @@ return [
       this.vScroll.updateDataBind(index, items, 0);
 
       this.emit('messagesSpliceEnd', whatChanged);
+    },
+
+//todo: asuth doesn't know whether the above or below idiom should be used, so
+// the above idiom was used.
+    onWinListSyncComplete: function(data) {
+      this.emit('syncComplete', data);
     },
 
 //todo: what to do here?
