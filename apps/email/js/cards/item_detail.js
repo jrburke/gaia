@@ -77,7 +77,7 @@ return [
             console.error('Unexpected: no message in item_detail seeked.');
             return;
           }
-          messageList.removeListener(onSeeked);
+          messageList.removeListener('seeked', onSeeked);
 
           this.reader.setCurrentMessage(new ListCursor
                      .CurrentItem(message, currentItem.siblings));
