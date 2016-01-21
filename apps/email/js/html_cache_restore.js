@@ -64,7 +64,7 @@ window.startupOnModelLoaded = null;
  * be initialized to 'alarm' as part of our startup process without the backend
  * needing to be involved at all.
  */
-window.appShouldStayAlive = false;
+window.appShouldStayAlive = null;
 
 (function() {
   // Holds on to the pending message type that is indicated by
