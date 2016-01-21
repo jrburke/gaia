@@ -1,9 +1,9 @@
 /*jshint browser: true */
 /*global define, console */
-'use strict';
 define(function(require) {
+  'use strict';
 
-  var cronSyncStartTime,
+  var co = require('co'),
       appSelf = require('app_self'),
       evt = require('evt'),
       mozL10n = require('l10n!'),
@@ -17,8 +17,7 @@ define(function(require) {
   // The expectation is that this module is called as part of model's
   // init process that calls the "model_init" module to finish its construction.
   return function syncInit(model, api) {
-    var hasBeenVisible = !document.hidden,
-        waitingOnCron = {};
+    var hasBeenVisible = !document.hidden;
 
     // Let the back end know the app is interactive, not just
     // a quick sync and shutdown case, so that it knows it can
@@ -36,11 +35,7 @@ define(function(require) {
         }
     }, false);
 
-    // Creates a string key from an array of string IDs. Uses a space
-    // separator since that cannot show up in an ID.
-    function makeAccountKey(accountIds) {
-      return 'id' + accountIds.join(' ');
-    }
+    var doNotCloseYetPromise = null;
 
     var sendNotification;
     if (typeof Notification !== 'function') {
@@ -95,13 +90,6 @@ define(function(require) {
       };
     }
 
-    api.oncronsyncstart = function(accountIds) {
-      console.log('email oncronsyncstart: ' + accountIds);
-      cronSyncStartTime = Date.now();
-      var accountKey = makeAccountKey(accountIds);
-      waitingOnCron[accountKey] = true;
-    };
-
     /**
      * Fetches notification data for the notification type, ntype. This method
      * assumes there is only one ntype of notification per account.
@@ -145,21 +133,35 @@ define(function(require) {
      * to normalize existing sync notification info.
      * @param {Function} fn function to call once env info is fetched.
      */
-    function getSyncEnv(fn) {
-      appSelf.latest('self', function(app) {
-        model.latestOnce('account', function(currentAccount) {
-          fetchNotificationsData('sync').then(
-            function(existingNotificationsData) {
-              mozL10n.formatValue('senders-separation-sign')
-              .then(function(separator) {
-                var localized = {
-                  separator
-                };
-                mozL10n.formatValue('notification-no-subject')
-                .then(function(noSubject) {
-                  localized.noSubject = noSubject;
-                  fn(app, currentAccount, existingNotificationsData, localized);
+    function getSyncEnv() {
+      return new Promise((resolve) => {
+        appSelf.latest('self', function(app) {
+          // todo: a comment is needed here to explain the guarantee that model
+          // will select an account and folder as part of its startup process.
+          // The semantic of `latest` mean that these could otherwise be
+          // footguns that hang the notification-generation process.
+          model.latestOnce('account', function(currentAccount) {
+            model.latestOnce('folder', function(currentFolder) {
+              fetchNotificationsData('sync').then(
+                function(existingNotificationsData) {
+                  mozL10n.formatValue('senders-separation-sign')
+                  .then(function(separator) {
+                    var localized = {
+                      separator
+                    };
+                    mozL10n.formatValue('notification-no-subject')
+                    .then(function(noSubject) {
+                      localized.noSubject = noSubject;
+                      resolve({
+                        app,
+                        currentAccount,
+                        currentFolder,
+                        existingNotificationsData,
+                        localized
+                      });
+                    });
                 });
+              });
             });
           });
         });
@@ -167,224 +169,209 @@ define(function(require) {
     }
 
     /**
-     * Generates a list of unique top names sorted by most recent sender first,
-     * and limited to a max number. The max number is just to limit amount of
-     * work and likely display limits.
-     * @param  {Array} latestInfos  array of result.latestMessageInfos. Modifies
-     * result.latestMessageInfos via a sort.
-     * @param  {Array} oldFromNames old from names from a previous notification.
-     * @return {Array} a maxFromList array of most recent senders.
+     * This event is sent with the current set of new (inbox) messages changes.
+     * This goes for both new "new" messages as well as a reduction in the set
+     * because some other client read/deleted the messages.  In particular, the
+     * update will be sent when:
+     *
+     * - A cronsync batch completes.  Changes will be accumulated during the
+     *   cronsync process and the update only generated when the batch has
+     *   completed.
+     *
+     * - A normal sync completes that covers the inbox folder.  This could be
+     *   because user action explicitly caused a sync of the folder, or because
+     *   the account is something like gmail where any refresh sync of any
+     *   folder will also result in the sync being updated.
      */
-    function topUniqueFromNames(latestInfos, oldFromNames) {
-      var names = [],
-          maxCount = 3;
-
-      // Get the new from senders from the result. First,
-      // need to sort by most recent.
-      // Note that sort modifies result.latestMessageInfos
-      latestInfos.sort(function(a, b) {
-       return b.date - a.date;
+    api.on('newMessagesUpdate', (newAggr) => {
+      doNotCloseYetPromise = processNewMessagesUpdate(newAggr);
+      doNotCloseYetPromise.then(() => {
+        doNotCloseYetPromise = null;
       });
+    });
 
-      // Only need three unique names, and just the name, not
-      // the full info object.
-      latestInfos.some(function(info) {
-        if (names.length > maxCount) {
-          return true;
+    var processNewMessagesUpdate = co.wrap(function*(newAggr) {
+      // There are sync updates, get environment and figure out how to notify
+      // the user of the updates.
+      let { app, currentAccount, currentFolder, existingNotificationsData,
+            localized } =
+        yield getSyncEnv();
+
+      let iconUrl = notificationHelper.getIconURI(app);
+
+      for (let [accountId, perAccountData] of newAggr) {
+        let existingData = existingNotificationsData[accountId];
+
+        if (perAccountData === null) {
+          // -- No new messages for this account!
+          // Revoke any outstanding notification if there is one.
+          if (existingData) {
+            try {
+              existingData.notification.close();
+            } catch(ex) {
+              console.warn('problem closing notification:', ex);
+            }
+          }
+          // All done for this account.
+          continue;
         }
 
-        if (names.indexOf(info.from) === -1) {
-          names.push(info.from);
-        }
-      });
+        if (hasBeenVisible &&
+            currentAccount && currentAccount.id === accountId &&
+            currentFolder && currentFolder.type === 'inbox') {
+          // -- Displaying this account's inbox right now as-is.
+          // Is the user currently looking at this account's inbox?  Then we
+          // don't need to generate a notification because the 'syncComplete'
+          // mechanism that message_list uses to do its blue new bar will handle
+          // things for us.  (Including waiting for the user to return to the
+          // message list from the reader, etc.)
+          //
+          // (The hasBeenVisible check is to ensure that we don't get faked out
+          // by the model auto-selecting an account and folder even when we're
+          // pure background.)
 
-      // Now add in old names to fill out a list of
-      // max names.
-      oldFromNames.some(function(name) {
-        if (names.length > maxCount) {
-          return true;
+          // However, we do want to immediately clear the new tracking.  And
+          // there's no need to flush this change back down to us.
+          currentAccount.clearNewTracking({ silent: true });
+          continue;
         }
-        if (names.indexOf(name) === -1) {
-          names.push(name);
+
+        // If we're at this point, then we know that we definitely want to
+        // generate/update the notification.  (Note that we checked the
+        // notifyOnNew pref in our app_logic/new_batch_churn.js implementation.)
+
+        let dataObject, subjectL10n, bodyL10n, behavior;
+        let { newMessageCount } = perAccountData;
+
+        // Branch for localization customization reasons on the number of
+        // new messages.  Note that our app_logic pre-chewed everything but
+        // the 'layout' of our notification and choice of l10n id's.
+        if (newMessageCount > 1) {
+          // -- Multiple messages!
+          let { topFromAddresses: fromNames } = perAccountData;
+
+          dataObject = {
+            v: notificationDataVersion,
+            ntype: 'sync',
+            type: 'message_list',
+            accountId,
+            count: newMessageCount
+          };
+
+          // If already have a notification, then do not bother with sound or
+          // vibration for this update. Longer term, the notification standard
+          // will have a "silent" option, but using a non-existent URL as
+          // suggested in bug 1042361 in the meantime.
+          if (existingData && existingData.count) {
+            behavior = {
+              soundFile: 'does-not-exist-to-simulate-silent',
+              // Cannot use 0 since system/js/notifications.js explicitly
+              // ignores [0] values. [1] is good enough for this purpose.
+              vibrationPattern: [1]
+            };
+          }
+
+          // We only get told the accountName if there are multiple accounts.
+          let { accountName } = perAccountData;
+          if (accountName) {
+            subjectL10n = {
+              id: 'new-emails-notify-multiple-accounts',
+              args: {
+                n: newMessageCount,
+                accountName
+              }
+            };
+          } else {
+            subjectL10n = {
+              id: 'new-emails-notify-one-account',
+              args: { n: newMessageCount }
+            };
+          }
+
+          bodyL10n = { raw: fromNames.join(localized.separator) };
+        } else {
+          // Only one message to notify about.
+          dataObject = {
+            v: notificationDataVersion,
+            ntype: 'sync',
+            type: 'message_reader',
+            accountId,
+            messageSuid: perAccountData.messageId,
+            count: 1
+          };
+
+          let rawSubject = perAccountData.subject || localized.noSubject;
+
+          // We only get told the accountName if there are multiple accounts.
+          let { accountName } = perAccountData;
+          if (accountName) {
+            subjectL10n = {
+              id: 'new-emails-notify-multiple-accounts',
+              args: {
+                n: newMessageCount,
+                accountName
+              }
+            };
+            bodyL10n = {
+              id: 'new-emails-notify-multiple-accounts-body',
+              args: {
+                from: perAccountData.fromAddress,
+                subject: rawSubject
+              }
+            };
+          } else  {
+            subjectL10n = { raw: rawSubject };
+            bodyL10n = { raw: perAccountData.fromAddress };
+          }
         }
-      });
 
-      return names;
-    }
+        sendNotification(
+          accountId,
+          subjectL10n,
+          bodyL10n,
+          iconUrl,
+          dataObject,
+          behavior
+        );
+      }
+    });
 
-    /*
-    accountsResults is an object with the following structure:
-      accountIds: array of string account IDs.
-      updates: array of objects includes properties:
-        id: accountId,
-        name: account name,
-        count: number of new messages total
-        latestMessageInfos: array of latest message info objects,
-        with properties:
-          - from
-          - subject
-          - accountId
-          - messageSuid
+    /**
+     * This event is sent when the cronsync batch has completed without any
+     * fatal breakage occurring.  (It's still possible we failed to actually
+     * sync anything!)  It will be generated after any 'newMessagesUpdate', if
+     * any.  *However*, the back-end has no idea if newMessagesUpdate is doing
+     * something synchronous, which is why we do our little dance with
+     * doNotCloseYetPromise.
+     *
+     * This is the time to close the app if appropriate.
      */
-    api.oncronsyncstop = function(accountsResults) {
-      console.log('email oncronsyncstop: ' + accountsResults.accountIds);
-
-      function finishSync() {
-        evt.emit('cronSyncStop', accountsResults.accountIds);
-
-        // Mark this accountId set as no longer waiting.
-        var accountKey = makeAccountKey(accountsResults.accountIds);
-        waitingOnCron[accountKey] = false;
-        var stillWaiting = Object.keys(waitingOnCron).some(function(key) {
-          return !!waitingOnCron[key];
-        });
-
-        if (!hasBeenVisible && !stillWaiting) {
-          console.log('sync completed in ' +
-                     ((Date.now() - cronSyncStartTime) / 1000) +
-                     ' seconds, closing mail app');
+    api.on('cronSyncComplete', () => {
+      if (!hasBeenVisible) {
+        console.log('sync complete, going to close mail app');
+        if (doNotCloseYetPromise) {
+          doNotCloseYetPromise.then(() => {
+            console.log('actually closing mail app now that promise resolved.');
+            window.close();
+          });
+        } else {
+          console.log('closing immediately');
           window.close();
         }
       }
+    });
 
-      // If no sync updates, wrap it up.
-      if (!accountsResults.updates) {
-        finishSync();
-        return;
+    /**
+     * This event is sent when the cronsync process broke and it's likely the
+     * email app is now broken.  We will accordingly close the app.
+     */
+    api.on('cronSyncEpicFail', () => {
+      console.error('CronSync says it broke, closing app.');
+      if (hasBeenVisible) {
+        console.error('Yes, despite the fact we were previously visible.');
       }
-
-      // There are sync updates, get environment and figure out how to notify
-      // the user of the updates.
-      getSyncEnv(function(
-                 app, currentAccount, existingNotificationsData, localized) {
-        var iconUrl = notificationHelper.getIconURI(app);
-
-        accountsResults.updates.forEach(function(result) {
-          // If the current account is being shown, then just send an update
-          // to the model to indicate new messages, as the notification will
-          // happen within the app for that case. The 'inboxShown' pathway
-          // will be sure to close any existing notification for the current
-          // account.
-          if (currentAccount.id === result.id && !document.hidden) {
-            model.notifyInboxMessages(result);
-            return;
-          }
-
-          // If this account does not want notifications of new messages
-          // or if no Notification object, stop doing work.
-          if (!model.getAccount(result.id).notifyOnNew ||
-              typeof Notification !== 'function') {
-            return;
-          }
-
-          var dataObject, subjectL10n, bodyL10n, behavior,
-              count = result.count,
-              oldFromNames = [];
-
-          // Adjust counts/fromNames based on previous notification.
-          var existingData = existingNotificationsData[result.id];
-          if (existingData) {
-            if (existingData.count) {
-              count += parseInt(existingData.count, 10);
-            }
-            if (existingData.fromNames) {
-              oldFromNames = existingData.fromNames;
-            }
-          }
-
-          if (count > 1) {
-            // Multiple messages were synced.
-            // topUniqueFromNames modifies result.latestMessageInfos
-            var newFromNames = topUniqueFromNames(result.latestMessageInfos,
-                                                  oldFromNames);
-            dataObject = {
-              v: notificationDataVersion,
-              ntype: 'sync',
-              type: 'message_list',
-              accountId: result.id,
-              count: count,
-              fromNames: newFromNames
-            };
-
-            // If already have a notification, then do not bother with sound or
-            // vibration for this update. Longer term, the notification standard
-            // will have a "silent" option, but using a non-existent URL as
-            // suggested in bug 1042361 in the meantime.
-            if (existingData && existingData.count) {
-              behavior = {
-                soundFile: 'does-not-exist-to-simulate-silent',
-                // Cannot use 0 since system/js/notifications.js explicitly
-                // ignores [0] values. [1] is good enough for this purpose.
-                vibrationPattern: [1]
-              };
-            }
-
-            if (model.getAccountCount() === 1) {
-              subjectL10n = {
-                id: 'new-emails-notify-one-account',
-                args: { n: count }
-              };
-            } else {
-              subjectL10n = {
-                id: 'new-emails-notify-multiple-accounts',
-                args: {
-                  n: count,
-                  accountName: result.address
-                }
-              };
-            }
-
-            bodyL10n = { raw: newFromNames.join(localized.separator) };
-
-          } else {
-            // Only one message to notify about.
-            var info = result.latestMessageInfos[0];
-            dataObject = {
-              v: notificationDataVersion,
-              ntype: 'sync',
-              type: 'message_reader',
-              accountId: info.accountId,
-              messageSuid: info.messageSuid,
-              count: 1,
-              fromNames: [info.from]
-            };
-
-            var rawSubject = info.subject || localized.noSubject;
-
-            if (model.getAccountCount() === 1) {
-              subjectL10n = { raw: rawSubject };
-              bodyL10n = { raw: info.from };
-            } else {
-              subjectL10n = {
-                id: 'new-emails-notify-multiple-accounts',
-                args: {
-                  n: count,
-                  accountName: result.address
-                }
-              };
-              bodyL10n = {
-                id: 'new-emails-notify-multiple-accounts-body',
-                args: {
-                  from: info.from,
-                  subject: rawSubject
-                }
-              };
-            }
-          }
-
-          sendNotification(
-            result.id,
-            subjectL10n,
-            bodyL10n,
-            iconUrl,
-            dataObject,
-            behavior
-          );
-        });
-
-        finishSync();
-      });
-    };
+      window.close();
+    });
 
     // Background Send Notifications
 
@@ -423,6 +410,9 @@ define(function(require) {
      * If the application is in the foreground, we notify the user on
      * both success and failure. If the application is in the
      * background, we only post a system notifiaction on failure.
+     *
+     * TODO: hook this all back up again.  see
+     * https://bugzilla.mozilla.org/show_bug.cgi?id=1241348
      */
     api.onbackgroundsendstatus = function(data) {
       console.log('outbox: Message', data.suid, 'status =', JSON.stringify({
@@ -530,10 +520,11 @@ define(function(require) {
     // When inbox is viewed, be sure to clear out any possible notification
     // for that account.
     evt.on('inboxShown', function(accountId) {
-      fetchNotificationsData('sync').then(function(notificationsData) {
-        if (notificationsData.hasOwnProperty(accountId)) {
-          notificationsData[accountId].notification.close();
-        }
+      api.clearNewTrackingForAccount({
+        accountId,
+        // don't be silent, we do want a newMessagesUpdate event to fire and
+        // remove the notification.
+        silent: false
       });
     });
   };

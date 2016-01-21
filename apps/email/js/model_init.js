@@ -1,10 +1,20 @@
 'use strict';
 define(function(require) {
   return function modelInit(model, api) {
-    require('sync')(model, api);
+    try {
+      require('sync')(model, api);
+    } catch(ex) {
+      console.error('Problem initializing non-app_logic sync logic:', ex);
+    }
 
     var evt = require('evt'),
         mozL10n = require('l10n!');
+
+    // This is where we would subscribe to and re-broadcast the sendStatus
+    // notification if sync.js weren't in charge of deciding whether to use the
+    // desktop notification API or dispatch to our internal UI to display.  (The
+    // decision is made based on app visibility.)  In the future this will
+    // likely be dealt with using a pseudo-event-bubbling mechanism.
 
     // If our password is bad, we need to pop up a card to ask for the updated
     // password.

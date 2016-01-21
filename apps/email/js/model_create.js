@@ -110,14 +110,7 @@ define(function(require) {
         throw new Error('No accounts available');
       }
 
-      var targetAccount;
-      this.accounts.items.some(function(account) {
-        if (account.id === id) {
-          return !!(targetAccount = account);
-        }
-      });
-
-      return targetAccount;
+      return this.accounts.getAccountById(id);
     },
 
     /**
@@ -137,12 +130,13 @@ define(function(require) {
       return count;
     },
 
-    //todo: revisit this logic. Ideally check a property on the account. This is
-    //just a temporary measure to get the UI logic sorted out.
     accountUsesArchive: function() {
-      // tried using firstFolder.syncGranularity === 'account', but it is not
-      // set in time for the first time this called.
-      return this.account.username.indexOf('@gmail.com') !== -1;
+      // NB: Currently the backend has this be true only for the gmail engine,
+      // but in the future this MAY transparently change to also be true for
+      // vanilla IMAP servers (or JMAP servers) where an archive folder exists.
+      // Or not.  That'll require some UX discussion and maybe a configurable
+      // user setting.
+      return this.account.usesArchiveMetaphor;
     },
 
     /**
@@ -325,23 +319,6 @@ define(function(require) {
       } else {
         return this.changeFolder(folder);
       }
-    },
-
-    /**
-     * Called by other code when it knows the current account
-     * has received new inbox messages. Just triggers an
-     * event with the count for now.
-     * @param  {Object} accountUpdate update object from
-     * sync.js accountResults object structure.
-     */
-    notifyInboxMessages: function(accountUpdate) {
-      if (accountUpdate.id === this.account.id) {
-        this.emit('newInboxMessages', accountUpdate.count);
-      }
-    },
-
-    notifyBackgroundSendStatus: function(data) {
-      this.emit('backgroundSendStatus', data);
     },
 
     // Lifecycle

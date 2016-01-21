@@ -32,17 +32,39 @@ window.HTML_CACHE_VERSION = '2';
 window.startupOnModelLoaded = null;
 
 /**
- * Tracks if a mozSetMessageHandler has been dispatched to code. This only
- * exists to help us be efficient on closing the app in the case of notification
- * close events. If the notification system improved so that the app could tell
- * it not to notify us on close events, this could be removed. It is a global
- * so that cronsync-main can set it for alarm operations. This file does not
- * track alarm setMozMessageHandler messages directly, since they need to
- * acquire wake locks in the event turn the message is received. Since that is a
- * bit complicated, the back-end handles it, since it also knows more about the
- * sync details.
+ * Should we avoid fast-closing ourselves in the event we find that we were
+ * woken up for a notification 'close' event?
+ *
+ * On FxOS, closing a notification produces a 'close' event that can wake our
+ * app up.  We are clever and try to close ourselves if we see this happened.
+ * Because there are many reasons we can be launched and there are potential
+ * races, we use a single flag.  If set, the flag will be a string indicating
+ * one of the reasons we should stay alive.  If left false, it was the 'close'
+ * notification case.
+ *
+ * This is a global variable so that the GELAM backend can set this flag in its
+ * mozSetMessageHandler('alarm', ...) handler.  (This handler also runs in the
+ * document context as part of cronsync-main.js.)
+ *
+ * As of the writing of this comment, it is *impossible* for the GELAM alarm
+ * message handler to run before the function in this file that checks the
+ * variable; the onNotification method will synchronously be invoked as this
+ * file is executed.
+ *
+ * However, the email app's startup is very complicated, as are FxOS's
+ * implementation of system messages.  So it makes any analysis much simpler if
+ * we have the invariant that if the backend's message handler is fired, that it
+ * will set this variable (to 'alarmFired').  This matters in complicated race
+ * conditions where when this file runs mozHasPendingMessage('alarm') returns
+ * false but an 'alarm' is subsequently delivered during async startup.  This
+ * means that you can rely on the backend not having consumed an 'alarm' system
+ * message if this variable is false.
+ *
+ * Note that if the mozHasPendingMessage('alarm') was true, this variable will
+ * be initialized to 'alarm' as part of our startup process without the backend
+ * needing to be involved at all.
  */
-window.appDispatchedMessage = false;
+window.appShouldStayAlive = false;
 
 (function() {
   // Holds on to the pending message type that is indicated by
@@ -260,7 +282,7 @@ window.appDispatchedMessage = false;
   window.globalOnAppMessage.hasAccount = hasAccount;
 
   function dispatch(type, args) {
-    window.appDispatchedMessage = true;
+    window.appShouldStayAlive = type;
     if (handlers[type]) {
       return handlers[type].apply(undefined, args);
     } else {
@@ -314,7 +336,7 @@ window.appDispatchedMessage = false;
       // Only close if entry was a notification and no other messages, like a
       // alarm or a UI-based message, have been dispatched.
       if (startupData.entry === 'notification' &&
-          !window.appDispatchedMessage) {
+          !window.appShouldStayAlive) {
         console.log('App only started for notification close, closing app.');
         window.close();
       }
@@ -443,6 +465,11 @@ window.appDispatchedMessage = false;
 
     if (pendingUiMessageType) {
       startupData.entry = pendingUiMessageType;
+      // If there's a pending alarm, we already know that we want to stay alive
+      // no matter what.
+      if (navigator.mozHasPendingMessage('alarm')) {
+        window.appShouldStayAlive = 'alarm';
+      }
     } else if (navigator.mozHasPendingMessage('alarm')) {
       // While alarm is not important for the pendingUiMessageType
       // gateway, it still should be indicated that the entry point was not the
