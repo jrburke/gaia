@@ -24,14 +24,33 @@ define(function(require) {
         // PLACE THIS BEFORE model_render, since model_render can replace the
         // innerHTML contents, which would wipe out the data-slot-id elements.
         createdCallback: function() {
+          // Indicate this is an email custom element. Helps with cache
+          // behaviors.
+          this.classList.add('email-ce');
+
           // Find any children that are data-slots and hold on to them for
           // later. Only consider direct children.
-          [...this.children].forEach((element) => {
+          [...this.children].forEach(element => {
             var slotName = element.dataset.slotId;
             if (slotName) {
               var slots = this.slots || (this.slots = {});
               slots[slotName] = element;
-              element.parentNode.removeChild(element);
+              // Remove from the DOM, unless it is already slotted.
+              if (!element.dataset.slotted) {
+                element.parentNode.removeChild(element);
+              }
+            }
+          });
+
+          // If this is a cache restore, the slots might already be slotted, so
+          // restore them.
+          [...this.querySelectorAll('[data-slotted]')].forEach(element => {
+            var slotName = element.dataset.slotId;
+            if (slotName) {
+              var slots = this.slots || (this.slots = {});
+              if (!slots.hasOwnProperty(slotName)) {
+                slots[slotName] = element;
+              }
             }
           });
         },

@@ -1,9 +1,9 @@
 define(function(require) {
 'use strict';
 
-var defaultVScrollData = require('./default_vscroll_data'),
-    MessageListTopBar = require('message_list_topbar'),
-    selectOwnElements = require('../mixins/select_own_elements');
+var cards = require('cards'),
+    defaultVScrollData = require('./default_vscroll_data'),
+    MessageListTopBar = require('message_list_topbar');
 
 return [
   require('../base_render')(['this.listCursor'], function(html) {
@@ -30,15 +30,6 @@ return [
     createdCallback: function() {
       // This is set by the custom element that owns this element.
       this.editController = null;
-
-      // If this is a cached content, hold on to the slotted IDs.
-      if (this.dataset.cached === 'cached') {
-        selectOwnElements('[data-slot-id]', this, (element) => {
-          var slotId = element.dataset.slotId;
-          var slots = this.slots || (this.slots = {});
-          slots[slotId] = element;
-        });
-      }
     },
 
     renderEnd: function() {
@@ -110,7 +101,7 @@ return [
     // unified folders, this will also notify for them too with sane semantics.)
     onSyncComplete: function({ newishCount, thisViewTriggered }) {
       if (newishCount > 0) {
-        if (!cards.isVisible(this)) {
+        if (!this.parentCardVisible()) {
           // todo: think about this more deeply and/or document the expected
           // scenario when this would occur.  The back-end can provide stickier
           // information if desired.
@@ -139,6 +130,17 @@ return [
       if (this.slots.headerElement.scrollAreaInitialized) {
         this.slots.headerElement.scrollAreaInitialized();
       }
+    },
+
+    parentCardVisible: function() {
+      var parent = this;
+      while ((parent = parent.parentNode)) {
+        if (parent.classList.contains('card')) {
+          break;
+        }
+      }
+
+      return !!parent && cards.isVisible(parent);
     }
   }
 ];

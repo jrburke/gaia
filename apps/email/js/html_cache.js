@@ -98,7 +98,6 @@ exports.cloneAndSave = function cloneAndSave(moduleId, node) {
   // needs to be manually triggered, and the cloneNode happens before
   // the async Mutation Observer work mozL10n fires.
   mozL10n.translateFragment(cachedNode);
-  cachedNode.dataset.cached = 'cached';
   exports.delayedSaveFromNode(moduleId, cachedNode);
 };
 
@@ -124,10 +123,9 @@ exports.saveFromNode = function saveFromNode(moduleId, node) {
   // Also make sure all custom element have their "data-cached" attribute set
   // on them. Depend on the custom element base.js in email to set this class
   // name. This performs better than a querySelectorAll('*') approach.
-  var nodes = node.querySelectorAll('.email-ce');
-  for (var i = 0; i < nodes.length; i++) {
-    nodes[i].dataset.cached = 'cached';
-  }
+  [...node.querySelectorAll('.email-ce')].forEach(function(enode) {
+    enode.dataset.cached = 'cached';
+  });
 
   // If the passed-in node should be cached, be sure to mark it as cached.
   if (node.classList.contains('email-ce')) {
