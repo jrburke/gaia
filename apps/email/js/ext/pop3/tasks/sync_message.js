@@ -1,32 +1,36 @@
-define(function (require) {
-  'use strict';
+define(function(require) {
+'use strict';
 
-  var co = require('co');
-  var { shallowClone } = require('../../util');
-  var { prioritizeNewer } = require('../../date_priority_adjuster');
+let co = require('co');
+let { shallowClone } = require('../../util');
+let { prioritizeNewer } = require('../../date_priority_adjuster');
 
-  var TaskDefiner = require('../../task_infra/task_definer');
+let TaskDefiner = require('../../task_infra/task_definer');
 
-  var { resolveConversationTaskHelper } = require('../../task_mixins/conv_resolver');
+let { resolveConversationTaskHelper } =
+  require('../../task_mixins/conv_resolver');
 
-  var { conversationMessageComparator } = require('../../db/comparators');
+let { conversationMessageComparator } = require('../../db/comparators');
 
-  var churnConversation = require('../../churn_drivers/conv_churn_driver');
+let churnConversation = require('../../churn_drivers/conv_churn_driver');
 
-  /**
-   * Fetch the envelope and snippet for a POP3 message and create and thread the
-   * message.
-   */
-  return TaskDefiner.defineSimpleTask([{
+/**
+ * Fetch the envelope and snippet for a POP3 message and create and thread the
+ * message.
+ */
+return TaskDefiner.defineSimpleTask([
+  {
     name: 'sync_message',
 
-    plan: co.wrap(function* (ctx, rawTask) {
-      var plannedTask = shallowClone(rawTask);
+    plan: co.wrap(function*(ctx, rawTask) {
+      let plannedTask = shallowClone(rawTask);
 
       // We don't have any a priori name-able exclusive resources.
-      plannedTask.exclusiveResources = [];
+      plannedTask.exclusiveResources = [
+      ];
 
-      plannedTask.priorityTags = [];
+      plannedTask.priorityTags = [
+      ];
 
       // Prioritize the message based on how new it is.
       if (rawTask.dateTS) {
@@ -38,7 +42,7 @@ define(function (require) {
       });
     }),
 
-    execute: co.wrap(function* (ctx, req) {
+    execute: co.wrap(function*(ctx, req) {
       // -- Exclusively acquire the sync state for the folder
       // NB: We don't actually need this right now since the connection knows
       // the UIDL to message number mapping.  But if it gets optimized more, it
@@ -53,39 +57,41 @@ define(function (require) {
       */
 
       // -- Establish the connection
-      var account = yield ctx.universe.acquireAccount(ctx, req.accountId);
-      var popAccount = account.popAccount;
-      var conn = yield popAccount.ensureConnection();
+      let account = yield ctx.universe.acquireAccount(ctx, req.accountId);
+      let popAccount = account.popAccount;
+      let conn = yield popAccount.ensureConnection();
 
       // -- Make sure the UIDL mapping is active
       yield conn.loadMessageList(); // we don't care about the return value.
 
-      var messageNumber = conn.uidlToId[req.uidl];
+      let messageNumber = conn.uidlToId[req.uidl];
 
-      var messageInfo = yield conn.downloadPartialMessageByNumber(messageNumber);
+      let messageInfo =
+        yield conn.downloadPartialMessageByNumber(messageNumber);
 
       // -- Resolve the conversation this goes in.
-      var { convId, existingConv, messageId, headerIdWrites, extraTasks } = yield* resolveConversationTaskHelper(ctx, messageInfo, req.accountId, req.umid);
+      let { convId, existingConv, messageId, headerIdWrites, extraTasks } =
+        yield* resolveConversationTaskHelper(
+          ctx, messageInfo, req.accountId, req.umid);
 
       // Perform fixups to make the messageInfo valid.
-      var inboxInfo = account.getFirstFolderWithType('inbox');
+      let inboxInfo = account.getFirstFolderWithType('inbox');
       messageInfo.id = messageId;
       messageInfo.umid = req.umid;
       messageInfo.folderIds = new Set([inboxInfo.id]);
 
       // -- If the conversation existed, load it for re-churning
-      var oldConvInfo = undefined;
-      var allMessages = undefined;
-      var newConversations = undefined,
-          modifiedConversations = undefined;
+      let oldConvInfo;
+      let allMessages;
+      let newConversations, modifiedConversations;
       if (existingConv) {
-        var fromDb = yield ctx.beginMutate({
+        let fromDb = yield ctx.beginMutate({
           conversations: new Map([[convId, null]]),
           messagesByConversation: new Map([[convId, null]])
         });
 
         oldConvInfo = fromDb.conversations.get(convId);
-        var existingMessages = fromDb.messagesByConversation.get(convId);
+        let existingMessages = fromDb.messagesByConversation.get(convId);
         allMessages = existingMessages.concat([messageInfo]);
         allMessages.sort(conversationMessageComparator);
       } else {
@@ -93,7 +99,7 @@ define(function (require) {
         allMessages = [messageInfo];
       }
 
-      var convInfo = churnConversation(convId, oldConvInfo, allMessages);
+      let convInfo = churnConversation(convId, oldConvInfo, allMessages);
 
       if (existingConv) {
         modifiedConversations = new Map([[convId, convInfo]]);
@@ -113,6 +119,7 @@ define(function (require) {
           tasks: extraTasks
         }
       });
-    })
-  }]);
+    }),
+  }
+]);
 });

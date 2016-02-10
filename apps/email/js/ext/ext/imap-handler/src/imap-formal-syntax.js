@@ -16,8 +16,9 @@
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
 
-(function (root, factory) {
+(function(root, factory) {
     'use strict';
 
     if (typeof define === 'function' && define.amd) {
@@ -27,7 +28,7 @@
     } else {
         root.imapFormalSyntax = factory();
     }
-})(this, function () {
+}(this, function() {
 
     'use strict';
 
@@ -54,119 +55,120 @@
 
     return {
 
-        CHAR: function () {
+        CHAR: function() {
             var value = expandRange(0x01, 0x7F);
-            this.CHAR = function () {
+            this.CHAR = function() {
                 return value;
             };
             return value;
         },
 
-        CHAR8: function () {
+        CHAR8: function() {
             var value = expandRange(0x01, 0xFF);
-            this.CHAR8 = function () {
+            this.CHAR8 = function() {
                 return value;
             };
             return value;
         },
 
-        SP: function () {
+        SP: function() {
             return ' ';
         },
 
-        CTL: function () {
+        CTL: function() {
             var value = expandRange(0x00, 0x1F) + '\x7F';
-            this.CTL = function () {
+            this.CTL = function() {
                 return value;
             };
             return value;
         },
 
-        DQUOTE: function () {
+        DQUOTE: function() {
             return '"';
         },
 
-        ALPHA: function () {
+        ALPHA: function() {
             var value = expandRange(0x41, 0x5A) + expandRange(0x61, 0x7A);
-            this.ALPHA = function () {
+            this.ALPHA = function() {
                 return value;
             };
             return value;
         },
 
-        DIGIT: function () {
+        DIGIT: function() {
             var value = expandRange(0x30, 0x39) + expandRange(0x61, 0x7A);
-            this.DIGIT = function () {
+            this.DIGIT = function() {
                 return value;
             };
             return value;
         },
 
-        'ATOM-CHAR': function () {
+        'ATOM-CHAR': function() {
             var value = excludeChars(this.CHAR(), this['atom-specials']());
-            this['ATOM-CHAR'] = function () {
+            this['ATOM-CHAR'] = function() {
                 return value;
             };
             return value;
         },
 
-        'ASTRING-CHAR': function () {
+        'ASTRING-CHAR': function() {
             var value = this['ATOM-CHAR']() + this['resp-specials']();
-            this['ASTRING-CHAR'] = function () {
+            this['ASTRING-CHAR'] = function() {
                 return value;
             };
             return value;
         },
 
-        'TEXT-CHAR': function () {
+        'TEXT-CHAR': function() {
             var value = excludeChars(this.CHAR(), '\r\n');
-            this['TEXT-CHAR'] = function () {
+            this['TEXT-CHAR'] = function() {
                 return value;
             };
             return value;
         },
 
-        'atom-specials': function () {
-            var value = '(' + ')' + '{' + this.SP() + this.CTL() + this['list-wildcards']() + this['quoted-specials']() + this['resp-specials']();
-            this['atom-specials'] = function () {
+        'atom-specials': function() {
+            var value = '(' + ')' + '{' + this.SP() + this.CTL() + this['list-wildcards']() +
+                this['quoted-specials']() + this['resp-specials']();
+            this['atom-specials'] = function() {
                 return value;
             };
             return value;
         },
 
-        'list-wildcards': function () {
+        'list-wildcards': function() {
             return '%' + '*';
         },
 
-        'quoted-specials': function () {
+        'quoted-specials': function() {
             var value = this.DQUOTE() + '\\';
-            this['quoted-specials'] = function () {
+            this['quoted-specials'] = function() {
                 return value;
             };
             return value;
         },
 
-        'resp-specials': function () {
+        'resp-specials': function() {
             return ']';
         },
 
-        tag: function () {
+        tag: function() {
             var value = excludeChars(this['ASTRING-CHAR'](), '+');
-            this.tag = function () {
+            this.tag = function() {
                 return value;
             };
             return value;
         },
 
-        command: function () {
+        command: function() {
             var value = this.ALPHA() + this.DIGIT();
-            this.command = function () {
+            this.command = function() {
                 return value;
             };
             return value;
         },
 
-        verify: function (str, allowedChars) {
+        verify: function(str, allowedChars) {
             for (var i = 0, len = str.length; i < len; i++) {
                 if (allowedChars.indexOf(str.charAt(i)) < 0) {
                     return i;
@@ -175,5 +177,4 @@
             return -1;
         }
     };
-});
-// THE SOFTWARE.
+}));

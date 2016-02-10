@@ -1,4 +1,4 @@
-define(function () {
+define(function() {
   'use strict';
 
   var self;
@@ -19,12 +19,12 @@ define(function () {
     console.log('issuing addNamed req');
     var req = deviceStorage.addNamed(blob, filename);
 
-    req.onerror = function () {
+    req.onerror = function() {
       console.log('device-storage addNamed error, may be expected.', req.error);
       self.sendMessage(uid, cmd, [false, req.error.name, null, false]);
     };
 
-    req.onsuccess = function (e) {
+    req.onsuccess = function(e) {
       console.log('addName returned happy');
       var prefix = '';
 
@@ -37,14 +37,16 @@ define(function () {
       var registering = false;
       if (registerDownload) {
         var downloadManager = navigator.mozDownloadManager;
-        console.warn('have downloadManager?', !!downloadManager, 'have adoptDownload?', downloadManager && !!downloadManager.adoptDownload);
+        console.warn('have downloadManager?', !!downloadManager,
+                      'have adoptDownload?', downloadManager && !!downloadManager.adoptDownload);
         if (downloadManager && downloadManager.adoptDownload) {
           try {
             var fullPath = e.target.result;
             var firstSlash = fullPath.indexOf('/', 2); // ignore leading /
             var storageName = fullPath.substring(1, firstSlash); // eat 1st /
             var storagePath = fullPath.substring(firstSlash + 1);
-            console.log('adopting download', deviceStorage.storageName, e.target.result);
+            console.log('adopting download', deviceStorage.storageName,
+                        e.target.result);
             registering = true;
             downloadManager.adoptDownload({
               totalBytes: blob.size,
@@ -57,11 +59,11 @@ define(function () {
               // The time we started isn't inherently interesting given that the
               // entirety of the file appears instantaneously to the download
               // manager, now is good enough.
-              startTime: new Date(Date.now())
-            }).then(function () {
+              startTime: new Date(Date.now()),
+            }).then(function() {
               console.log('registered download with download manager');
               self.sendMessage(uid, cmd, [true, null, savedPath, true]);
-            }, function () {
+            }, function() {
               console.warn('failed to register download with download manager');
               self.sendMessage(uid, cmd, [true, null, savedPath, false]);
             });
@@ -85,7 +87,7 @@ define(function () {
   self = {
     name: 'devicestorage',
     sendMessage: null,
-    process: function (uid, cmd, args) {
+    process: function(uid, cmd, args) {
       console.log('devicestorage-main:', cmd);
       switch (cmd) {
         case 'save':

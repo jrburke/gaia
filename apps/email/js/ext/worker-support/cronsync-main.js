@@ -1,4 +1,4 @@
-define(function (require) {
+define(function(require) {
   'use strict';
 
   const logic = require('logic');
@@ -32,7 +32,7 @@ define(function (require) {
       return false;
     }
 
-    var hasMismatch = ary1.some(function (item, i) {
+    var hasMismatch = ary1.some(function(item, i) {
       return item !== ary2[i];
     });
 
@@ -57,9 +57,9 @@ define(function (require) {
       return Promise.resolve([]);
     }
 
-    return Notification.get().then(function (notifications) {
+    return Notification.get().then(function(notifications) {
       var result = [];
-      notifications.forEach(function (notification) {
+      notifications.forEach(function(notification) {
         var data = notification.data;
 
         if (data.v && data.ntype === 'sync') {
@@ -67,7 +67,7 @@ define(function (require) {
         }
       });
       return result;
-    }, function () {
+    }, function() {
       return [];
     });
   }
@@ -82,7 +82,7 @@ define(function (require) {
   var dispatcher = {
     _routeReady: false,
     _routeQueue: [],
-    _sendMessage: function (type, args) {
+    _sendMessage: function(type, args) {
       if (this._routeReady) {
         // sendMessage is added to routeRegistration by the main-router module.
         routeRegistration.sendMessage(null, type, args);
@@ -94,14 +94,14 @@ define(function (require) {
     /**
      * Called by worker side to indicate it can now receive messages.
      */
-    hello: function () {
+    hello: function() {
       this._routeReady = true;
       if (this._routeQueue.length) {
         var queue = this._routeQueue;
         this._routeQueue = [];
-        queue.forEach((function (args) {
+        queue.forEach(function(args) {
           this._sendMessage(args[0], args[1]);
-        }).bind(this));
+        }.bind(this));
       }
     },
 
@@ -109,7 +109,7 @@ define(function (require) {
      * Clears all sync-based alarms. Normally not called, except perhaps for
      * tests or debugging.
      */
-    clearAll: function () {
+    clearAll: function() {
       var mozAlarms = navigator.mozAlarms;
       if (!mozAlarms) {
         return;
@@ -117,32 +117,32 @@ define(function (require) {
 
       var r = mozAlarms.getAll();
 
-      r.onsuccess = (function (event) {
+      r.onsuccess = function(event) {
         var alarms = event.target.result;
         if (!alarms) {
           return;
         }
 
-        alarms.forEach(function (alarm) {
+        alarms.forEach(function(alarm) {
           if (alarm.data && alarm.data.type === 'sync') {
             mozAlarms.remove(alarm.id);
           }
         });
-      }).bind(this);
-      r.onerror = (function (err) {
-        console.error('cronsync-main clearAll mozAlarms.getAll: error: ' + err);
-      }).bind(this);
+      }.bind(this);
+      r.onerror = function(err) {
+        console.error('cronsync-main clearAll mozAlarms.getAll: error: ' +
+                      err);
+      }.bind(this);
     },
 
     /**
      * Makes sure there is an alarm set for every account in the list.
-      * @param  {Object} syncData. An object with keys that are 'interval' +
+
+     * @param  {Object} syncData. An object with keys that are 'interval' +
      * intervalInMilliseconds, and values are arrays of account IDs that should
      * be synced at that interval.
      */
     ensureSync: function (syncData) {
-      var _this = this;
-
       var mozAlarms = navigator.mozAlarms;
       if (!mozAlarms) {
         console.warn('no mozAlarms support!');
@@ -153,8 +153,8 @@ define(function (require) {
 
       var request = mozAlarms.getAll();
 
-      request.onsuccess = function (event) {
-        logic(_this, 'ensureSync:gotAlarms');
+      request.onsuccess = (event) => {
+        logic(this, 'ensureSync:gotAlarms');
 
         var alarms = event.target.result;
         // If there are no alarms a falsey value may be returned.  We want
@@ -169,7 +169,7 @@ define(function (require) {
             okAlarmIntervals = {},
             uniqueAlarms = {};
 
-        alarms.forEach(function (alarm) {
+        alarms.forEach((alarm) => {
           // Only care about sync alarms.
           if (!alarm.data || !alarm.data.type || alarm.data.type !== 'sync') {
             return;
@@ -178,12 +178,16 @@ define(function (require) {
           var intervalKey = 'interval' + alarm.data.interval,
               wantedAccountIds = syncData[intervalKey];
 
-          if (!wantedAccountIds || !hasSameValues(wantedAccountIds, alarm.data.accountIds)) {
-            logic(_this, 'ensureSyncAccountMismatch', {
-              alarmId: alarm.id,
-              alarmAccountIds: alarm.data.accountIds,
-              wantedAccountIds
-            });
+          if (!wantedAccountIds || !hasSameValues(wantedAccountIds,
+                                                  alarm.data.accountIds)) {
+            logic(
+              this,
+              'ensureSyncAccountMismatch',
+              {
+                alarmId: alarm.id,
+                alarmAccountIds: alarm.data.accountIds,
+                wantedAccountIds
+              });
             expiredAlarmIds.push(alarm.id);
           } else {
             // Confirm the existing alarm is still good.
@@ -195,40 +199,47 @@ define(function (require) {
             // If the interval is nonzero, and there is no other alarm found
             // for that account combo, and if it is not in the past and if it
             // is not too far in the future, it is OK to keep.
-            if (interval && !uniqueAlarms.hasOwnProperty(accountKey) && alarmTime > now && alarmTime < now + interval) {
-              logic(_this, 'ensureSyncAlarmOK', { alarmId: alarm.id, accountKey, intervalKey });
+            if (interval && !uniqueAlarms.hasOwnProperty(accountKey) &&
+                alarmTime > now && alarmTime < now + interval) {
+              logic(
+                this,
+                'ensureSyncAlarmOK',
+                { alarmId: alarm.id, accountKey, intervalKey });
               uniqueAlarms[accountKey] = true;
               okAlarmIntervals[intervalKey] = true;
             } else {
-              logic(_this, 'ensureSyncAlarmOutOfRange', { alarmId: alarm.id, accountKey, intervalKey });
+              logic(
+                this,
+                'ensureSyncAlarmOutOfRange',
+                { alarmId: alarm.id, accountKey, intervalKey });
               expiredAlarmIds.push(alarm.id);
             }
           }
         });
 
-        expiredAlarmIds.forEach(function (alarmId) {
+        expiredAlarmIds.forEach((alarmId) => {
           mozAlarms.remove(alarmId);
         });
 
         var alarmMax = 0,
             alarmCount = 0,
-            self = _this;
+            self = this;
 
         // Called when alarms are confirmed to be set.
-        var done = function () {
+        var done = () => {
           alarmCount += 1;
           if (alarmCount < alarmMax) {
             return;
           }
 
-          logic(_this, 'ensureSync:end');
+          logic(this, 'ensureSync:end');
           // Indicate ensureSync has completed because the
           // back end is waiting to hear alarm was set before
           // triggering sync complete.
           self._sendMessage('syncEnsured');
         };
 
-        Object.keys(syncData).forEach(function (intervalKey) {
+        Object.keys(syncData).forEach((intervalKey) => {
           // Skip if the existing alarm is already good.
           if (okAlarmIntervals.hasOwnProperty(intervalKey)) {
             return;
@@ -245,15 +256,22 @@ define(function (require) {
 
           alarmMax += 1;
 
-          var alarmRequest = mozAlarms.add(date, 'ignoreTimezone', makeData(accountIds, interval, date));
+          var alarmRequest = mozAlarms.add(date, 'ignoreTimezone',
+                                       makeData(accountIds, interval, date));
 
-          alarmRequest.onsuccess = function () {
-            logic(_this, 'ensureSyncAlarmAdded', { accountIds, interval });
+          alarmRequest.onsuccess = () => {
+            logic(
+              this,
+              'ensureSyncAlarmAdded',
+              { accountIds, interval });
             done();
           };
 
-          alarmRequest.onerror = function (err) {
-            logic(_this, 'ensureSyncAlarmAddError', { accountIds, interval, err });
+          alarmRequest.onerror = (err) => {
+            logic(
+              this,
+              'ensureSyncAlarmAddError',
+              { accountIds, interval, err });
             done();
           };
         });
@@ -264,15 +282,15 @@ define(function (require) {
         }
       };
 
-      request.onerror = function (err) {
-        logic(_this, 'ensureSyncGetAlarmsError', { err });
+      request.onerror = (err) => {
+        logic(this, 'ensureSyncGetAlarmsError', { err });
       };
     }
   };
   logic.defineScope(dispatcher, 'CronsyncMain');
 
   if (navigator.mozSetMessageHandler) {
-    navigator.mozSetMessageHandler('alarm', function (alarm) {
+    navigator.mozSetMessageHandler('alarm', (alarm) => {
       logic(dispatcher, 'alarmFired');
 
       // !! Coordinate with the gaia mail app frontend logic !!
@@ -315,11 +333,15 @@ define(function (require) {
 
       var wakelockId = requestWakeLock('cpu');
 
-      getAccountsWithOutstandingSyncNotifications().then(function (accountIdsWithNotifications) {
-        logic(dispatcher, 'alarmDispatch');
+      getAccountsWithOutstandingSyncNotifications().then(
+        (accountIdsWithNotifications) => {
+          logic(dispatcher, 'alarmDispatch');
 
-        dispatcher._sendMessage('alarm', [data.accountIds, data.interval, wakelockId, accountIdsWithNotifications]);
-      });
+          dispatcher._sendMessage(
+            'alarm',
+            [data.accountIds, data.interval, wakelockId,
+             accountIdsWithNotifications]);
+        });
     });
   }
 

@@ -1,14 +1,17 @@
-define(function (require) {
-  'use strict';
+define(function(require) {
+'use strict';
 
-  var co = require('co');
+let co = require('co');
 
-  var TaskDefiner = require('../../task_infra/task_definer');
+let TaskDefiner = require('../../task_infra/task_definer');
 
-  return TaskDefiner.defineComplexTask([require('../../task_mixins/mix_sync_body'), require('../task_mixins/imap_mix_sync_body'), {
-    prepForMessages: co.wrap(function* (ctx, account, messages) {
-      var umidLocations = new Map();
-      for (var message of messages) {
+return TaskDefiner.defineComplexTask([
+  require('../../task_mixins/mix_sync_body'),
+  require('../task_mixins/imap_mix_sync_body'),
+  {
+    prepForMessages: co.wrap(function*(ctx, account, messages) {
+      let umidLocations = new Map();
+      for (let message of messages) {
         umidLocations.set(message.umid, null);
       }
 
@@ -20,12 +23,13 @@ define(function (require) {
       return umidLocations;
     }),
 
-    getFolderAndUidForMesssage: function (umidLocations, account, message) {
-      var [folderId, uid] = umidLocations.get(message.umid);
+    getFolderAndUidForMesssage: function(umidLocations, account, message) {
+      let [folderId, uid] = umidLocations.get(message.umid);
       return {
         folderInfo: account.getFolderById(folderId),
         uid
       };
     }
-  }]);
+  }
+]);
 });

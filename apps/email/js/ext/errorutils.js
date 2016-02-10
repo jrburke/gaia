@@ -1,4 +1,4 @@
-define(['exports'], function (exports) {
+define(['exports'], function(exports) {
 
   /**
    * Helpers to deal with our normalized error strings. Provides
@@ -47,7 +47,7 @@ define(['exports'], function (exports) {
    *   A normalized error string.
    * @return {Boolean}
    */
-  exports.shouldReportProblem = function (err) {
+  exports.shouldReportProblem = function(err) {
     return (ALL_ERRORS[err] || ALL_ERRORS['unknown']).report;
   };
 
@@ -60,14 +60,14 @@ define(['exports'], function (exports) {
    *   A normalized error string.
    * @return {Boolean}
    */
-  exports.shouldRetry = function (err) {
+  exports.shouldRetry = function(err) {
     return (ALL_ERRORS[err] || ALL_ERRORS['unknown']).retry;
   };
 
   /**
    * Did this error occur when the server was reachable?
    */
-  exports.wasErrorFromReachableState = function (err) {
+  exports.wasErrorFromReachableState = function(err) {
     return (ALL_ERRORS[err] || ALL_ERRORS['unknown']).reachable;
   };
 
@@ -81,7 +81,7 @@ define(['exports'], function (exports) {
    *   A normalized error string.
    * @return {String|null}
    */
-  exports.analyzeException = function (err) {
+  exports.analyzeException = function(err) {
     // XXX: Fault-injecting-socket returns the string "Connection
     // refused" for certian socket errors. (Does mozTCPSocket raise
     // that error verbatim?) Convert that to an Error-like object.
@@ -90,8 +90,8 @@ define(['exports'], function (exports) {
     }
     // Otherwise, assume a plain-old string is already normalized.
     else if (typeof err === 'string') {
-        return err;
-      }
+      return err;
+    }
 
     if (!err.name) {
       return null;
@@ -99,10 +99,13 @@ define(['exports'], function (exports) {
 
     if (/^Security/.test(err.name)) {
       return 'bad-security';
-    } else if (/^ConnectionRefused/i.test(err.name)) {
+    }
+    else if (/^ConnectionRefused/i.test(err.name)) {
       return 'unresponsive-server';
-    } else {
+    }
+    else {
       return null;
     }
-  };
+  }
+
 });

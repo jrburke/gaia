@@ -1,34 +1,36 @@
-define(function (require) {
-  'use strict';
+define(function(require) {
+'use strict';
 
-  const co = require('co');
-  const logic = require('logic');
+const co = require('co');
+const logic = require('logic');
 
-  const { shallowClone } = require('../../util');
+const { shallowClone } = require('../../util');
 
-  const { NOW } = require('../../date');
+const { NOW } = require('../../date');
 
-  const TaskDefiner = require('../../task_infra/task_definer');
+const TaskDefiner = require('../../task_infra/task_definer');
 
-  const GmailLabelMapper = require('../gmail/gmail_label_mapper');
-  const SyncStateHelper = require('../gmail/sync_state_helper');
+const GmailLabelMapper = require('../gmail/gmail_label_mapper');
+const SyncStateHelper = require('../gmail/sync_state_helper');
 
-  const imapchew = require('../imapchew');
-  const parseImapDateTime = imapchew.parseImapDateTime;
+const imapchew = require('../imapchew');
+const parseImapDateTime = imapchew.parseImapDateTime;
 
-  const a64 = require('../../a64');
-  const parseGmailConvId = a64.parseUI64;
-  const parseGmailMsgId = a64.parseUI64;
+const a64 = require('../../a64');
+const parseGmailConvId = a64.parseUI64;
+const parseGmailMsgId = a64.parseUI64;
 
-  const { accountIdFromFolderId } = require('../../id_conversions');
+const { accountIdFromFolderId } = require('../../id_conversions');
 
-  const { syncNormalOverlay, syncPrefixOverlay } = require('../../task_helpers/sync_overlay_helpers');
+const { syncNormalOverlay, syncPrefixOverlay } =
+  require('../../task_helpers/sync_overlay_helpers');
 
-  /**
-   * This is the steady-state sync task that drives all of our gmail sync.
-   * See sync.md for detailed documentation on our algorithm/strategy.
-   */
-  return TaskDefiner.defineAtMostOnceTask([{
+/**
+ * This is the steady-state sync task that drives all of our gmail sync.
+ * See sync.md for detailed documentation on our algorithm/strategy.
+ */
+return TaskDefiner.defineAtMostOnceTask([
+  {
     name: 'sync_refresh',
     binByArg: 'accountId',
 
@@ -41,14 +43,19 @@ define(function (require) {
      * 'accountCascadeToFolders' which causes the folders_toc to generate the
      * overlay pushes for all impacted folders.
      */
-    helped_prefix_overlay_folders: [accountIdFromFolderId, syncPrefixOverlay],
+    helped_prefix_overlay_folders: [
+      accountIdFromFolderId,
+      syncPrefixOverlay
+    ],
 
-    helped_invalidate_overlays: function (accountId, dataOverlayManager) {
-      dataOverlayManager.announceUpdatedOverlayData('accounts', accountId);
-      dataOverlayManager.announceUpdatedOverlayData('accountCascadeToFolders', accountId);
+    helped_invalidate_overlays: function(accountId, dataOverlayManager) {
+      dataOverlayManager.announceUpdatedOverlayData(
+        'accounts', accountId);
+      dataOverlayManager.announceUpdatedOverlayData(
+        'accountCascadeToFolders', accountId);
     },
 
-    helped_already_planned: function (ctx, rawTask) {
+    helped_already_planned: function(ctx, rawTask) {
       // The group should already exist; opt into its membership to get a
       // Promise
       return Promise.resolve({
@@ -60,17 +67,24 @@ define(function (require) {
      * In our planning phase we discard nonsensical requests to refresh
      * local-only folders.
      */
-    helped_plan: function (ctx, rawTask) {
+    helped_plan: function(ctx, rawTask) {
       // - Plan!
-      var plannedTask = shallowClone(rawTask);
-      plannedTask.resources = ['online', `credentials!${ rawTask.accountId }`, `happy!${ rawTask.accountId }`];
+      let plannedTask = shallowClone(rawTask);
+      plannedTask.resources = [
+        'online',
+        `credentials!${rawTask.accountId}`,
+        `happy!${rawTask.accountId}`
+      ];
       // Let our triggering folder's viewing give us a priority boost, Although
       // perhaps this should just be account granularity?
-      plannedTask.priorityTags = [`view:folder:${ rawTask.folderId }`];
+      plannedTask.priorityTags = [
+        `view:folder:${rawTask.folderId}`
+      ];
 
       // Create a task group that follows this task and all its offspring.  This
       // will define the lifetime of our overlay as well.
-      var groupPromise = ctx.trackMeInTaskGroup('sync_refresh:' + rawTask.accountId);
+      let groupPromise =
+        ctx.trackMeInTaskGroup('sync_refresh:' + rawTask.accountId);
       return Promise.resolve({
         taskState: plannedTask,
         remainInProgressUntil: groupPromise,
@@ -78,12 +92,12 @@ define(function (require) {
       });
     },
 
-    helped_execute: co.wrap(function* (ctx, req) {
+    helped_execute: co.wrap(function*(ctx, req) {
       // -- Exclusively acquire the sync state for the account
-      var fromDb = yield ctx.beginMutate({
+      let fromDb = yield ctx.beginMutate({
         syncStates: new Map([[req.accountId, null]])
       });
-      var rawSyncState = fromDb.syncStates.get(req.accountId);
+      let rawSyncState = fromDb.syncStates.get(req.accountId);
 
       // -- Check to see if we need to spin-off the first-ever sync_grow
       if (!rawSyncState) {
@@ -91,15 +105,18 @@ define(function (require) {
           // we ourselves are done
           taskState: null,
           newData: {
-            tasks: [{
-              type: 'sync_grow',
-              accountId: req.accountId,
-              folderId: req.folderId
-            }]
+            tasks: [
+              {
+                type: 'sync_grow',
+                accountId: req.accountId,
+                folderId: req.folderId
+              }
+            ]
           }
         };
       }
-      var syncState = new SyncStateHelper(ctx, rawSyncState, req.accountId, 'refresh');
+      let syncState = new SyncStateHelper(ctx, rawSyncState, req.accountId,
+                                          'refresh');
 
       if (!syncState.modseq) {
         // This is inductively possible, and it's a ridiculously serious problem
@@ -115,18 +132,21 @@ define(function (require) {
           // we ourselves are done
           taskState: null,
           newData: {
-            tasks: [{
-              type: 'sync_grow',
-              accountId: req.accountId,
-              folderId: req.folderId
-            }]
+            tasks: [
+              {
+                type: 'sync_grow',
+                accountId: req.accountId,
+                folderId: req.folderId
+              }
+            ]
           }
         };
       }
 
       // -- Okay, we're going to go through with this sync directly
-      var foldersTOC = yield ctx.universe.acquireAccountFoldersTOC(ctx, req.accountId);
-      var labelMapper = new GmailLabelMapper(ctx, foldersTOC);
+      let foldersTOC =
+        yield ctx.universe.acquireAccountFoldersTOC(ctx, req.accountId);
+      let labelMapper = new GmailLabelMapper(ctx, foldersTOC);
 
       // - sync_folder_list dependency-failsafe
       if (foldersTOC.items.length <= 3) {
@@ -136,50 +156,67 @@ define(function (require) {
         throw new Error('moot');
       }
 
-      var account = yield ctx.universe.acquireAccount(ctx, req.accountId);
-      var allMailFolderInfo = account.getFirstFolderWithType('all');
 
-      var syncDate = NOW();
+      let account = yield ctx.universe.acquireAccount(ctx, req.accountId);
+      let allMailFolderInfo = account.getFirstFolderWithType('all');
+
+      let syncDate = NOW();
 
       logic(ctx, 'syncStart', { modseq: syncState.modseq });
-      var { mailboxInfo, result: messages } = yield account.pimap.listMessages(ctx, allMailFolderInfo, '1:*', ['UID', 'INTERNALDATE', 'X-GM-THRID', 'X-GM-LABELS',
-      // We don't need/want FLAGS for new messsages (ones with a higher UID
-      // than we've seen before), but it's potentially kinder to gmail to
-      // ask for everything in a single go.
-      'FLAGS',
-      // Same deal for the X-GM-MSGID.  We are able to do a more efficient
-      // db access pattern if we have it, but it's not really useful in the
-      // new conversation/new message case.
-      'X-GM-MSGID'], {
-        byUid: true,
-        changedSince: syncState.modseq
-      });
+      let { mailboxInfo, result: messages } = yield account.pimap.listMessages(
+        ctx,
+        allMailFolderInfo,
+        '1:*',
+        [
+          'UID',
+          'INTERNALDATE',
+          'X-GM-THRID',
+          'X-GM-LABELS',
+          // We don't need/want FLAGS for new messsages (ones with a higher UID
+          // than we've seen before), but it's potentially kinder to gmail to
+          // ask for everything in a single go.
+          'FLAGS',
+          // Same deal for the X-GM-MSGID.  We are able to do a more efficient
+          // db access pattern if we have it, but it's not really useful in the
+          // new conversation/new message case.
+          'X-GM-MSGID'
+        ],
+        {
+          byUid: true,
+          changedSince: syncState.modseq
+        }
+      );
 
       // To avoid getting redundant information in the future, we need to know
       // the effective modseq of this fetch request.  Because we don't
       // necessarily re-enter the folder above and there's nothing saying that
       // the apparent MODSEQ can only change on entry, we must consider the
       // MODSEQs of the results we are provided.
-      var highestModseq = a64.maxDecimal64Strings(mailboxInfo.highestModseq, syncState.modseq);
-      for (var msg of messages) {
-        var uid = msg.uid; // already parsed into a number by browserbox
-        var dateTS = parseImapDateTime(msg.internaldate);
-        var rawConvId = parseGmailConvId(msg['x-gm-thrid']);
+      let highestModseq = a64.maxDecimal64Strings(
+        mailboxInfo.highestModseq, syncState.modseq);
+      for (let msg of messages) {
+        let uid = msg.uid; // already parsed into a number by browserbox
+        let dateTS = parseImapDateTime(msg.internaldate);
+        let rawConvId = parseGmailConvId(msg['x-gm-thrid']);
         // Unwrap the imap-parser tagged { type, value } objects.  (If this
         // were a singular value that wasn't a list it would automatically be
         // unwrapped.)
-        var rawLabels = msg['x-gm-labels'];
-        var flags = msg.flags;
+        let rawLabels = msg['x-gm-labels'];
+        let flags = msg.flags;
 
         highestModseq = a64.maxDecimal64Strings(highestModseq, msg.modseq);
 
         // Have store_labels apply any (offline) requests that have not yet been
         // replayed to the server.
-        ctx.synchronouslyConsultOtherTask({ name: 'store_labels', accountId: req.accountId }, { uid: uid, value: rawLabels });
+        ctx.synchronouslyConsultOtherTask(
+          { name: 'store_labels', accountId: req.accountId },
+          { uid: uid, value: rawLabels });
         // same with store_flags
-        ctx.synchronouslyConsultOtherTask({ name: 'store_flags', accountId: req.accountId }, { uid: uid, value: flags });
+        ctx.synchronouslyConsultOtherTask(
+          { name: 'store_flags', accountId: req.accountId },
+          { uid: uid, value: flags });
 
-        var labelFolderIds = labelMapper.labelsToFolderIds(rawLabels);
+        let labelFolderIds = labelMapper.labelsToFolderIds(rawLabels);
 
         // Is this a new message?
         if (uid > syncState.lastHighUid) {
@@ -188,22 +225,20 @@ define(function (require) {
             // (Yes, it's a yay message.)
             // Is this a conversation we already know about?
             if (syncState.isKnownRawConvId(rawConvId)) {
-              syncState.newYayMessageInExistingConv(uid, rawConvId, dateTS);
-            } else {
-              // no, it's a new conversation to us!
+              syncState.newYayMessageInExistingConv(
+                uid, rawConvId, dateTS);
+            } else { // no, it's a new conversation to us!
               syncState.newYayMessageInNewConv(uid, rawConvId, dateTS);
             }
-            // Okay, it didn't meet it on its own, but does it belong to a
-            // conversation we care about?
+          // Okay, it didn't meet it on its own, but does it belong to a
+          // conversation we care about?
           } else if (syncState.isKnownRawConvId(rawConvId)) {
-              syncState.newMehMessageInExistingConv(uid, rawConvId, dateTS);
-            } else {
-              // We don't care.
-              syncState.newMootMessage(uid);
-            }
-        } else {
-          // It's an existing message
-          var newState = {
+            syncState.newMehMessageInExistingConv(uid, rawConvId, dateTS);
+          } else { // We don't care.
+            syncState.newMootMessage(uid);
+          }
+        } else { // It's an existing message
+          let newState = {
             rawMsgId: parseGmailMsgId(msg['x-gm-msgid']),
             flags,
             labels: labelFolderIds
@@ -212,26 +247,31 @@ define(function (require) {
             // it's currently a yay message, but was it always a yay message?
             if (syncState.yayUids.has(uid)) {
               // yes, forever awesome.
-              syncState.existingMessageUpdated(uid, rawConvId, dateTS, newState);
+              syncState.existingMessageUpdated(
+                uid, rawConvId, dateTS, newState);
             } else if (syncState.mehUids.has(uid)) {
               // no, it was meh, but is now suddenly fabulous
-              syncState.existingMehMessageIsNowYay(uid, rawConvId, dateTS, newState);
+              syncState.existingMehMessageIsNowYay(
+                uid, rawConvId, dateTS, newState);
             } else {
               // Not aware of the message, so inductively this conversation is
               // new to us.
-              syncState.existingIgnoredMessageIsNowYayInNewConv(uid, rawConvId, dateTS);
+              syncState.existingIgnoredMessageIsNowYayInNewConv(
+                uid, rawConvId, dateTS);
             }
-            // Okay, so not currently a yay message, but was it before?
+          // Okay, so not currently a yay message, but was it before?
           } else if (syncState.yayUids.has(uid)) {
-              // it was yay, is now meh, this potentially even means we no longer
-              // care about the conversation at all
-              syncState.existingYayMessageIsNowMeh(uid, rawConvId, dateTS);
-            } else if (syncState.mehUids.has(uid)) {
-              // it was meh, it's still meh, it's just an update
-              syncState.existingMessageUpdated(uid, rawConvId, dateTS, newState);
-            } else {
-              syncState.existingMootMessage(uid);
-            }
+            // it was yay, is now meh, this potentially even means we no longer
+            // care about the conversation at all
+            syncState.existingYayMessageIsNowMeh(
+              uid, rawConvId, dateTS);
+          } else if (syncState.mehUids.has(uid)) {
+            // it was meh, it's still meh, it's just an update
+            syncState.existingMessageUpdated(
+              uid, rawConvId, dateTS, newState);
+          } else {
+            syncState.existingMootMessage(uid);
+          }
         }
       }
 
@@ -242,21 +282,26 @@ define(function (require) {
 
       return {
         mutations: {
-          syncStates: new Map([[req.accountId, syncState.rawSyncState]])
+          syncStates: new Map([[req.accountId, syncState.rawSyncState]]),
         },
         newData: {
           tasks: syncState.tasksToSchedule
         },
         atomicClobbers: {
-          accounts: new Map([[req.accountId, {
-            syncInfo: {
-              lastSuccessfulSyncAt: syncDate,
-              lastAttemptedSyncAt: syncDate,
-              failedSyncsSinceLastSuccessfulSync: 0
-            }
-          }]])
+          accounts: new Map([
+            [
+              req.accountId,
+              {
+                syncInfo: {
+                  lastSuccessfulSyncAt: syncDate,
+                  lastAttemptedSyncAt: syncDate,
+                  failedSyncsSinceLastSuccessfulSync: 0
+                }
+              }
+            ]])
         }
       };
     })
-  }]);
+  }
+]);
 });

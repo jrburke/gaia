@@ -1,4 +1,4 @@
-define(function () {
+define(function() {
   'use strict';
 
   function debug(str) {
@@ -10,23 +10,26 @@ define(function () {
     var ns = {
       rq: baseUrl + 'mobilesync/requestschema/2006',
       ad: baseUrl + 'responseschema/2006',
-      ms: baseUrl + 'mobilesync/responseschema/2006'
+      ms: baseUrl + 'mobilesync/responseschema/2006',
     };
     return ns[prefix] || null;
   }
 
   function parseAccountCommon(uid, cmd, text) {
     var doc = new DOMParser().parseFromString(text, 'text/xml');
-    var getNode = function (xpath, rel) {
-      return doc.evaluate(xpath, rel || doc, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+    var getNode = function(xpath, rel) {
+      return doc.evaluate(xpath, rel || doc, null,
+                          XPathResult.FIRST_ORDERED_NODE_TYPE, null)
+                            .singleNodeValue;
     };
 
-    var dictifyChildNodes = function (node) {
+    var dictifyChildNodes = function(node) {
       if (!node) {
         return null;
       }
       var dict = {};
-      for (var kid = node.firstElementChild; kid; kid = kid.nextElementSibling) {
+      for (var kid = node.firstElementChild; kid;
+           kid = kid.nextElementSibling) {
         dict[kid.tagName] = kid.textContent;
       }
       return dict;
@@ -34,7 +37,9 @@ define(function () {
 
     var provider = getNode('/clientConfig/emailProvider');
     // Get the first incomingServer we can use (we assume first == best).
-    var incoming = getNode('incomingServer[@type="imap"] | ' + 'incomingServer[@type="activesync"] | ' + 'incomingServer[@type="pop3"]', provider);
+    var incoming = getNode('incomingServer[@type="imap"] | ' +
+                           'incomingServer[@type="activesync"] | ' +
+                           'incomingServer[@type="pop3"]', provider);
     var outgoing = getNode('outgoingServer[@type="smtp"]', provider);
     var oauth2Settings = dictifyChildNodes(getNode('oauth2Settings', provider));
 
@@ -66,7 +71,8 @@ define(function () {
         var ALLOWED_SOCKET_TYPES = ['SSL', 'STARTTLS'];
 
         // We do not support unencrypted connections outside of unit tests.
-        if (ALLOWED_SOCKET_TYPES.indexOf(config.incoming.socketType) === -1 || ALLOWED_SOCKET_TYPES.indexOf(config.outgoing.socketType) === -1) {
+        if (ALLOWED_SOCKET_TYPES.indexOf(config.incoming.socketType) === -1 ||
+            ALLOWED_SOCKET_TYPES.indexOf(config.outgoing.socketType) === -1) {
           config = null;
           status = 'unsafe';
         }
@@ -84,17 +90,21 @@ define(function () {
   function parseActiveSyncAccount(uid, cmd, text, aNoRedirect) {
     var doc = new DOMParser().parseFromString(text, 'text/xml');
 
-    var getNode = function (xpath, rel) {
-      return doc.evaluate(xpath, rel, nsResolver, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+    var getNode = function(xpath, rel) {
+      return doc.evaluate(xpath, rel, nsResolver,
+                          XPathResult.FIRST_ORDERED_NODE_TYPE, null)
+                  .singleNodeValue;
     };
-    var getNodes = function (xpath, rel) {
-      return doc.evaluate(xpath, rel, nsResolver, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null);
+    var getNodes = function(xpath, rel) {
+      return doc.evaluate(xpath, rel, nsResolver,
+                          XPathResult.ORDERED_NODE_ITERATOR_TYPE, null);
     };
-    var getString = function (xpath, rel) {
-      return doc.evaluate(xpath, rel, nsResolver, XPathResult.STRING_TYPE, null).stringValue;
+    var getString = function(xpath, rel) {
+      return doc.evaluate(xpath, rel, nsResolver, XPathResult.STRING_TYPE,
+                          null).stringValue;
     };
 
-    var postResponse = function (error, config, redirectedEmail) {
+    var postResponse = function(error, config, redirectedEmail) {
       self.sendMessage(uid, cmd, [config, error, redirectedEmail]);
     };
 
@@ -107,13 +117,15 @@ define(function () {
     // Note: specs seem to indicate the root should be ms:Autodiscover too.
     // It's not clear why we were using ad:Autodiscover or if it ever worked,
     // but there's no meaningful cost to leave that around.
-    var responseNode = getNode('/ad:Autodiscover/ms:Response', doc) || getNode('/ms:Autodiscover/ms:Response', doc);
+    var responseNode = getNode('/ad:Autodiscover/ms:Response', doc) ||
+                       getNode('/ms:Autodiscover/ms:Response', doc);
     if (!responseNode) {
       error = 'Missing Autodiscover Response node';
       return postResponse(error);
     }
 
-    var error = getNode('ms:Error', responseNode) || getNode('ms:Action/ms:Error', responseNode);
+    var error = getNode('ms:Error', responseNode) ||
+                getNode('ms:Action/ms:Error', responseNode);
     if (error) {
       error = getString('ms:Message/text()', error);
       return postResponse(error);
@@ -134,20 +146,20 @@ define(function () {
     var config = {
       culture: getString('ms:Culture/text()', responseNode),
       user: {
-        name: getString('ms:DisplayName/text()', user),
-        email: getString('ms:EMailAddress/text()', user)
+        name:  getString('ms:DisplayName/text()',  user),
+        email: getString('ms:EMailAddress/text()', user),
       },
-      servers: []
+      servers: [],
     };
 
     var servers = getNodes('ms:Action/ms:Settings/ms:Server', responseNode);
     var server;
-    while (server = servers.iterateNext()) {
+    while ((server = servers.iterateNext())) {
       config.servers.push({
-        type: getString('ms:Type/text()', server),
-        url: getString('ms:Url/text()', server),
-        name: getString('ms:Name/text()', server),
-        serverData: getString('ms:ServerData/text()', server)
+        type:       getString('ms:Type/text()',       server),
+        url:        getString('ms:Url/text()',        server),
+        name:       getString('ms:Name/text()',       server),
+        serverData: getString('ms:ServerData/text()', server),
       });
     }
 
@@ -171,7 +183,7 @@ define(function () {
   var self = {
     name: 'configparser',
     sendMessage: null,
-    process: function (uid, cmd, args) {
+    process: function(uid, cmd, args) {
       debug('process ' + cmd);
       switch (cmd) {
         case 'accountcommon':

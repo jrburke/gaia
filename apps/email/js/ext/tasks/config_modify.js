@@ -1,18 +1,19 @@
-define(function (require) {
-  'use strict';
+define(function(require) {
+'use strict';
 
-  const logic = require('logic');
-  const co = require('co');
-  const TaskDefiner = require('../task_infra/task_definer');
+const logic = require('logic');
+const co = require('co');
+const TaskDefiner = require('../task_infra/task_definer');
 
-  /**
-   * Manipulate identity settings.  Right now we only support one identity per
-   * account and we hard-code the path, though it wouldn't take much to
-   */
-  return TaskDefiner.defineSimpleTask([{
+/**
+ * Manipulate identity settings.  Right now we only support one identity per
+ * account and we hard-code the path, though it wouldn't take much to
+ */
+return TaskDefiner.defineSimpleTask([
+  {
     name: 'config_modify',
 
-    plan: co.wrap(function* (ctx, rawTask) {
+    plan: co.wrap(function*(ctx, rawTask) {
       // Access the account for read-only consultation.  Because we don't need
       // to wait on any network access and because of how things actually work,
       // we could absolutely acquire this for write mutation and do an explicit
@@ -22,7 +23,7 @@ define(function (require) {
       // to our conditionalized username/password logic.
       const accountClobbers = new Map();
 
-      for (var key in rawTask.mods) {
+      for (let key in rawTask.mods) {
         const val = rawTask.mods[key];
 
         switch (key) {
@@ -38,9 +39,15 @@ define(function (require) {
 
       yield ctx.finishTask({
         atomicClobbers: {
-          config: new Map([[rawTask.accountId, accountClobbers]])
+          config: new Map([
+            [
+              rawTask.accountId,
+              accountClobbers
+            ]
+          ])
         }
       });
     })
-  }]);
+  }
+]);
 });

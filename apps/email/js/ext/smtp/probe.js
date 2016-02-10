@@ -1,4 +1,4 @@
-define(['logic', './client', 'exports'], function (logic, client, exports) {
+define(['logic', './client', 'exports'], function(logic, client, exports) {
 
   var scope = logic.scope('SmtpProber');
 
@@ -17,7 +17,7 @@ define(['logic', './client', 'exports'], function (logic, client, exports) {
    * that can't send e-mail, and we currently don't allow them to
    * change their address after setup.
    */
-  exports.probeAccount = function (credentials, connInfo) {
+  exports.probeAccount = function(credentials, connInfo) {
 
     logic(scope, 'connecting', {
       _credentials: credentials,
@@ -25,33 +25,38 @@ define(['logic', './client', 'exports'], function (logic, client, exports) {
     });
 
     var conn;
-    return client.createSmtpConnection(credentials, connInfo, function onCredentialsUpdated() {
-      // Normally we shouldn't see a request to update credentials
-      // here, as the caller should have already passed a valid
-      // accessToken during account setup. This might indicate a
-      // problem with our OAUTH handling, so log it just in case.
-      logic(scope, 'credentials-updated');
-    }).then(function (newConn) {
-      conn = newConn;
-      return verifyAddress(conn, connInfo.emailAddress);
-    }).then(function () {
-      logic(scope, 'success');
-      conn.close();
-      return conn;
-    }).catch(function (err) {
-      var errorString = client.analyzeSmtpError(conn, err, /* wasSending: */false);
-
-      if (conn) {
-        conn.close();
+    return client.createSmtpConnection(
+      credentials,
+      connInfo,
+      function onCredentialsUpdated() {
+        // Normally we shouldn't see a request to update credentials
+        // here, as the caller should have already passed a valid
+        // accessToken during account setup. This might indicate a
+        // problem with our OAUTH handling, so log it just in case.
+        logic(scope, 'credentials-updated');
       }
+    ).then(function(newConn) {
+        conn = newConn;
+        return verifyAddress(conn, connInfo.emailAddress);
+      }).then(function() {
+        logic(scope, 'success');
+        conn.close();
+        return conn;
+      }).catch(function(err) {
+        var errorString = client.analyzeSmtpError(
+          conn, err, /* wasSending: */ false);
 
-      logic(scope, 'error', {
-        error: errorString,
-        connInfo: connInfo
+        if (conn) {
+          conn.close();
+        }
+
+        logic(scope, 'error', {
+          error: errorString,
+          connInfo: connInfo
+        });
+
+        throw errorString;
       });
-
-      throw errorString;
-    });
   };
 
   /**
@@ -67,17 +72,14 @@ define(['logic', './client', 'exports'], function (logic, client, exports) {
       ns: 'SmtpProber',
       _address: emailAddress
     });
-    return new Promise(function (resolve, reject) {
+    return new Promise(function(resolve, reject) {
       conn.useEnvelope({
         from: emailAddress,
         to: [emailAddress]
       });
-      conn.onready = function () {
-        resolve();
-      };
-      conn.onerror = function (err) {
-        reject(err);
-      };
+      conn.onready = function() { resolve(); };
+      conn.onerror = function(err) { reject(err); };
     });
   }
+
 }); // end define

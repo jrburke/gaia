@@ -14,17 +14,22 @@
  */
 
 (function (root, factory) {
-  if (typeof exports === 'object') module.exports = factory();else if (typeof define === 'function' && define.amd) define([], factory);else root.ASCPNotes = factory();
-})(this, function () {
+  if (typeof exports === 'object')
+    module.exports = factory();
+  else if (typeof define === 'function' && define.amd)
+    define([], factory);
+  else
+    root.ASCPNotes = factory();
+}(this, function() {
   'use strict';
 
   return {
     Tags: {
-      Subject: 0x1705,
-      MessageClass: 0x1706,
+      Subject:          0x1705,
+      MessageClass:     0x1706,
       LastModifiedDate: 0x1707,
-      Categories: 0x1708,
-      Category: 0x1709
+      Categories:       0x1708,
+      Category:         0x1709,
     }
   };
-});
+}));

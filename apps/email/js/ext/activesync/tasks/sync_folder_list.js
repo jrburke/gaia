@@ -1,62 +1,71 @@
-define(function (require) {
-  'use strict';
+define(function(require) {
+'use strict';
 
-  const evt = require('evt');
-  const TaskDefiner = require('../../task_infra/task_definer');
+const evt = require('evt');
+const TaskDefiner = require('../../task_infra/task_definer');
 
-  const normalizeFolder = require('../normalize_folder');
-  const AccountSyncStateHelper = require('../account_sync_state_helper');
+const normalizeFolder = require('../normalize_folder');
+const AccountSyncStateHelper = require('../account_sync_state_helper');
 
-  const enumerateHierarchyChanges = require('../smotocol/enum_hierarchy_changes');
+const enumerateHierarchyChanges = require('../smotocol/enum_hierarchy_changes');
 
-  /**
-   * Sync the folder list for an ActiveSync account.  We leverage IMAP's mix-in
-   * for the infrastructure (that wants to move someplace less IMAPpy.)
-   */
-  return TaskDefiner.defineSimpleTask([require('../../task_mixins/mix_sync_folder_list'), {
+/**
+ * Sync the folder list for an ActiveSync account.  We leverage IMAP's mix-in
+ * for the infrastructure (that wants to move someplace less IMAPpy.)
+ */
+return TaskDefiner.defineSimpleTask([
+  require('../../task_mixins/mix_sync_folder_list'),
+  {
     essentialOfflineFolders: [
-    // Although the inbox is an online folder, we aren't daring enough to
-    // predict its server id, so it will be fixed up later, so we just
-    // leave it starting out as offline.  (For Microsoft servers, I believe
-    // the inbox does have a consistent guid, but we can't assume Microsoft.)
-    {
-      type: 'inbox',
-      displayName: 'Inbox'
-    }, {
-      type: 'outbox',
-      displayName: 'outbox'
-    }, {
-      type: 'localdrafts',
-      displayName: 'localdrafts'
-    }],
+      // Although the inbox is an online folder, we aren't daring enough to
+      // predict its server id, so it will be fixed up later, so we just
+      // leave it starting out as offline.  (For Microsoft servers, I believe
+      // the inbox does have a consistent guid, but we can't assume Microsoft.)
+      {
+        type: 'inbox',
+        displayName: 'Inbox'
+      },
+      {
+        type: 'outbox',
+        displayName: 'outbox'
+      },
+      {
+        type: 'localdrafts',
+        displayName: 'localdrafts'
+      },
+    ],
 
-    syncFolders: function* (ctx, account) {
-      var foldersTOC = account.foldersTOC;
-      var conn = yield account.ensureConnection();
-      var newFolders = [];
-      var modifiedFolders = new Map();
+    syncFolders: function*(ctx, account) {
+      let foldersTOC = account.foldersTOC;
+      let conn = yield account.ensureConnection();
+      let newFolders = [];
+      let modifiedFolders = new Map();
 
-      var fromDb = yield ctx.beginMutate({
+      let fromDb = yield ctx.beginMutate({
         syncStates: new Map([[account.id, null]])
       });
 
-      var rawSyncState = fromDb.syncStates.get(account.id);
-      var syncState = new AccountSyncStateHelper(ctx, rawSyncState, account.id);
+      let rawSyncState = fromDb.syncStates.get(account.id);
+      let syncState = new AccountSyncStateHelper(
+        ctx, rawSyncState, account.id);
 
-      var emitter = new evt.Emitter();
-      var deferredFolders = [];
+      let emitter = new evt.Emitter();
+      let deferredFolders = [];
 
       function tryAndAddFolder(folderArgs) {
-        var maybeFolderInfo = normalizeFolder({
-          idMaker: foldersTOC.issueFolderId.bind(syncState),
-          serverIdToFolderId: syncState.serverIdToFolderId,
-          folderIdToFolderInfo: foldersTOC.foldersById
-        }, {
-          serverId: folderArgs.ServerId,
-          parentServerId: folderArgs.ParentId,
-          displayName: folderArgs.DisplayName,
-          typeNum: folderArgs.Type
-        });
+        let maybeFolderInfo = normalizeFolder(
+          {
+            idMaker: foldersTOC.issueFolderId.bind(syncState),
+            serverIdToFolderId: syncState.serverIdToFolderId,
+            folderIdToFolderInfo: foldersTOC.foldersById
+          },
+          {
+            serverId: folderArgs.ServerId,
+            parentServerId: folderArgs.ParentId,
+            displayName: folderArgs.DisplayName,
+            typeNum: folderArgs.Type
+          }
+        );
         if (maybeFolderInfo === null) {
           deferredFolders.push(folderArgs);
         } else if (maybeFolderInfo === true) {
@@ -73,24 +82,27 @@ define(function (require) {
         }
       }
 
-      emitter.on('add', function (folderArgs) {
+      emitter.on('add', (folderArgs) => {
         tryAndAddFolder(folderArgs);
       });
-      emitter.on('remove', function (serverId) {
+      emitter.on('remove', (serverId) => {
         syncState.removedFolder(serverId);
-        var folderId = syncState.serverIdToFolderId.get(serverId);
+        let folderId = syncState.serverIdToFolderId.get(serverId);
         modifiedFolders.set(folderId, null);
       });
 
-      syncState.hierarchySyncKey = (yield* enumerateHierarchyChanges(conn, { hierarchySyncKey: syncState.hierarchySyncKey, emitter })).hierarchySyncKey;
+      syncState.hierarchySyncKey = (yield* enumerateHierarchyChanges(
+        conn,
+        { hierarchySyncKey: syncState.hierarchySyncKey, emitter }
+      )).hierarchySyncKey;
 
       // It's possible we got some folders in an inconvenient order (i.e. child
       // folders before their parents). Keep trying to add folders until we're
       // done.
       while (deferredFolders.length) {
-        var processFolders = deferredFolders;
+        let processFolders = deferredFolders;
         deferredFolders = [];
-        for (var folder of processFolders) {
+        for (let folder of processFolders) {
           tryAndAddFolder(folder);
         }
         if (processFolders.length === deferredFolders.length) {
@@ -104,5 +116,6 @@ define(function (require) {
         modifiedSyncStates: new Map([[account.id, syncState.rawSyncState]])
       };
     }
-  }]);
+  }
+]);
 });

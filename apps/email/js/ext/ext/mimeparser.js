@@ -16,8 +16,9 @@
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
 
-(function (root, factory) {
+(function(root, factory) {
     'use strict';
 
     if (typeof define === 'function' && define.amd) {
@@ -27,7 +28,8 @@
     } else {
         root.MimeParser = factory(root.mimefuncs, root.addressparser, root.tzabbr);
     }
-})(this, function (mimefuncs, addressparser, tzabbr) {
+
+}(this, function(mimefuncs, addressparser, tzabbr) {
     'use strict';
 
     /**
@@ -64,12 +66,13 @@
      *
      * @param {Uint8Array|String} chunk Chunk to be processed. Either an Uint8Array value or a 'binary' string
      */
-    MimeParser.prototype.write = function (chunk) {
+    MimeParser.prototype.write = function(chunk) {
         if (!chunk || !chunk.length) {
             return !this.running;
         }
 
-        var lines = (this._remainder + (typeof chunk === 'object' ? mimefuncs.fromTypedArray(chunk) : chunk)).split(/\r?\n/g);
+        var lines = (this._remainder + (typeof chunk === 'object' ?
+            mimefuncs.fromTypedArray(chunk) : chunk)).split(/\r?\n/g);
         this._remainder = lines.pop();
 
         for (var i = 0, len = lines.length; i < len; i++) {
@@ -84,7 +87,7 @@
      *
      * @param {Uint8Array|String} [chunk] Final chunk to be processed
      */
-    MimeParser.prototype.end = function (chunk) {
+    MimeParser.prototype.end = function(chunk) {
         if (chunk && chunk.length) {
             this.write(chunk);
         }
@@ -108,7 +111,7 @@
      *
      * @param {String} path Path to the node
      */
-    MimeParser.prototype.getNode = function (path) {
+    MimeParser.prototype.getNode = function(path) {
         path = path || '';
         return this.nodes['node' + path] || null;
     };
@@ -120,7 +123,7 @@
      * Called when the parsing is ended
      * @event
      */
-    MimeParser.prototype.onend = function () {};
+    MimeParser.prototype.onend = function() {};
 
     /**
      * Override this function.
@@ -128,7 +131,7 @@
      * @event
      * @param {Object} node Current mime part. See node.header for header lines
      */
-    MimeParser.prototype.onheader = function () {};
+    MimeParser.prototype.onheader = function() {};
 
     /**
      * Override this function.
@@ -137,7 +140,7 @@
      * @param {Object} node Current mime part
      * @param {Uint8Array} chunk Body chunk
      */
-    MimeParser.prototype.onbody = function () {};
+    MimeParser.prototype.onbody = function() {};
 
     // NODE PROCESSING
 
@@ -241,7 +244,7 @@
      *
      * @param {String} line Entire input line as 'binary' string
      */
-    MimeNode.prototype.writeLine = function (line) {
+    MimeNode.prototype.writeLine = function(line) {
 
         this.raw += (this.raw ? '\n' : '') + line;
 
@@ -255,7 +258,7 @@
     /**
      * Processes any remainders
      */
-    MimeNode.prototype.finalize = function () {
+    MimeNode.prototype.finalize = function() {
         if (this._isRfc822) {
             this._currentChild.finalize();
         } else {
@@ -270,7 +273,7 @@
      *
      * @param {String} line Entire input line as 'binary' string
      */
-    MimeNode.prototype._processHeaderLine = function (line) {
+    MimeNode.prototype._processHeaderLine = function(line) {
         if (!line) {
             this._parseHeaders();
             this._parser.onheader(this);
@@ -288,7 +291,7 @@
     /**
      * Joins folded header lines and calls Content-Type and Transfer-Encoding processors
      */
-    MimeNode.prototype._parseHeaders = function () {
+    MimeNode.prototype._parseHeaders = function() {
 
         // Join header lines
         var key, value, hasBinary;
@@ -334,9 +337,8 @@
      * @param {String} value Value for the key
      * @return {Object} parsed header
      */
-    MimeNode.prototype._parseHeaderValue = function (key, value) {
-        var parsedValue,
-            isAddress = false;
+    MimeNode.prototype._parseHeaderValue = function(key, value) {
+        var parsedValue, isAddress = false;
 
         switch (key) {
             case 'content-type':
@@ -386,7 +388,7 @@
      * @param {String} str Date header
      * @returns {String} UTC date string if parsing succeeded, otherwise returns input value
      */
-    MimeNode.prototype._parseDate = function (str) {
+    MimeNode.prototype._parseDate = function(str) {
         str = (str || '').toString().trim();
 
         var date = new Date(str);
@@ -397,7 +399,7 @@
 
         // Assume last alpha part is a timezone
         // Ex: "Date: Thu, 15 May 2014 13:53:30 EEST"
-        str = str.replace(/\b[a-z]+$/i, function (tz) {
+        str = str.replace(/\b[a-z]+$/i, function(tz) {
             tz = tz.toUpperCase();
             if (tzabbr.hasOwnProperty(tz)) {
                 return tzabbr[tz];
@@ -419,11 +421,11 @@
      * @param {Date} date Date object to check
      * @returns {Boolean} True if the value is a valid date
      */
-    MimeNode.prototype._isValidDate = function (date) {
+    MimeNode.prototype._isValidDate = function(date) {
         return Object.prototype.toString.call(date) === '[object Date]' && date.toString() !== 'Invalid Date';
     };
 
-    MimeNode.prototype._decodeHeaderCharset = function (parsed, options) {
+    MimeNode.prototype._decodeHeaderCharset = function(parsed, options) {
         options = options || {};
 
         // decode default value
@@ -432,7 +434,7 @@
         }
 
         // decode possible params
-        Object.keys(parsed.params || {}).forEach(function (key) {
+        Object.keys(parsed.params || {}).forEach(function(key) {
             if (typeof parsed.params[key] === 'string') {
                 parsed.params[key] = mimefuncs.mimeWordsDecode(parsed.params[key]);
             }
@@ -440,7 +442,7 @@
 
         // decode addresses
         if (options.isAddress && Array.isArray(parsed.value)) {
-            parsed.value.forEach((function (addr) {
+            parsed.value.forEach(function(addr) {
                 if (addr.name) {
                     addr.name = mimefuncs.mimeWordsDecode(addr.name);
                     if (Array.isArray(addr.group)) {
@@ -451,7 +453,7 @@
                         });
                     }
                 }
-            }).bind(this));
+            }.bind(this));
         }
 
         return parsed;
@@ -460,12 +462,13 @@
     /**
      * Parses Content-Type value and selects following actions.
      */
-    MimeNode.prototype._processContentType = function () {
+    MimeNode.prototype._processContentType = function() {
         var contentDisposition;
 
-        this.contentType = this.headers['content-type'] && this.headers['content-type'][0] || mimefuncs.parseHeaderValue('text/plain');
+        this.contentType = this.headers['content-type'] && this.headers['content-type'][0] ||
+            mimefuncs.parseHeaderValue('text/plain');
         this.contentType.value = (this.contentType.value || '').toLowerCase().trim();
-        this.contentType.type = this.contentType.value.split('/').shift() || 'text';
+        this.contentType.type = (this.contentType.value.split('/').shift() || 'text');
 
         if (this.contentType.params && this.contentType.params.charset && !this.charset) {
             this.charset = this.contentType.params.charset;
@@ -473,7 +476,7 @@
 
         if (this.contentType.type === 'multipart' && this.contentType.params.boundary) {
             this._childNodes = [];
-            this._isMultipart = this.contentType.value.split('/').pop() || 'mixed';
+            this._isMultipart = (this.contentType.value.split('/').pop() || 'mixed');
             this._multipartBoundary = this.contentType.params.boundary;
         }
 
@@ -482,7 +485,8 @@
              * Parse message/rfc822 only if the mime part is not marked with content-disposition: attachment,
              * otherwise treat it like a regular attachment
              */
-            contentDisposition = this.headers['content-disposition'] && this.headers['content-disposition'][0] || mimefuncs.parseHeaderValue('');
+            contentDisposition = this.headers['content-disposition'] && this.headers['content-disposition'][0] ||
+                mimefuncs.parseHeaderValue('');
             if ((contentDisposition.value || '').toLowerCase().trim() !== 'attachment') {
                 this._childNodes = [];
                 this._currentChild = new MimeNode(this, this._parser);
@@ -496,8 +500,9 @@
      * Parses Content-Trasnfer-Encoding value to see if the body needs to be converted
      * before it can be emitted
      */
-    MimeNode.prototype._processContentTransferEncoding = function () {
-        this.contentTransferEncoding = this.headers['content-transfer-encoding'] && this.headers['content-transfer-encoding'][0] || mimefuncs.parseHeaderValue('7bit');
+    MimeNode.prototype._processContentTransferEncoding = function() {
+        this.contentTransferEncoding = this.headers['content-transfer-encoding'] && this.headers['content-transfer-encoding'][0] ||
+            mimefuncs.parseHeaderValue('7bit');
         this.contentTransferEncoding.value = (this.contentTransferEncoding.value || '').toLowerCase().trim();
     };
 
@@ -507,7 +512,7 @@
      *
      * @param {String} line Entire input line as 'binary' string
      */
-    MimeNode.prototype._processBodyLine = function (line) {
+    MimeNode.prototype._processBodyLine = function(line) {
         var curLine, match;
 
         this._lineCount++;
@@ -530,45 +535,45 @@
                 // Ignore body for multipart
             }
         } else if (this._isRfc822) {
-                this._currentChild.writeLine(line);
-            } else {
-                switch (this.contentTransferEncoding.value) {
-                    case 'base64':
-                        curLine = this._lineRemainder + line.trim();
+            this._currentChild.writeLine(line);
+        } else {
+            switch (this.contentTransferEncoding.value) {
+                case 'base64':
+                    curLine = this._lineRemainder + line.trim();
 
-                        if (curLine.length % 4) {
-                            this._lineRemainder = curLine.substr(-curLine.length % 4);
-                            curLine = curLine.substr(0, curLine.length - this._lineRemainder.length);
-                        } else {
-                            this._lineRemainder = '';
-                        }
+                    if (curLine.length % 4) {
+                        this._lineRemainder = curLine.substr(-curLine.length % 4);
+                        curLine = curLine.substr(0, curLine.length - this._lineRemainder.length);
+                    } else {
+                        this._lineRemainder = '';
+                    }
 
-                        if (curLine.length) {
-                            this._bodyBuffer += mimefuncs.fromTypedArray(mimefuncs.base64.decode(curLine));
-                        }
+                    if (curLine.length) {
+                        this._bodyBuffer += mimefuncs.fromTypedArray(mimefuncs.base64.decode(curLine));
+                    }
 
-                        break;
-                    case 'quoted-printable':
-                        curLine = this._lineRemainder + (this._lineCount > 1 ? '\n' : '') + line;
+                    break;
+                case 'quoted-printable':
+                    curLine = this._lineRemainder + (this._lineCount > 1 ? '\n' : '') + line;
 
-                        if (match = curLine.match(/=[a-f0-9]{0,1}$/i)) {
-                            this._lineRemainder = match[0];
-                            curLine = curLine.substr(0, curLine.length - this._lineRemainder.length);
-                        } else {
-                            this._lineRemainder = '';
-                        }
+                    if ((match = curLine.match(/=[a-f0-9]{0,1}$/i))) {
+                        this._lineRemainder = match[0];
+                        curLine = curLine.substr(0, curLine.length - this._lineRemainder.length);
+                    } else {
+                        this._lineRemainder = '';
+                    }
 
-                        this._bodyBuffer += curLine.replace(/\=(\r?\n|$)/g, '').replace(/=([a-f0-9]{2})/ig, function (m, code) {
-                            return String.fromCharCode(parseInt(code, 16));
-                        });
-                        break;
+                    this._bodyBuffer += curLine.replace(/\=(\r?\n|$)/g, '').replace(/=([a-f0-9]{2})/ig, function(m, code) {
+                        return String.fromCharCode(parseInt(code, 16));
+                    });
+                    break;
                     // case '7bit':
                     // case '8bit':
-                    default:
-                        this._bodyBuffer += (this._lineCount > 1 ? '\n' : '') + line;
-                        break;
-                }
+                default:
+                    this._bodyBuffer += (this._lineCount > 1 ? '\n' : '') + line;
+                    break;
             }
+        }
     };
 
     /**
@@ -576,8 +581,9 @@
      *
      * @param {Boolean} forceEmit If set to true does not keep any remainders
      */
-    MimeNode.prototype._emitBody = function () {
-        var contentDisposition = this.headers['content-disposition'] && this.headers['content-disposition'][0] || mimefuncs.parseHeaderValue('');
+    MimeNode.prototype._emitBody = function() {
+        var contentDisposition = this.headers['content-disposition'] && this.headers['content-disposition'][0] ||
+            mimefuncs.parseHeaderValue('');
         var delSp;
 
         if (this._isMultipart || !this._bodyBuffer) {
@@ -585,14 +591,16 @@
         }
 
         // Process flowed text before emitting it
-        if (/^text\/(plain|html)$/i.test(this.contentType.value) && this.contentType.params && /^flowed$/i.test(this.contentType.params.format)) {
+        if (/^text\/(plain|html)$/i.test(this.contentType.value) &&
+            this.contentType.params && /^flowed$/i.test(this.contentType.params.format)) {
 
             delSp = /^yes$/i.test(this.contentType.params.delsp);
 
-            this._bodyBuffer = this._bodyBuffer.split('\n').
+            this._bodyBuffer = this._bodyBuffer.
+            split('\n').
             // remove soft linebreaks
             // soft linebreaks are added after space symbols
-            reduce(function (previousValue, currentValue, index) {
+            reduce(function(previousValue, currentValue, index) {
                 var body = previousValue;
                 if (delSp) {
                     // delsp adds spaces to text to be able to fold it
@@ -620,13 +628,14 @@
 
             // decode "binary" string to an unicode string
             if (!/^utf[\-_]?8$/i.test(this.charset)) {
-                this.content = mimefuncs.charset.convert(mimefuncs.toTypedArray(this._bodyBuffer), this.charset || 'iso-8859-1');
+              this.content = mimefuncs.charset.convert(mimefuncs.toTypedArray(this._bodyBuffer), this.charset || 'iso-8859-1');
             }
 
             // override charset for text nodes
             this.charset = this.contentType.params.charset = 'utf-8';
         }
         this._bodyBuffer = '';
+
 
         this._parser.onbody(this, this.content);
     };
@@ -637,7 +646,7 @@
      * @param {String} html Input HTML
      * @returns {String} Charset if found or undefined
      */
-    MimeNode.prototype._detectHTMLCharset = function (html) {
+    MimeNode.prototype._detectHTMLCharset = function(html) {
         var charset, input, meta;
 
         if (typeof html !== 'string') {
@@ -646,7 +655,7 @@
 
         html = html.replace(/\r?\n|\r/g, " ");
 
-        if (meta = html.match(/<meta\s+http-equiv=["'\s]*content-type[^>]*?>/i)) {
+        if ((meta = html.match(/<meta\s+http-equiv=["'\s]*content-type[^>]*?>/i))) {
             input = meta[0];
         }
 
@@ -665,5 +674,4 @@
     };
 
     return MimeParser;
-});
-// THE SOFTWARE.
+}));

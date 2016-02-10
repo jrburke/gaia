@@ -3,13 +3,22 @@
  * async as needed.
  **/
 
-define(['exports', 'evt'], function (exports, evt) {
-  'use strict';
+define(
+  [
+    'exports',
+    'evt'
+  ],
+  function(
+    exports,
+    evt
+  ) {
+'use strict';
 
-  exports.events = new evt.Emitter();
+exports.events = new evt.Emitter();
 
-  exports.set = function set(strings) {
-    exports.strings = strings;
-    exports.events.emit('strings', strings);
-  };
+exports.set = function set(strings) {
+  exports.strings = strings;
+  exports.events.emit('strings', strings);
+};
+
 });

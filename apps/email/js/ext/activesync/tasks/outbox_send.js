@@ -1,26 +1,28 @@
-define(function (require) {
-  'use strict';
+define(function(require) {
+'use strict';
 
-  const co = require('co');
+const co = require('co');
 
-  const TaskDefiner = require('../../task_infra/task_definer');
+const TaskDefiner = require('../../task_infra/task_definer');
 
-  const sendMail = require('../smotocol/send_mail');
-  const sendMail12x = require('../smotocol/send_mail_12x');
+const sendMail = require('../smotocol/send_mail');
+const sendMail12x = require('../smotocol/send_mail_12x');
 
-  /**
-   * ActiveSync outbox sending:
-   * - The server puts the message in the sent folder automatically, so that's
-   *   easy/free and we use the default saveSentMessage implementation.
-   */
-  return TaskDefiner.defineComplexTask([require('../../task_mixins/mix_outbox_send'), {
-    shouldIncludeBcc: function () /* account */{
+/**
+ * ActiveSync outbox sending:
+ * - The server puts the message in the sent folder automatically, so that's
+ *   easy/free and we use the default saveSentMessage implementation.
+ */
+return TaskDefiner.defineComplexTask([
+  require('../../task_mixins/mix_outbox_send'),
+  {
+    shouldIncludeBcc: function(/* account */) {
       // ActiveSync auto-appends.
       return true;
     },
 
-    sendMessage: co.wrap(function* (ctx, account, composer) {
-      var conn = undefined;
+    sendMessage: co.wrap(function*(ctx, account, composer) {
+      let conn;
       // Unlike other tasks, we handle errors explicitly in-band, so convert
       // connection establishing errors to a formal return value.
       try {
@@ -29,8 +31,8 @@ define(function (require) {
         return { error: ex.message };
       }
 
-      var mimeBlob = composer.superBlob;
-      var progress = function () /*loaded, total*/{
+      let mimeBlob = composer.superBlob;
+      let progress = (/*loaded, total*/) => {
         composer.heartbeat('ActiveSync sendMessage');
       };
 
@@ -45,6 +47,7 @@ define(function (require) {
       }
 
       return { error: null };
-    })
-  }]);
+    }),
+  }
+]);
 });

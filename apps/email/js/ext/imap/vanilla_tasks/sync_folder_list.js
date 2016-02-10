@@ -1,23 +1,25 @@
-define(function (require) {
-  'use strict';
+define(function(require) {
+'use strict';
 
-  const logic = require('logic');
+const logic = require('logic');
 
-  const TaskDefiner = require('../../task_infra/task_definer');
+const TaskDefiner = require('../../task_infra/task_definer');
 
-  const { makeFolderMeta } = require('../../db/folder_info_rep');
+const { makeFolderMeta } = require('../../db/folder_info_rep');
 
-  const normalizeFolderType = require('../normalize_folder_type');
+const normalizeFolderType = require('../normalize_folder_type');
 
-  /**
-   * Common IMAP folder list syncing logic.
-   */
-  return TaskDefiner.defineSimpleTask([require('../../task_mixins/mix_sync_folder_list'), {
-    syncFolders: function* (ctx, account) {
-      var { imapAccount, foldersTOC } = account;
+/**
+ * Common IMAP folder list syncing logic.
+ */
+return TaskDefiner.defineSimpleTask([
+  require('../../task_mixins/mix_sync_folder_list'),
+  {
+    syncFolders: function*(ctx, account) {
+      let { imapAccount, foldersTOC } = account;
 
-      var boxesRoot = yield imapAccount.pimap.listMailboxes(ctx);
-      var namespaces = yield imapAccount.pimap.listNamespaces(ctx);
+      let boxesRoot = yield imapAccount.pimap.listMailboxes(ctx);
+      let namespaces = yield imapAccount.pimap.listNamespaces(ctx);
 
       if (!namespaces) {
         namespaces = {
@@ -26,28 +28,28 @@ define(function (require) {
         };
       }
 
-      var newFolders = [];
-      var modifiedFolders = new Map();
+      let newFolders = [];
+      let modifiedFolders = new Map();
 
       // - build a map of known existing folders
-      var folderInfoRepsByPath = new Map();
-      for (var folderInfoRep of foldersTOC.folders) {
+      let folderInfoRepsByPath = new Map();
+      for (let folderInfoRep of foldersTOC.folders) {
         folderInfoRepsByPath.set(folderInfoRep.path, folderInfoRep);
       }
 
       // - walk the boxes
-      var walkBoxes = function (boxLevel, pathDepth, parentId) {
-        boxLevel.forEach(function (box) {
-          var delim = box.delimiter || '/';
+      let walkBoxes = (boxLevel, pathDepth, parentId) => {
+        boxLevel.forEach((box) => {
+          let delim = box.delimiter || '/';
 
           if (box.path.indexOf(delim) === 0) {
             box.path = box.path.slice(delim.length);
           }
 
-          var path = box.path;
+          let path = box.path;
 
           // - normalize jerk-moves
-          var type = normalizeFolderType(box, path, namespaces);
+          let type = normalizeFolderType(box, path, namespaces);
 
           // gmail finds it amusing to give us the localized name/path of its
           // inbox, but still expects us to ask for it as INBOX.
@@ -56,13 +58,14 @@ define(function (require) {
           }
 
           // - already known folder
-          var folderInfoRep = undefined;
+          let folderInfoRep;
           if (folderInfoRepsByPath.has(path)) {
             // Because we speculatively create the Inbox, both its display name
             // and delimiter may be incorrect and need to be updated.
             folderInfoRep = folderInfoRepsByPath.get(path);
 
-            if (folderInfoRep.name !== box.name || folderInfoRep.delim !== delim) {
+            if (folderInfoRep.name !== box.name ||
+                folderInfoRep.delim !== delim) {
               folderInfoRep.name = box.name;
               folderInfoRep.delim = delim;
               modifiedFolders.set(folderInfoRep.id, folderInfoRep);
@@ -79,26 +82,26 @@ define(function (require) {
           }
           // - new to us!
           else {
-              logic(ctx, 'folder-sync:add', {
-                type,
-                name: box.name,
-                path,
-                delim
-              });
-              folderInfoRep = makeFolderMeta({
-                id: foldersTOC.issueFolderId(),
-                serverId: null, // (ActiveSync only, we use serverPath)
-                name: box.name,
-                type,
-                path,
-                serverPath: path,
-                parentId,
-                delim,
-                depth: pathDepth,
-                lastSyncedAt: 0
-              });
-              newFolders.push(folderInfoRep);
-            }
+            logic(ctx, 'folder-sync:add', {
+              type,
+              name: box.name,
+              path,
+              delim
+            });
+            folderInfoRep = makeFolderMeta({
+              id: foldersTOC.issueFolderId(),
+              serverId: null, // (ActiveSync only, we use serverPath)
+              name: box.name,
+              type,
+              path,
+              serverPath: path,
+              parentId,
+              delim,
+              depth: pathDepth,
+              lastSyncedAt: 0
+            });
+            newFolders.push(folderInfoRep);
+          }
 
           if (box.children) {
             walkBoxes(box.children, pathDepth + 1, folderInfoRep.id);
@@ -110,7 +113,7 @@ define(function (require) {
 
       // - detect deleted folders
       // track dead folder id's so we can issue a
-      for (var folderInfoRep of folderInfoRepsByPath.values()) {
+      for (let folderInfoRep of folderInfoRepsByPath.values()) {
         // skip those we found above
         if (folderInfoRep === true) {
           continue;
@@ -139,5 +142,6 @@ define(function (require) {
         modifiedFolders
       };
     }
-  }]);
+  }
+]);
 });

@@ -1,6 +1,6 @@
 /*global requirejs, setTimeout */
-
-(function (root) {
+// Note: No AMD module here since this file configures RequireJS.
+(function(root) {
   'use strict';
 
   // inlined from the query_string module.
@@ -11,7 +11,7 @@
 
     var result = {};
 
-    value.split('&').forEach(function (keyValue) {
+    value.split('&').forEach(function(keyValue) {
       var pair = keyValue.split('=');
       result[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
     });
@@ -38,14 +38,15 @@
       },
       'ext/smtpclient': {
         'axe': 'axeshim-smtpclient'
-      }
+      },
     },
 
     paths: {
       // Configure any manual paths here:
       'bleach': 'ext/bleach.js/lib/bleach',
       'imap-formal-syntax': 'ext/imap-handler/src/imap-formal-syntax',
-      'smtpclient-response-parser': 'ext/smtpclient/src/smtpclient-response-parser',
+      'smtpclient-response-parser':
+        'ext/smtpclient/src/smtpclient-response-parser',
       'tests': '../test/unit',
       'wbxml': 'ext/activesync-lib/wbxml/wbxml',
       'activesync/codepages': 'ext/activesync-lib/codepages',
@@ -118,10 +119,7 @@
   }
 
   // Install super-simple shims here.
-  root.setZeroTimeout = function (fn) {
-    setTimeout(function () {
-      fn();
-    }, 0);
+  root.setZeroTimeout = function(fn) {
+    setTimeout(function() { fn(); }, 0);
   };
 })(this);
-// Note: No AMD module here since this file configures RequireJS.

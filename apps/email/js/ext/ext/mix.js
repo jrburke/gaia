@@ -1,5 +1,5 @@
 /*global define*/
-define(function () {
+define(function() {
   /**
    * Mixes properties from source into target.
    * @param  {Object} target   target of the mix.
@@ -10,8 +10,9 @@ define(function () {
    * mixed in.
    */
   return function mix(target, source, override) {
-    Object.keys(source).forEach(function (key) {
-      if (!target.hasOwnProperty(key) || override) target[key] = source[key];
+    Object.keys(source).forEach(function(key) {
+      if (!target.hasOwnProperty(key) || override)
+        target[key] = source[key];
     });
     return target;
   };

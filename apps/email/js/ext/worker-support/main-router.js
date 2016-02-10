@@ -1,4 +1,4 @@
-define(function () {
+define(function() {
   'use strict';
 
   var listeners = {};
@@ -12,11 +12,11 @@ define(function () {
     modules.push(module);
 
     if (module.process) {
-      action = function (msg) {
+      action = function(msg) {
         module.process(msg.uid, msg.cmd, msg.args);
       };
     } else if (module.dispatch) {
-      action = function (msg) {
+      action = function(msg) {
         if (module.dispatch[msg.cmd]) {
           module.dispatch[msg.cmd].apply(module.dispatch, msg.args);
         }
@@ -25,8 +25,8 @@ define(function () {
 
     listeners[name] = action;
 
-    module.sendMessage = function (uid, cmd, args, transferArgs) {
-      //dump('\x1b[34mM => w: send: ' + name + ' ' + uid + ' ' + cmd + '\x1b[0m\n');
+    module.sendMessage = function(uid, cmd, args, transferArgs) {
+    //dump('\x1b[34mM => w: send: ' + name + ' ' + uid + ' ' + cmd + '\x1b[0m\n');
       //debug('onmessage: ' + name + ": " + uid + " - " + cmd);
       try {
         worker.postMessage({
@@ -36,7 +36,8 @@ define(function () {
           args: args
         }, transferArgs);
       } catch (ex) {
-        console.error('Presumed DataCloneError on:', args, 'with transfer args', transferArgs);
+        console.error('Presumed DataCloneError on:', args, 'with transfer args',
+                      transferArgs);
       }
     };
   }
@@ -46,7 +47,7 @@ define(function () {
   }
 
   function shutdown() {
-    modules.forEach(function (module) {
+    modules.forEach(function(module) {
       if (module.shutdown) {
         module.shutdown();
       }
@@ -57,7 +58,7 @@ define(function () {
     worker = _worker;
     worker.onmessage = function dispatchToListener(evt) {
       var data = evt.data;
-      //dump('\x1b[37mM <= w: recv: '+data.type+' '+data.uid+' '+data.cmd+'\x1b[0m\n');
+//dump('\x1b[37mM <= w: recv: '+data.type+' '+data.uid+' '+data.cmd+'\x1b[0m\n');
       var listener = listeners[data.type];
       if (listener) {
         listener(data);

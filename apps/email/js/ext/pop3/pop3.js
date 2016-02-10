@@ -1,4 +1,4 @@
-define(function (require) {
+define(function(require) {
   'use strict';
 
   const logic = require('logic');
@@ -12,8 +12,10 @@ define(function (require) {
   const util = require('util');
   const allback = require('allback');
 
-  const ByteCounterTransformStream = require('../streamy/byte_counter_transform_stream');
-  const MimeNodeTransformStream = require('../streamy/mime_node_transform_stream');
+  const ByteCounterTransformStream =
+    require('../streamy/byte_counter_transform_stream');
+  const MimeNodeTransformStream =
+    require('../streamy/mime_node_transform_stream');
 
   /**
    * The Pop3Client modules and classes are organized according to
@@ -87,8 +89,6 @@ define(function (require) {
    *
    */
   function Pop3Client(options, cb) {
-    var _this = this;
-
     // for clarity, list the available options:
     this.options = options = options || {};
     options.host = options.host || null;
@@ -119,13 +119,14 @@ define(function (require) {
     }
 
     if (!options.port) {
-      options.port = ({
+      options.port = {
         'plain': 110,
         'starttls': 110,
         'ssl': 995
-      })[options.crypto];
+      }[options.crypto];
       if (!options.port) {
-        throw new Error('Invalid crypto option for Pop3Client: ' + options.crypto);
+        throw new Error('Invalid crypto option for Pop3Client: ' +
+                        options.crypto);
       }
     }
 
@@ -145,12 +146,15 @@ define(function (require) {
     this._messageList = null;
     this._greetingLine = null; // contains APOP auth info, if available
 
-    this.socket = util.makeEventTarget(tcpSocket.open(options.host, options.port, {
-      useSecureTransport: options.crypto === 'ssl' || options.crypto === true
-    }));
+    this.socket = util.makeEventTarget(
+      tcpSocket.open(options.host, options.port, {
+        useSecureTransport: (options.crypto === 'ssl' ||
+                             options.crypto === true)
+      })
+    );
 
-    var connectTimeout = setTimeout(function () {
-      _this.state = 'disconnected';
+    var connectTimeout = setTimeout(() => {
+      this.state = 'disconnected';
       if (connectTimeout) {
         clearTimeout(connectTimeout);
         connectTimeout = null;
@@ -159,11 +163,12 @@ define(function (require) {
         scope: 'connection',
         request: null,
         name: 'unresponsive-server',
-        message: 'Could not connect to ' + options.host + ':' + options.port + ' with ' + options.crypto + ' encryption.'
+        message: 'Could not connect to ' + options.host + ':' + options.port +
+          ' with ' + options.crypto + ' encryption.',
       });
     }, options.connTimeout);
 
-    this.socket.addEventListener('open', (function () {
+    this.socket.addEventListener('open', function() {
       console.log('pop3:onopen');
       if (connectTimeout) {
         clearTimeout(connectTimeout);
@@ -172,9 +177,9 @@ define(function (require) {
       this.state = 'greeting';
       // No further processing is needed here. We wait for the server
       // to send a +OK greeting before we try to authenticate.
-    }).bind(this));
+    }.bind(this));
 
-    this.socket.addEventListener('error', (function (evt) {
+    this.socket.addEventListener('error', function(evt) {
       var err = evt && evt.data || evt;
       console.log('pop3:onerror', err);
       if (connectTimeout) {
@@ -200,77 +205,74 @@ define(function (require) {
         request: null,
         name: 'unresponsive-server',
         message: 'Socket exception: ' + JSON.stringify(err),
-        exception: err
+        exception: err,
       });
-    }).bind(this));
+    }.bind(this));
 
     // sync cares about listening for us closing; it has no way to be informed
     // by disaster recovery otherwise
     this.onclose = null;
-    this.socket.addEventListener('close', (function () {
+    this.socket.addEventListener('close', function() {
       console.log('pop3:onclose');
       this.close();
       if (this.onclose) {
         this.onclose();
       }
-    }).bind(this));
+    }.bind(this));
 
     // Our request/response matching logic will pair the server's greeting with
     // this request.
     var greetingRequest = new transport.Request(null);
-    greetingRequest.then(function () {
+    greetingRequest.then(() => {
       // Store the greeting line, it might be needed in authentication
-      _this._greetingLine = greetingRequest.getStatusLine();
-      _this._maybeUpgradeConnection((function (err) {
-        if (err) {
-          cb && cb(err);return;
-        }
-        this._thenAuthorize(function (err) {
+      this._greetingLine = greetingRequest.getStatusLine();
+      this._maybeUpgradeConnection(function(err) {
+        if (err) { cb && cb(err); return; }
+        this._thenAuthorize(function(err) {
           if (!err) {
             this.state = 'ready';
           }
           cb && cb(err);
         });
-      }).bind(_this));
-    }, function (err) {
+      }.bind(this));
+    }, (err) => {
       cb && cb({
         scope: 'connection',
         request: null,
         name: 'unresponsive-server',
         message: err.statusLine,
-        response: err
+        response: err,
       });
-    });
+    })
 
-    this.requestStream = new transport.Pop3RequestStream(this.socket, greetingRequest);
+    this.requestStream =
+      new transport.Pop3RequestStream(this.socket, greetingRequest);
   }
 
   /**
    * Disconnect from the server forcibly. Do not issue a QUIT command.
    */
-  Pop3Client.prototype.close = Pop3Client.prototype.die = function () {
+  Pop3Client.prototype.close =
+  Pop3Client.prototype.die = function() {
     if (this.state !== 'disconnected') {
       this.state = 'disconnected';
-      if (this.socket.readyState !== 'closing' && this.socket.readyState !== 'closed') {
+      if (this.socket.readyState !== 'closing' &&
+          this.socket.readyState !== 'closed') {
         this.socket.close();
       }
     }
-  };
+  }
 
-  Pop3Client.prototype.sendRequest = function (command, args, isMultiline) {
-    var _this2 = this;
-
-    return new Promise(function (resolve, reject) {
+  Pop3Client.prototype.sendRequest = function(command, args, isMultiline) {
+    return new Promise((resolve, reject) => {
       var request = new transport.Request(command, args, isMultiline);
-      request.then(function (dataLines) {
+      request.then((dataLines) => {
         var statusLine = request.getStatusLine();
         if (statusLine[0] === '+') {
           resolve({
             request: request,
             statusLine: statusLine,
-            dataLines: dataLines.map(function (line) {
-              return mimefuncs.fromTypedArray(line);
-            })
+            dataLines: dataLines.map(line => mimefuncs.fromTypedArray(line))
           });
         } else {
           reject({
@@ -278,21 +280,22 @@ define(function (require) {
             statusLine: statusLine
           });
         }
-      }, function (err) {
+      }, (err) => {
         reject({
           request: request,
           statusLine: '-ERR [synthetic] ' + (err.statusLine || err)
         });
       });
-      if (_this2.socket.readyState !== 'closed') {
-        _this2.requestStream.write(request);
+      if (this.socket.readyState !== 'closed') {
+        this.requestStream.write(request);
       } else {
         request._respondWithError('closed');
       }
     });
-  };
+  }
 
-  Pop3Client.prototype.beginRequest = function (command, args, isMultiline) {
+
+  Pop3Client.prototype.beginRequest = function(command, args, isMultiline) {
     var request = new transport.Request(command, args, isMultiline);
     if (this.socket.readyState !== 'closed') {
       this.requestStream.write(request);
@@ -300,34 +303,33 @@ define(function (require) {
       request._respondWithError('closed');
     }
     return request;
-  };
+  }
 
   /**
    * If we're trying to use TLS, upgrade now.
    *
    * This is followed by ._thenAuthorize().
    */
-  Pop3Client.prototype._maybeUpgradeConnection = function (cb) {
-    var _this3 = this;
-
+  Pop3Client.prototype._maybeUpgradeConnection = function(cb) {
     if (this.options.crypto === 'starttls') {
       this.state = 'starttls';
-      this.sendRequest('STLS', [], false).then(function () {
-        _this3.socket.upgradeToSecure();
-        cb();
-      }, function (err) {
-        cb && cb({
-          scope: 'connection',
-          request: err.request,
-          name: 'bad-security',
-          message: err.statusLine,
-          response: err
+      this.sendRequest('STLS', [], false)
+        .then(() => {
+          this.socket.upgradeToSecure();
+          cb();
+        }, (err) => {
+          cb && cb({
+            scope: 'connection',
+            request: err.request,
+            name: 'bad-security',
+            message: err.statusLine,
+            response: err,
+          });
         });
-      });
     } else {
       cb();
     }
-  };
+  }
 
   /**
    * Set the current state to 'authorization' and attempts to
@@ -342,9 +344,7 @@ define(function (require) {
    * simply try the next. We could be smarter and drop out on
    * detecting a bad-user-or-pass error.
    */
-  Pop3Client.prototype._thenAuthorize = function (cb) {
-    var _this4 = this;
-
+  Pop3Client.prototype._thenAuthorize = function(cb) {
     this.state = 'authorization';
 
     this.authMethod = this.options.authMethods.shift();
@@ -352,57 +352,61 @@ define(function (require) {
     var user = this.options.username;
     var pass = this.options.password;
     var secret;
-    switch (this.authMethod) {
-      case 'apop':
-        var match = /<.*?>/.exec(this._greetingLine || "");
-        var apopTimestamp = match && match[0];
-        if (!apopTimestamp) {
-          // if the server doesn't support APOP, try the next method.
-          this._thenAuthorize(cb);
-        } else {
-          secret = md5(apopTimestamp + pass).toLowerCase();
-          this.sendRequest('APOP', [user, secret], false).then(function () {
+    switch(this.authMethod) {
+    case 'apop':
+      var match = /<.*?>/.exec(this._greetingLine || "");
+      var apopTimestamp = match && match[0];
+      if (!apopTimestamp) {
+        // if the server doesn't support APOP, try the next method.
+        this._thenAuthorize(cb);
+      } else {
+        secret = md5(apopTimestamp + pass).toLowerCase();
+        this.sendRequest('APOP', [user, secret], false)
+          .then(() => {
             cb(); // ready!
-          }, function (err) {
-            _this4._greetingLine = null; // try without APOP
-            _this4._thenAuthorize(cb);
+          }, (err) => {
+            this._greetingLine = null; // try without APOP
+            this._thenAuthorize(cb);
           });
-        }
-        break;
-      case 'sasl':
-        secret = btoa(user + '\x00' + user + '\x00' + pass);
-        this.sendRequest('AUTH', ['PLAIN', secret], false).then(function () {
+      }
+      break;
+    case 'sasl':
+      secret = btoa(user + '\x00' + user + '\x00' + pass);
+      this.sendRequest('AUTH', ['PLAIN', secret], false)
+        .then(() => {
           cb(); // ready!
-        }, function (err) {
-          _this4._thenAuthorize(cb);
+        }, (err) => {
+          this._thenAuthorize(cb);
         });
-        break;
-      case 'user-pass':
-      default:
-        this.sendRequest('USER', [user], false).then(function () {
-          _this4.sendRequest('PASS', [pass], false).then(function () {
-            cb();
-          }, function (err) {
-            cb && cb({
-              scope: 'authentication',
-              request: null, // No request logging here; may leak password.
-              name: 'bad-user-or-pass',
-              message: err.statusLine,
-              response: err
+      break;
+    case 'user-pass':
+    default:
+      this.sendRequest('USER', [user], false)
+        .then(() => {
+          this.sendRequest('PASS', [pass], false)
+            .then(() => {
+              cb();
+            }, (err) => {
+              cb && cb({
+                scope: 'authentication',
+                request: null, // No request logging here; may leak password.
+                name: 'bad-user-or-pass',
+                message: err.statusLine,
+                response: err,
+              });
             });
-          });
-        }, function (err) {
+        }, (err) => {
           cb && cb({
             scope: 'authentication',
             request: err.request,
             name: 'bad-user-or-pass',
             message: err.statusLine,
-            response: err
+            response: err,
           });
         });
-        break;
+      break;
     }
-  };
+  }
 
   /*********************************************************************
    * MESSAGE FETCHING
@@ -424,24 +428,23 @@ define(function (require) {
    * Issue a QUIT command to the server, persisting any DELE message
    * deletions you've enqueued. This also closes the connection.
    */
-  Pop3Client.prototype.quit = function (cb) {
-    var _this5 = this;
-
+  Pop3Client.prototype.quit = function(cb) {
     this.state = 'disconnected';
-    this.sendRequest('QUIT', [], false).then(function () {
-      _this5.close();
-      cb && cb();
-    }, function (err) {
-      _this5.close();
-      cb && cb({
-        scope: 'mailbox',
-        request: err.request,
-        name: 'server-problem',
-        message: err.statusLine,
-        response: err
+    this.sendRequest('QUIT', [], false)
+      .then(() => {
+        this.close();
+        cb && cb();
+      }, (err) => {
+        this.close();
+        cb && cb({
+          scope: 'mailbox',
+          request: err.request,
+          name: 'server-problem',
+          message: err.statusLine,
+          response: err,
+        });
       });
-    });
-  };
+  }
 
   /**
    * Load a mapping of server message numbers to UIDLs, so that we
@@ -449,69 +452,69 @@ define(function (require) {
    * this fetches a LIST of the messages so that we have a list of
    * message sizes in addition to their UIDLs.
    */
-  Pop3Client.prototype._loadMessageList = function () {
-    var _this6 = this;
-
+  Pop3Client.prototype._loadMessageList = function() {
     // if we've already loaded IDs this session, we don't need to
     // compute them again, because POP3 shows a frozen state of your
     // mailbox until you disconnect.
     if (this._messageList) {
       return Promise.resolve(this._messageList);
     }
-    return new Promise(function (resolve, reject) {
+    return new Promise((resolve, reject) => {
       // First, get UIDLs for each message. Because POP3 servers process requests
       // serially, the next LIST will not run until after this completes.
-      _this6.sendRequest('UIDL', [], true).then(function ({ dataLines }) {
-        for (var i = 0; i < dataLines.length; i++) {
-          var words = dataLines[i].split(' ');
-          var number = words[0];
-          var uidl = words[1];
-          _this6.idToUidl[number] = uidl;
-          _this6.uidlToId[uidl] = number;
-        }
-      }, function (err) {
-        reject({
-          scope: 'mailbox',
-          request: err.request,
-          name: 'server-problem',
-          message: err.statusLine,
-          response: err
+      this.sendRequest('UIDL', [], true)
+        .then(({ dataLines }) => {
+          for (var i = 0; i < dataLines.length; i++) {
+            var words = dataLines[i].split(' ');
+            var number = words[0];
+            var uidl = words[1];
+            this.idToUidl[number] = uidl;
+            this.uidlToId[uidl] = number;
+          }
+        }, (err) => {
+          reject({
+            scope: 'mailbox',
+            request: err.request,
+            name: 'server-problem',
+            message: err.statusLine,
+            response: err,
+          });
         });
-      });
 
       // Then, get a list of messages so that we can track their size.
-      _this6.sendRequest('LIST', [], true).then(function ({ dataLines }) {
-        var allMessages = [];
-        for (var i = 0; i < dataLines.length; i++) {
-          var words = dataLines[i].split(' ');
-          var number = words[0];
-          var size = parseInt(words[1], 10);
-          _this6.idToSize[number] = size;
-          // Push the message onto the front, so that the last line
-          // becomes the first message in allMessages. Most POP3 servers
-          // seem to return messages in ascending date order, so we want
-          // to process the newest messages first. (Tested with Dovecot,
-          // Gmail, and AOL.) The resulting list here contains the most
-          // recent message first.
-          allMessages.unshift({
-            uidl: _this6.idToUidl[number],
-            size: size,
-            number: number
+      this.sendRequest('LIST', [], true)
+        .then(({ dataLines }) => {
+          var allMessages = [];
+          for (var i = 0; i < dataLines.length; i++) {
+            var words = dataLines[i].split(' ');
+            var number = words[0];
+            var size = parseInt(words[1], 10);
+            this.idToSize[number] = size;
+            // Push the message onto the front, so that the last line
+            // becomes the first message in allMessages. Most POP3 servers
+            // seem to return messages in ascending date order, so we want
+            // to process the newest messages first. (Tested with Dovecot,
+            // Gmail, and AOL.) The resulting list here contains the most
+            // recent message first.
+            allMessages.unshift({
+              uidl: this.idToUidl[number],
+              size: size,
+              number: number
+            });
+          }
+          this._messageList = allMessages;
+          resolve(allMessages);
+        }, (err) => {
+          reject({
+            scope: 'mailbox',
+            request: err.request,
+            name: 'server-problem',
+            message: err.statusLine,
+            response: err,
           });
-        }
-        _this6._messageList = allMessages;
-        resolve(allMessages);
-      }, function (err) {
-        reject({
-          scope: 'mailbox',
-          request: err.request,
-          name: 'server-problem',
-          message: err.statusLine,
-          response: err
         });
-      });
     });
-  };
+  }
 
   /**
    * XXX MOOT!  Being migrated into SyncStateHelper and sync_* tasks.
@@ -542,9 +545,7 @@ define(function (require) {
    *     you should store those UIDLs for future retrieval as part of
    *     a "Download More Messages" operation.
    */
-  Pop3Client.prototype.listMessages = function (opts, cb) {
-    var _this8 = this;
-
+  Pop3Client.prototype.listMessages = function(opts, cb) {
     var filterFunc = opts.filter;
     var progressCb = opts.progress;
     var checkpointInterval = opts.checkpointInterval || null;
@@ -553,7 +554,7 @@ define(function (require) {
     var overflowMessages = [];
 
     // Get a mapping of number->UIDL.
-    this._loadMessageList().then(function (unfilteredMessages) {
+    this._loadMessageList().then((unfilteredMessages) => {
       // Calculate which messages we would need to download.
       var totalBytes = 0;
       var bytesFetched = 0;
@@ -574,9 +575,12 @@ define(function (require) {
         }
       }
 
-      console.log('POP3: listMessages found ' + messages.length + ' new, ' + overflowMessages.length + ' overflow, and ' + seenCount + ' seen messages. New UIDLs:');
+      console.log('POP3: listMessages found ' +
+                  messages.length + ' new, ' +
+                  overflowMessages.length + ' overflow, and ' +
+                  seenCount + ' seen messages. New UIDLs:');
 
-      messages.forEach(function (m) {
+      messages.forEach(function(m) {
         console.log('POP3: ' + m.size + ' bytes: ' + m.uidl);
       });
 
@@ -589,13 +593,13 @@ define(function (require) {
 
       var firstErr = null;
       // Download all of the messages in batches.
-      var nextBatch = (function () {
-        var _this7 = this;
-
+      var nextBatch = function() {
         console.log('POP3: Next batch. Messages left: ' + messages.length);
         // If there are no more messages or our connection died, we're done.
         if (!messages.length || this.socket.readyState === 'closed') {
-          console.log('POP3: Sync complete. ' + totalMessages + ' messages synced, ' + overflowMessages.length + ' overflow messages.');
+          console.log('POP3: Sync complete. ' +
+                      totalMessages + ' messages synced, ' +
+                      overflowMessages.length + ' overflow messages.');
           cb && cb(firstErr, totalMessages, overflowMessages);
           return;
         }
@@ -604,11 +608,11 @@ define(function (require) {
         var latch = allback.latch();
 
         // Trigger a download for every message in the batch.
-        batch.forEach(function (m, idx) {
+        batch.forEach((m, idx) => {
           var messageDone = latch.defer(m.number);
-          _this7.downloadMessage(_this7.idToUidl[m.number], {
-            snippetOnly: true
-          }).then(function ({ header, body }) {
+          this.downloadMessage(this.idToUidl[m.number], {
+            snippetOnly: true,
+          }).then(({ header, body }) => {
             bytesFetched += m.size;
             progressCb && progressCb({
               totalBytes: totalBytes,
@@ -617,7 +621,7 @@ define(function (require) {
               message: { header: header, bodyInfo: body }
             });
             messageDone();
-          }, function (err) {
+          }, (err) => {
             if (!firstErr) {
               firstErr = err;
             }
@@ -630,7 +634,7 @@ define(function (require) {
         // we'll wait for it to tell us to continue (so that we can
         // save the database periodically or perform other
         // housekeeping during sync).
-        latch.then(function (results) {
+        latch.then(function(results) {
           // figure out if we actually did work so we actually need to save.
           var anySaved = false;
           for (var num in results) {
@@ -647,14 +651,13 @@ define(function (require) {
             nextBatch();
           }
         });
-      }).bind(_this8);
+      }.bind(this);
 
       // Kick it off, maestro.
       nextBatch();
-    }, function (err) {
-      cb && cb(err);
-    });
-  };
+
+    }, (err) => { cb && cb(err); });
+  }
 
   // 1. Obtain the root message header. From here, we have enough data to
   // produce a basic message that we can save to disk.
@@ -670,7 +673,7 @@ define(function (require) {
    * @param {object} [handlers]
    * @param {function(bodyInfo) => Promise} handlers.flushBodyInfo
    */
-  Pop3Client.prototype.downloadMessage = co.wrap(function* (uidl, handlers) {
+  Pop3Client.prototype.downloadMessage = co.wrap(function*(uidl, handlers) {
     handlers = handlers || {};
     var snippetOnly = handlers.snippetOnly;
     // Ensure we've downloaded UIDLs.
@@ -690,8 +693,9 @@ define(function (require) {
     }
 
     try {
-      var ret = yield this.parseMessageFromLineStream(request.dataLineStream, uidl, this.idToSize[number], handlers);
-    } catch (e) {
+      var ret = yield this.parseMessageFromLineStream(
+        request.dataLineStream, uidl, this.idToSize[number], handlers);
+    } catch(e) {
       console.error('Parsing Error:', e, e.stack);
       throw e;
     }
@@ -706,31 +710,35 @@ define(function (require) {
     return content.split('\n').
     // remove soft linebreaks
     // soft linebreaks are added after space symbols
-    reduce(function (previousValue, currentValue, index) {
-      var body = previousValue;
-      if (delSp) {
-        // delsp adds spaces to text to be able to fold it
-        // these spaces can be removed once the text is unfolded
-        body = body.replace(/[ ]+$/, '');
-      }
-      if (/ $/.test(previousValue) && !/(^|\n)\-\- $/.test(previousValue)) {
-        return body + currentValue;
-      } else {
-        return body + '\n' + currentValue;
-      }
+    reduce(function(previousValue, currentValue, index) {
+        var body = previousValue;
+        if (delSp) {
+            // delsp adds spaces to text to be able to fold it
+            // these spaces can be removed once the text is unfolded
+            body = body.replace(/[ ]+$/, '');
+        }
+        if (/ $/.test(previousValue) && !/(^|\n)\-\- $/.test(previousValue)) {
+            return body + currentValue;
+        } else {
+            return body + '\n' + currentValue;
+        }
     })
     // remove whitespace stuffing
     // http://tools.ietf.org/html/rfc3676#section-4.4
     .replace(/^ /gm, '');
   }
 
-  Pop3Client.prototype.parseMessageFromLineStream = co.wrap(function* (lineStream, srvid, totalExpectedSize, handlers) {
+  Pop3Client.prototype.parseMessageFromLineStream =
+  co.wrap(function*(lineStream, srvid, totalExpectedSize, handlers) {
     handlers = handlers || {};
     var countingTransform = new ByteCounterTransformStream();
-    var mimeReader = lineStream.pipeThrough(countingTransform).pipeThrough(new MimeNodeTransformStream()).getReader();
+    var mimeReader = lineStream
+      .pipeThrough(countingTransform)
+      .pipeThrough(new MimeNodeTransformStream())
+      .getReader();
 
     var partBuilder;
-    for (;;) {
+    for(;;) {
       // For every MIME header, we'll see the corresponding MimeNode here,
       // along with a Stream that represents the in-progress body download.
       var { value, done } = yield mimeReader.read();
@@ -755,121 +763,137 @@ define(function (require) {
 
           // XXX broked; need to mesh streaming logic and pre-existing convoy
           // changes.
-          rep.file = yield mimeStreams.readAttachmentStreamWithChunkFlushing(headers.contentType, bodyStream, co.wrap(function* (file) {
-            rep.file = file;
-            if (handlers.flushBodyInfo) {
-              partBuilder.body = yield handlers.flushBodyInfo(partBuilder.body);
-            }
-            if (type === 'attachment') {
-              return partBuilder.body.attachments[index].file;
-            } else {
-              return partBuilder.body.relatedParts[index].file;
-            }
-          }));
+          rep.file = yield mimeStreams.readAttachmentStreamWithChunkFlushing(
+            headers.contentType,
+            bodyStream,
+            co.wrap(function*(file) {
+              rep.file = file;
+              if (handlers.flushBodyInfo) {
+                partBuilder.body =
+                  yield handlers.flushBodyInfo(partBuilder.body);
+              }
+              if (type === 'attachment') {
+                return partBuilder.body.attachments[index].file;
+              } else {
+                return partBuilder.body.relatedParts[index].file;
+              }
+            })
+          );
           rep.sizeEstimate = rep.file.size;
         }
         // For now, if it's a body, we just concatenate everything to a string.
         else if (type === 'body') {
-            var blobChunks = yield mimeStreams.readAllChunks(bodyStream);
+          var blobChunks = yield mimeStreams.readAllChunks(bodyStream);
 
-            rep.content = mimefuncs.charset.decode(new FileReaderSync().readAsArrayBuffer(new Blob(blobChunks)), headers.charset);
+          rep.content =
+            mimefuncs.charset.decode(
+              new FileReaderSync().readAsArrayBuffer(new Blob(blobChunks)),
+              headers.charset);
 
-            // XXX: Our previous MIME parser ate '\r\n' and spit out '\n'.
-            // We've made a lot of assumptions that lines will be delimited by
-            // only '\n' (e.g. in quotechew.js). The right way to do this would
-            // be to convert everything else to use '\r\n'; that would require
-            // a lot of work to change. The only real downside to this hack is
-            // bloating memory doing this transformation:
-            rep.content = rep.content.replace(/\r\n/g, '\n');
+          // XXX: Our previous MIME parser ate '\r\n' and spit out '\n'.
+          // We've made a lot of assumptions that lines will be delimited by
+          // only '\n' (e.g. in quotechew.js). The right way to do this would
+          // be to convert everything else to use '\r\n'; that would require
+          // a lot of work to change. The only real downside to this hack is
+          // bloating memory doing this transformation:
+          rep.content = rep.content.replace(/\r\n/g, '\n');
 
-            // MimeParser used to do this for us; jsmime does not. (We still use
-            // MimeParser to parse IMAP/ActiveSync bodies.)
-            if (headers.format === 'flowed') {
-              rep.content = unfoldFormatFlowed(rep.content, headers.delsp);
-            }
-
-            rep.sizeEstimate = rep.content.length;
-            rep.amountDownloaded = rep.content.length;
-            rep.isDownloaded = true;
+          // MimeParser used to do this for us; jsmime does not. (We still use
+          // MimeParser to parse IMAP/ActiveSync bodies.)
+          if (headers.format === 'flowed') {
+            rep.content = unfoldFormatFlowed(rep.content, headers.delsp);
           }
-          // Some parts we don't do anything with.
-          else if (type === 'ignore') {
-              // nothing
-            }
+
+          rep.sizeEstimate = rep.content.length;
+          rep.amountDownloaded = rep.content.length;
+          rep.isDownloaded = true;
+        }
+        // Some parts we don't do anything with.
+        else if (type === 'ignore') {
+          // nothing
+        }
       } else {
-          // We're done downloading everything! Now we must infer a few things
-          // if we don't have the whole message.
-          var { header, rootHeaders, body } = partBuilder.finalize();
+        // We're done downloading everything! Now we must infer a few things
+        // if we don't have the whole message.
+        var { header, rootHeaders, body } = partBuilder.finalize();
 
-          // in testing:
-          if (totalExpectedSize === undefined) {
-            totalExpectedSize = countingTransform.totalBytesRead;
+        // in testing:
+        if (totalExpectedSize === undefined) {
+          totalExpectedSize = countingTransform.totalBytesRead;
+        }
+
+        var bytesLeft = totalExpectedSize - countingTransform.totalBytesRead;
+        var partiallyDownloaded = bytesLeft > 0;
+
+        // Infer whether or not we have attachments.
+        if (partiallyDownloaded &&
+            (rootHeaders.getStringHeader('x-ms-has-attach') ||
+             rootHeaders.contentType === 'multipart/mixed' ||
+             totalExpectedSize > syncbase.POP3_INFER_ATTACHMENTS_SIZE)) {
+          header.hasAttachments = true;
+        }
+
+        // If we haven't downloaded the entire message, we need to have
+        // some way to tell the UI that we actually haven't downloaded all
+        // of the bodyReps yet. We add this fake bodyRep here, indicating
+        // that it isn't fully downloaded, so that when the user triggers
+        // downloadBodyReps, we actually try to fetch the message. In
+        // POP3, we _don't_ know that we have all bodyReps until we've
+        // downloaded the whole thing. There could be parts hidden in the
+        // data we haven't downloaded yet.
+        body.bodyReps.push({
+          type: 'fake', // not 'text' nor 'html', so it won't be rendered
+          part: 'fake',
+          sizeEstimate: 0,
+          amountDownloaded: 0,
+          isDownloaded: !partiallyDownloaded,
+          content: null,
+          size: 0,
+        });
+
+        // POP3 can't display the completely-downloaded-body until we've
+        // downloaded the entire message, including attachments. So
+        // unfortunately, no matter how much we've already downloaded, if
+        // we haven't downloaded the whole thing, we can't start from the
+        // middle.
+        header.bytesToDownloadForBodyDisplay =
+          (partiallyDownloaded ? totalExpectedSize : 0);
+
+        var bodyRepIdx = imapchew.selectSnippetBodyRep(header, body);
+
+        for (var i = 0; i < body.bodyReps.length; i++) {
+          var bodyRep = body.bodyReps[i];
+          if (bodyRep.content === null) {
+            continue;
           }
 
-          var bytesLeft = totalExpectedSize - countingTransform.totalBytesRead;
-          var partiallyDownloaded = bytesLeft > 0;
-
-          // Infer whether or not we have attachments.
-          if (partiallyDownloaded && (rootHeaders.getStringHeader('x-ms-has-attach') || rootHeaders.contentType === 'multipart/mixed' || totalExpectedSize > syncbase.POP3_INFER_ATTACHMENTS_SIZE)) {
-            header.hasAttachments = true;
-          }
-
-          // If we haven't downloaded the entire message, we need to have
-          // some way to tell the UI that we actually haven't downloaded all
-          // of the bodyReps yet. We add this fake bodyRep here, indicating
-          // that it isn't fully downloaded, so that when the user triggers
-          // downloadBodyReps, we actually try to fetch the message. In
-          // POP3, we _don't_ know that we have all bodyReps until we've
-          // downloaded the whole thing. There could be parts hidden in the
-          // data we haven't downloaded yet.
-          body.bodyReps.push({
-            type: 'fake', // not 'text' nor 'html', so it won't be rendered
-            part: 'fake',
-            sizeEstimate: 0,
-            amountDownloaded: 0,
-            isDownloaded: !partiallyDownloaded,
-            content: null,
-            size: 0
-          });
-
-          // POP3 can't display the completely-downloaded-body until we've
-          // downloaded the entire message, including attachments. So
-          // unfortunately, no matter how much we've already downloaded, if
-          // we haven't downloaded the whole thing, we can't start from the
-          // middle.
-          header.bytesToDownloadForBodyDisplay = partiallyDownloaded ? totalExpectedSize : 0;
-
-          var bodyRepIdx = imapchew.selectSnippetBodyRep(header, body);
-
-          for (var i = 0; i < body.bodyReps.length; i++) {
-            var bodyRep = body.bodyReps[i];
-            if (bodyRep.content === null) {
-              continue;
-            }
-
-            var content = bodyRep.content;
-            //bodyRep.size = partSizes[bodyRep.part];
-            imapchew.updateMessageWithFetch(header, body, {
+          var content = bodyRep.content;
+          //bodyRep.size = partSizes[bodyRep.part];
+          imapchew.updateMessageWithFetch(
+            header,
+            body,
+            {
               // If bytes is null, imapchew.updateMessageWithFetch knows
               // that we've fetched the entire thing. Passing in [-1, -1] as a
               // range tells imapchew that we're not done downloading it yet.
-              bytes: bodyRep.isDownloaded ? null : [-1, -1],
+              bytes: (bodyRep.isDownloaded ? null : [-1, -1]),
               bodyRepIndex: i,
-              createSnippet: i === bodyRepIdx
-            }, {
+              createSnippet: i === bodyRepIdx,
+            },
+            {
               bytesFetched: content.length,
               text: content
             });
-          }
-
-          return { header, body };
         }
+
+        return { header, body };
+      }
     } // end for
   });
 
   return {
     Pop3Client,
-    setTimeoutFunctions: function (set, clear) {
+    setTimeoutFunctions: function(set, clear) {
       setTimeout = set;
       clearTimeout = clear;
     }

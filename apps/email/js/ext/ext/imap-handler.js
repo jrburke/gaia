@@ -1,3 +1,3 @@
-define(['./imap-handler/src/imap-handler'], function (imapHandler) {
+define(['./imap-handler/src/imap-handler'], function(imapHandler) {
   return imapHandler;
 });

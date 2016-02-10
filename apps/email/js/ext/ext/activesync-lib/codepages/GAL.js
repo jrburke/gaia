@@ -14,26 +14,31 @@
  */
 
 (function (root, factory) {
-  if (typeof exports === 'object') module.exports = factory();else if (typeof define === 'function' && define.amd) define([], factory);else root.ASCPGAL = factory();
-})(this, function () {
+  if (typeof exports === 'object')
+    module.exports = factory();
+  else if (typeof define === 'function' && define.amd)
+    define([], factory);
+  else
+    root.ASCPGAL = factory();
+}(this, function() {
   'use strict';
 
   return {
     Tags: {
-      DisplayName: 0x1005,
-      Phone: 0x1006,
-      Office: 0x1007,
-      Title: 0x1008,
-      Company: 0x1009,
-      Alias: 0x100A,
-      FirstName: 0x100B,
-      LastName: 0x100C,
-      HomePhone: 0x100D,
-      MobilePhone: 0x100E,
+      DisplayName:  0x1005,
+      Phone:        0x1006,
+      Office:       0x1007,
+      Title:        0x1008,
+      Company:      0x1009,
+      Alias:        0x100A,
+      FirstName:    0x100B,
+      LastName:     0x100C,
+      HomePhone:    0x100D,
+      MobilePhone:  0x100E,
       EmailAddress: 0x100F,
-      Picture: 0x1010,
-      Status: 0x1011,
-      Data: 0x1012
+      Picture:      0x1010,
+      Status:       0x1011,
+      Data:         0x1012,
     }
   };
-});
+}));

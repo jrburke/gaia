@@ -16,8 +16,9 @@
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
 
-(function (root, factory) {
+(function(root, factory) {
     'use strict';
 
     if (typeof define === 'function' && define.amd) {
@@ -27,17 +28,13 @@
     } else {
         root.utf7 = factory();
     }
-})(this, function () {
+}(this, function() {
     'use strict';
 
     function encode(str) {
         var b = new Uint8Array(str.length * 2),
             octets = '',
-            i,
-            bi,
-            len,
-            c,
-            encoded;
+            i, bi, len, c, encoded;
 
         for (i = 0, bi = 0, len = str.length; i < len; i++) {
             // Note that we can't simply convert a UTF-8 string to Base64 because
@@ -60,7 +57,7 @@
         if (typeof window !== 'undefined' && btoa) {
             encoded = btoa(octets);
         } else {
-            encoded = new Buffer(octets, "binary").toString("base64");
+            encoded = (new Buffer(octets, "binary")).toString("base64");
         }
         return encoded.replace(/=+$/, '');
     }
@@ -85,30 +82,24 @@
 
         for (var i = 0, len = base64Str.length; i < len; i++) {
             c = base64Str.charCodeAt(i);
-            if (c >= 0x41 && c <= 0x5a) {
-                // [A-Z]
+            if (c >= 0x41 && c <= 0x5a) { // [A-Z]
                 bits = c - 0x41;
-            } else if (c >= 0x61 && c <= 0x7a) {
-                // [a-z]
+            } else if (c >= 0x61 && c <= 0x7a) { // [a-z]
                 bits = c - 0x61 + 0x1a;
-            } else if (c >= 0x30 && c <= 0x39) {
-                // [0-9]
+            } else if (c >= 0x30 && c <= 0x39) { // [0-9]
                 bits = c - 0x30 + 0x34;
-            } else if (c === 0x2b) {
-                // +
+            } else if (c === 0x2b) { // +
                 bits = 0x3e;
-            } else if (c === 0x2f) {
-                // /
+            } else if (c === 0x2f) { // /
                 bits = 0x3f;
-            } else if (c === 0x3d) {
-                // =
+            } else if (c === 0x3d) { // =
                 validBits = 0;
                 continue;
             } else {
                 // ignore all other characters!
                 continue;
             }
-            bitsSoFar = bitsSoFar << 6 | bits;
+            bitsSoFar = (bitsSoFar << 6) | bits;
             validBits += 6;
             if (validBits >= 8) {
                 validBits -= 8;
@@ -148,13 +139,13 @@
         setO = escape('!"#$%&*;<=>@[]^_\'{|}'),
         setW = escape(' \r\n\t'),
 
-    // Stores compiled regexes for various replacement pattern.
-    regexes = {},
+        // Stores compiled regexes for various replacement pattern.
+        regexes = {},
         regexAll = new RegExp('[^' + setW + setD + setO + ']+', 'g');
 
     return {
         // RFC 2152 UTF-7 encoding.
-        encode: function (str, mask) {
+        encode: function(str, mask) {
             // Generate a RegExp object from the string of mask characters.
             if (!mask) {
                 mask = '';
@@ -164,24 +155,24 @@
             }
 
             // We replace subsequent disallowed chars with their escape sequence.
-            return str.replace(regexes[mask], function (chunk) {
+            return str.replace(regexes[mask], function(chunk) {
                 // + is represented by an empty sequence +-, otherwise call encode().
                 return '+' + (chunk === '+' ? '' : encode(chunk)) + '-';
             });
         },
 
         // RFC 2152 UTF-7 encoding with all optionals.
-        encodeAll: function (str) {
+        encodeAll: function(str) {
             // We replace subsequent disallowed chars with their escape sequence.
-            return str.replace(regexAll, function (chunk) {
+            return str.replace(regexAll, function(chunk) {
                 // + is represented by an empty sequence +-, otherwise call encode().
                 return '+' + (chunk === '+' ? '' : encode(chunk)) + '-';
             });
         },
 
         // RFC 2152 UTF-7 decoding.
-        decode: function (str) {
-            return str.replace(/\+([A-Za-z0-9\/]*)-?/gi, function (_, chunk) {
+        decode: function(str) {
+            return str.replace(/\+([A-Za-z0-9\/]*)-?/gi, function(_, chunk) {
                 // &- represents &.
                 if (chunk === '') {
                     return '+';
@@ -192,10 +183,10 @@
 
         imap: {
             // RFC 3501, section 5.1.3 UTF-7 encoding.
-            encode: function (str) {
+            encode: function(str) {
                 // All printable ASCII chars except for & must be represented by themselves.
                 // We replace subsequent non-representable chars with their escape sequence.
-                return str.replace(/&/g, '&-').replace(/[^\x20-\x7e]+/g, function (chunk) {
+                return str.replace(/&/g, '&-').replace(/[^\x20-\x7e]+/g, function(chunk) {
                     // & is represented by an empty sequence &-, otherwise call encode().
                     chunk = (chunk === '&' ? '' : encode(chunk)).replace(/\//g, ',');
                     return '&' + chunk + '-';
@@ -203,8 +194,8 @@
             },
 
             // RFC 3501, section 5.1.3 UTF-7 decoding.
-            decode: function (str) {
-                return str.replace(/&([^-]*)-/g, function (_, chunk) {
+            decode: function(str) {
+                return str.replace(/&([^-]*)-/g, function(_, chunk) {
                     // &- represents &.
                     if (chunk === '') {
                         return '&';
@@ -214,5 +205,4 @@
             }
         }
     };
-});
-// THE SOFTWARE.
+}));

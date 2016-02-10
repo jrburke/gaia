@@ -14,32 +14,37 @@
  */
 
 (function (root, factory) {
-  if (typeof exports === 'object') module.exports = factory();else if (typeof define === 'function' && define.amd) define([], factory);else root.ASCPRightsManagement = factory();
-})(this, function () {
+  if (typeof exports === 'object')
+    module.exports = factory();
+  else if (typeof define === 'function' && define.amd)
+    define([], factory);
+  else
+    root.ASCPRightsManagement = factory();
+}(this, function() {
   'use strict';
 
   return {
     Tags: {
-      RightsManagementSupport: 0x1805,
-      RightsManagementTemplates: 0x1806,
-      RightsManagementTemplate: 0x1807,
-      RightsManagementLicense: 0x1808,
-      EditAllowed: 0x1809,
-      ReplyAllowed: 0x180A,
-      ReplyAllAllowed: 0x180B,
-      ForwardAllowed: 0x180C,
-      ModifyRecipientsAllowed: 0x180D,
-      ExtractAllowed: 0x180E,
-      PrintAllowed: 0x180F,
-      ExportAllowed: 0x1810,
-      ProgrammaticAccessAllowed: 0x1811,
-      Owner: 0x1812,
-      ContentExpiryDate: 0x1813,
-      TemplateID: 0x1814,
-      TemplateName: 0x1815,
-      TemplateDescription: 0x1816,
-      ContentOwner: 0x1817,
-      RemoveRightsManagementDistribution: 0x1818
+      RightsManagementSupport:            0x1805,
+      RightsManagementTemplates:          0x1806,
+      RightsManagementTemplate:           0x1807,
+      RightsManagementLicense:            0x1808,
+      EditAllowed:                        0x1809,
+      ReplyAllowed:                       0x180A,
+      ReplyAllAllowed:                    0x180B,
+      ForwardAllowed:                     0x180C,
+      ModifyRecipientsAllowed:            0x180D,
+      ExtractAllowed:                     0x180E,
+      PrintAllowed:                       0x180F,
+      ExportAllowed:                      0x1810,
+      ProgrammaticAccessAllowed:          0x1811,
+      Owner:                              0x1812,
+      ContentExpiryDate:                  0x1813,
+      TemplateID:                         0x1814,
+      TemplateName:                       0x1815,
+      TemplateDescription:                0x1816,
+      ContentOwner:                       0x1817,
+      RemoveRightsManagementDistribution: 0x1818,
     }
   };
-});
+}));

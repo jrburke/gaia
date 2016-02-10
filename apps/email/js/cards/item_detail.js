@@ -107,7 +107,7 @@ console.log('ITEM_DETAIL CALLING SEEKTOTOP 1, 1');
 
     release: function() {
       if (this.listCursor) {
-        this.listCursor.removeListener(this.onCurrentItem);
+        this.listCursor.removeListener('currentItem', this.onCurrentItem);
       }
     }
   }

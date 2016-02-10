@@ -154,7 +154,7 @@
  *
  * See test_disaster_recovery.js for an example test using these primitives.
  */
-define(function (require) {
+define(function(require) {
   'use strict';
   var evt = require('evt');
   var equal = require('gelam/ext/equal');
@@ -174,8 +174,8 @@ define(function (require) {
    * @param {string} namespace
    * @param {object|null} defaultDetails
    */
-  logic.scope = function (namespace, defaultDetails) {
-    return new Scope(namespace, defaultDetails);
+  logic.scope = function(namespace, defaultDetails) {
+      return new Scope(namespace, defaultDetails);
   };
 
   var objectToScope = new WeakMap();
@@ -184,7 +184,10 @@ define(function (require) {
     if (!(scope instanceof Scope)) {
       scope = objectToScope.get(scope);
       if (!scope) {
-        throw new Error('Invalid scope ' + scope + ' passed to logic.event(); ' + 'did you remember to call logic.defineScope()? ' + new Error().stack);
+        throw new Error('Invalid scope ' + scope +
+                        ' passed to logic.event(); ' +
+                        'did you remember to call logic.defineScope()? ' +
+                        new Error().stack);
       }
     }
     return scope;
@@ -200,7 +203,7 @@ define(function (require) {
    *     logic.event(this, 'initialized');
    *   }
    */
-  logic.defineScope = function (obj, namespace, defaultDetails) {
+  logic.defineScope = function(obj, namespace, defaultDetails) {
     // Default to the object's class name, if available.
     if (!namespace && obj && obj.constructor && obj.constructor.name) {
       namespace = obj.constructor.name;
@@ -221,9 +224,10 @@ define(function (require) {
    *   logic.log(scope, 'start');
    *   // event: Account/start { accountId: 1, action: 'move' }
    */
-  logic.subscope = function (scope, defaultDetails) {
+  logic.subscope = function(scope, defaultDetails) {
     scope = toScope(scope);
-    return new Scope(scope.namespace, into(shallowClone(scope.defaultDetails), shallowClone(defaultDetails)));
+    return new Scope(scope.namespace, into(shallowClone(scope.defaultDetails),
+                                           shallowClone(defaultDetails)));
   };
 
   /**
@@ -239,7 +243,7 @@ define(function (require) {
    *   These details will be mixed in with any default details specified
    *   by the Scope.
    */
-  logic.event = function (scope, type, details) {
+  logic.event = function(scope, type, details) {
     scope = toScope(scope);
 
     // Give others a chance to intercept this event before we do lots of hard
@@ -250,7 +254,7 @@ define(function (require) {
       namespace: scope.namespace,
       type: type,
       details: details,
-      preventDefault: function () {
+      preventDefault: function() {
         isDefaultPrevented = true;
       }
     };
@@ -264,12 +268,14 @@ define(function (require) {
     details = preprocessEvent.details;
 
     if (typeof type !== 'string') {
-      throw new Error('Invalid "type" passed to logic.event(); ' + 'expected a string, got "' + type + '"');
+      throw new Error('Invalid "type" passed to logic.event(); ' +
+                      'expected a string, got "' + type + '"');
     }
 
     if (scope.defaultDetails) {
-      if (isPlainObject(details)) {
-        details = into(shallowClone(scope.defaultDetails), shallowClone(details));
+      if(isPlainObject(details)) {
+        details = into(shallowClone(scope.defaultDetails),
+                       shallowClone(details));
       } else {
         details = shallowClone(scope.defaultDetails);
       }
@@ -289,6 +295,7 @@ define(function (require) {
     return event;
   };
 
+
   // True when being run within a test.
   logic.underTest = false;
   logic._currentTestRejectFunction = null;
@@ -301,7 +308,7 @@ define(function (require) {
    * @param {object} ex
    *   Exception object, as with Promise.reject()
    */
-  logic.fail = function (ex) {
+  logic.fail = function(ex) {
     if (logic.underTest) {
       if (logic._currentTestRejectFunction) {
         logic._currentTestRejectFunction(ex);
@@ -313,13 +320,14 @@ define(function (require) {
     }
   };
 
+
   var nextId = 1;
 
   /**
    * Return a sequential unique identifier, unique for users of this module
    * instance.
    */
-  logic.uniqueId = function () {
+  logic.uniqueId = function() {
     return nextId++;
   };
 
@@ -332,7 +340,7 @@ define(function (require) {
   /**
    * Provide a named hook which can be intercepted by tests.
    */
-  logic.interceptable = function (type, fn) {
+  logic.interceptable = function(type, fn) {
     if (interceptions[type]) {
       return interceptions[type]();
     } else {
@@ -343,9 +351,9 @@ define(function (require) {
   /**
    * Intercept a named logic.interceptable by calling your function instead.
    */
-  logic.interceptOnce = function (type, replacementFn) {
+  logic.interceptOnce = function(type, replacementFn) {
     var prevFn = interceptions[type];
-    interceptions[type] = function () {
+    interceptions[type] = function() {
       interceptions[type] = prevFn;
       return replacementFn();
     };
@@ -367,9 +375,11 @@ define(function (require) {
    * @param {string} type
    * @param {object|function} detailPredicate
    */
-  logic.match = function (ns, type, detailPredicate) {
-    return new LogicMatcher(LogicMatcher.normalizeMatchArgs(ns, type, detailPredicate));
+  logic.match = function(ns, type, detailPredicate) {
+    return new LogicMatcher(
+      LogicMatcher.normalizeMatchArgs(ns, type, detailPredicate));
   };
+
 
   function MismatchError(matcher, event) {
     this.matcher = matcher;
@@ -378,22 +388,23 @@ define(function (require) {
 
   MismatchError.prototype = Object.create(Error.prototype, {
     constructor: { value: MismatchError },
-    toString: { value: function () {
-        if (this.matcher.not) {
-          return 'MismatchError: expected ' + this.event + ' to not occur (failIfMatched ' + this.matcher + ').';
-        } else {
-          return 'MismatchError: expected ' + this.event + ' to match ' + JSON.stringify(this.matcher.detailPredicate) + '.';
-        }
-      } }
+    toString: { value: function() {
+      if (this.matcher.not) {
+        return 'MismatchError: expected ' + this.event +
+          ' to not occur (failIfMatched ' + this.matcher + ').';
+      } else {
+        return 'MismatchError: expected ' + this.event +
+          ' to match ' + JSON.stringify(this.matcher.detailPredicate) + '.';
+      }
+    }}
   });
+
 
   /**
    * This is the object returned from `logic.match`. It acts as a Promise that
    * resolves when a matching event has been logged.
    */
   function LogicMatcher(opts) {
-    var _this = this;
-
     this.matchedLogs = opts.prevMatcher ? opts.prevMatcher.matchedLogs : [];
     this.capturedLogs = [];
     this.ns = opts.ns;
@@ -419,27 +430,29 @@ define(function (require) {
 
     if (this.not) {
       // XXX this should probably bind instantly like the next case.
-      this.promise = normalizedPrevPromise.then(function () {
-        _this.capturedLogs.some(function (event) {
-          if ((!_this.ns || event.namespace === _this.ns) && event.matches(_this.type, _this.detailPredicate)) {
-            throw new MismatchError(_this, event);
+      this.promise = normalizedPrevPromise.then(() => {
+        this.capturedLogs.some((event) => {
+          if ((!this.ns || event.namespace === this.ns) &&
+              event.matches(this.type, this.detailPredicate)) {
+            throw new MismatchError(this, event);
           }
         });
       });
     } else if (this.type) {
-      this.promise = new Promise(function (resolve, reject) {
+      this.promise = new Promise((resolve, reject) => {
         // Once any previous match has been resolved,
         // subscribe to a following match.
-        var subscribeToNextMatch = function () {
-          var timeoutId = setTimeout(function () {
-            logic(_this, 'failedMatch', {
-              ns: _this.ns,
-              type: _this.type,
-              detailPredicate: _this.detailPredicate,
-              capturedLogs: _this.capturedLogs
-            });
-            reject(new Error('LogicMatcherTimeout: ' + _this));
-          }, _this.timeoutMS);
+        var subscribeToNextMatch = () => {
+          var timeoutId = setTimeout(() => {
+            logic(this, 'failedMatch',
+                  {
+                    ns: this.ns,
+                    type: this.type,
+                    detailPredicate: this.detailPredicate,
+                    capturedLogs: this.capturedLogs
+                  });
+            reject(new Error('LogicMatcherTimeout: ' + this));
+          }, this.timeoutMS);
 
           // Promise chains have "dead spots" in between resolution
           // callbacks. For instance:
@@ -450,45 +463,46 @@ define(function (require) {
           // up a new listener for each LogicMatcher. Instead, since
           // every matcher has a pointer to its prevMatcher, we can
           // just grab the missing logs from there.
-          var resolveThisMatcher = function (event) {
-            _this.resolved = true;
-            _this.capturedLogs = []; // Extra events will go here.
-            if (!_this.anotherMatcherNeedsMyLogs) {
-              _this.removeMatchListener();
+          var resolveThisMatcher = (event) => {
+            this.resolved = true;
+            this.capturedLogs = []; // Extra events will go here.
+            if (!this.anotherMatcherNeedsMyLogs) {
+              this.removeMatchListener();
             }
           };
 
-          var matchFn = function (event) {
-            _this.capturedLogs.push(event);
-            if (_this.resolved) {
+          var matchFn = (event) => {
+            this.capturedLogs.push(event);
+            if (this.resolved) {
               return;
             }
 
-            if (_this.ns && event.namespace !== _this.ns || event.type !== _this.type) {
+            if (this.ns && event.namespace !== this.ns ||
+                event.type !== this.type) {
               return false; // did not match
             }
-            if (event.matches(_this.type, _this.detailPredicate)) {
+            if (event.matches(this.type, this.detailPredicate)) {
               resolveThisMatcher(event);
-              _this.matchedLogs.push(event);
+              this.matchedLogs.push(event);
               clearTimeout(timeoutId);
-              logic(_this, 'match', { ns: _this.ns,
-                type: _this.type,
-                event: event });
+              logic(this, 'match', { ns: this.ns,
+                                     type: this.type,
+                                     event: event });
               resolve(event);
               return true;
             } else {
-              if (_this.failOnMismatchedDetails) {
+              if (this.failOnMismatchedDetails) {
                 resolveThisMatcher(event);
-                reject(new MismatchError(_this, event));
+                reject(new MismatchError(this, event));
                 return true; // matched
               } else {
-                  // Ignore mismatched events; maybe we'll match later.
-                }
+                // Ignore mismatched events; maybe we'll match later.
+              }
             }
             return false; // not done yet, didn't find a match
           };
 
-          _this.removeMatchListener = function () {
+          this.removeMatchListener = () => {
             logic.removeListener('event', matchFn);
           };
 
@@ -501,22 +515,20 @@ define(function (require) {
             // Then, we get to start by capturing all logs that have occured in
             // the intervening time:
             if (matchIndex !== -1) {
-              _this.capturedLogs = prevLogs.slice(matchIndex + 1);
+              this.capturedLogs = prevLogs.slice(matchIndex + 1);
             }
             // Now that we're done with the previous matcher, it doesn't need to
             // listen to events any more.
             opts.prevMatcher.removeMatchListener();
           }
-        };
+        }
 
         if (hasPrevPromise) {
-          normalizedPrevPromise.then(subscribeToNextMatch, function (e) {
-            return reject(e);
-          });
+          normalizedPrevPromise.then(subscribeToNextMatch, (e) => reject(e) );
         } else {
           try {
             subscribeToNextMatch();
-          } catch (e) {
+          } catch(e) {
             reject(e);
           }
         }
@@ -528,7 +540,7 @@ define(function (require) {
     }
   }
 
-  LogicMatcher.normalizeMatchArgs = function (ns, type, details) {
+  LogicMatcher.normalizeMatchArgs = function(ns, type, details) {
     // 'ns' is optional
     if (typeof type === 'object') {
       details = type;
@@ -536,7 +548,7 @@ define(function (require) {
       ns = null;
     }
     return { ns: ns, type: type, detailPredicate: details };
-  };
+  }
 
   LogicMatcher.prototype = {
 
@@ -566,11 +578,9 @@ define(function (require) {
      * Like Promise.then(); resolves with an array of matched logs.
      */
     then(fn, catchFn) {
-      var _this2 = this;
-
       return new LogicMatcher({
-        prevPromise: this.promise.then(function () {
-          var ret = fn(_this2.matchedLogs.slice());
+        prevPromise: this.promise.then(() => {
+          var ret = fn(this.matchedLogs.slice());
           if (ret instanceof Promise) {
             ret = new LogicMatcher({
               prevPromise: ret
@@ -582,15 +592,18 @@ define(function (require) {
     },
 
     toString() {
-      return '<LogicMatcher ' + (this.ns ? this.ns + '/' : '') + this.type + ' ' + new ObjectSimplifier().simplify(this.detailPredicate) + '>';
+      return '<LogicMatcher ' + (this.ns ? this.ns + '/' : '') +
+        this.type + ' ' + new ObjectSimplifier().simplify(this.detailPredicate)
+        + '>';
     }
-  };
+  }
 
   function Scope(namespace, defaultDetails) {
     this.namespace = namespace;
 
     if (defaultDetails && !isPlainObject(defaultDetails)) {
-      throw new Error('Invalid defaultDetails; expected a plain-old object: ' + defaultDetails);
+      throw new Error('Invalid defaultDetails; expected a plain-old object: ' +
+                      defaultDetails);
     }
     this.defaultDetails = defaultDetails;
   }
@@ -604,13 +617,11 @@ define(function (require) {
   }
 
   ObjectSimplifier.prototype = {
-    simplify: function (x) {
+    simplify: function(x) {
       return this._simplify(x, 0, new WeakSet());
     },
 
-    _simplify: function (x, depth, cacheSet) {
-      var _this3 = this;
-
+    _simplify: function(x, depth, cacheSet) {
       if (cacheSet.has(x)) {
         return '(cycle)';
       }
@@ -623,9 +634,8 @@ define(function (require) {
         return x.slice(0, this.maxArrayLength);
       } else if (Array.isArray(x)) {
         if (depth < this.maxDepth) {
-          return x.slice(0, this.maxArrayLength).map(function (element) {
-            return _this3._simplify(element, depth + 1, cacheSet);
-          });
+          return x.slice(0, this.maxArrayLength)
+            .map((element) => this._simplify(element, depth + 1, cacheSet));
         } else {
           return '[Array length=' + x.length + ']';
         }
@@ -667,7 +677,8 @@ define(function (require) {
 
   function LogicEvent(scope, type, details) {
     if (!(scope instanceof Scope)) {
-      throw new Error('Invalid "scope" passed to LogicEvent(); ' + 'did you remember to call logic.defineScope()?');
+      throw new Error('Invalid "scope" passed to LogicEvent(); ' +
+                      'did you remember to call logic.defineScope()?');
     }
 
     this.scope = scope;
@@ -684,26 +695,30 @@ define(function (require) {
     };
   }
 
-  LogicEvent.fromJSON = function (data) {
-    var event = new LogicEvent(new Scope(data.namespace), data.type, data.details);
+  LogicEvent.fromJSON = function(data) {
+    var event = new LogicEvent(new Scope(data.namespace),
+                               data.type,
+                               data.details);
     event.time = data.time;
     event.id = data.id;
     return event;
-  };
+  }
 
   LogicEvent.prototype = {
     get namespace() {
       return this.scope.namespace;
     },
 
-    toJSON: function () {
+    toJSON: function() {
       return this.jsonRepresentation;
     },
 
-    toString: function () {
+    toString: function() {
       // XXX handle coloring more responsibly.  (not all toString invocations
       // want color codes... but the ones we hvae do do :)
-      return '<LogicEvent \x1b[34m' + this.namespace + '\x1b[0m/\x1b[36m' + this.type + '\x1b[0m\n\x1b[37m' + JSON.stringify(this.jsonRepresentation.details, null, 2) + '\x1b[0m>';
+      return '<LogicEvent \x1b[34m' + this.namespace + '\x1b[0m/\x1b[36m' +
+        this.type + '\x1b[0m\n\x1b[37m' +
+        JSON.stringify(this.jsonRepresentation.details, null, 2) + '\x1b[0m>';
     },
 
     /**
@@ -713,7 +728,7 @@ define(function (require) {
      * @param {string} type
      * @param {object|function|null} detailPredicate
      */
-    matches: function (type, detailPredicate) {
+    matches: function(type, detailPredicate) {
       if (this.type !== type) {
         return false;
       }
@@ -730,9 +745,10 @@ define(function (require) {
 
           if (expected === undefined) {
             continue; // We don't care about these.
-          } else if (!this.details || !equal(expected, actual)) {
-              return false;
-            }
+          } else if (!this.details ||
+                     !equal(expected, actual)) {
+            return false;
+          }
         }
         return true;
       } else if (detailPredicate != null) {
@@ -748,7 +764,7 @@ define(function (require) {
       return false;
     }
     // Object.create(null) has no .toString().
-    if (obj.toString && obj.toString() !== '[object Object]') {
+    if (obj.toString && (obj.toString() !== '[object Object]')) {
       return false;
     }
     for (var k in obj) {
@@ -776,9 +792,9 @@ define(function (require) {
    *
    * @return An object with 'resolve' and 'reject' properties.
    */
-  logic.startAsync = function (scope, type, details) {
+  logic.startAsync = function(scope, type, details) {
     var resolve, reject;
-    var promise = logic.async(scope, type, details, function (_resolve, _reject) {
+    var promise = logic.async(scope, type, details, (_resolve, _reject) => {
       resolve = _resolve;
       reject = _reject;
     });
@@ -786,14 +802,14 @@ define(function (require) {
       resolve: resolve,
       reject: reject
     };
-  };
+  }
 
   /**
    * A tracked version of `new Promise()`, where `fn` here is your promise
    * executor function. As with `logic.event()`, details is optional, but type
    * is required. Events will be logged to track the promise's resolution.
    */
-  logic.async = function (scope, type, details, fn) {
+  logic.async = function(scope, type, details, fn) {
     if (!fn && typeof details === 'function') {
       fn = details;
       details = null;
@@ -802,20 +818,20 @@ define(function (require) {
     scope = logic.subscope(scope, details);
 
     var startEvent;
-    var promise = new Promise(function (resolve, reject) {
+    var promise = new Promise((resolve, reject) => {
       startEvent = logic(scope, 'begin ' + type, {
         asyncStatus: 0, // 'pending', as per Promise's private 'status' property.
         asyncName: type
       });
 
-      fn(function (result) {
+      fn((result) => {
         promiseToResultEventMap.set(promise, logic(scope, type, {
           asyncStatus: 1, // 'resolved'
           sourceEventIds: [startEvent.id],
           result: result
         }));
         resolve(result);
-      }, function (error) {
+      }, (error) => {
         promiseToResultEventMap.set(promise, logic(scope, type, {
           asyncStatus: 2, // 'rejected'
           sourceEventIds: [startEvent.id],
@@ -834,7 +850,7 @@ define(function (require) {
    * "I finally got this Promise's result". If the originating promise was
    * created with `logic.async`, we can link the two semantically.
    */
-  logic.await = function (scope, type, details, promise) {
+  logic.await = function(scope, type, details, promise) {
     if (!promise && details.then) {
       promise = details;
       details = null;
@@ -849,21 +865,25 @@ define(function (require) {
       awaitName: type
     });
 
-    return promise.then(function (result) {
+    return promise.then((result) => {
       var resultEvent = promiseToResultEventMap.get(promise);
       logic(scope, type, {
         awaitStatus: 1, // 'resolved'
         result: result,
-        sourceEventIds: resultEvent ? [resultEvent.id, awaitEvent.id] : [awaitEvent.id]
+        sourceEventIds: (resultEvent
+                         ? [resultEvent.id, awaitEvent.id]
+                         : [awaitEvent.id])
       });
       return result;
-    }, function (error) {
+    }, (error) => {
       var resultEvent = promiseToResultEventMap.get(promise);
       logic(scope, type, {
         awaitStatus: 2, // 'rejected'
         error: error,
         stack: error && error.stack,
-        sourceEventIds: resultEvent ? [resultEvent.id, awaitEvent.id] : [awaitEvent.id]
+        sourceEventIds: (resultEvent
+                         ? [resultEvent.id, awaitEvent.id]
+                         : [awaitEvent.id])
       });
       throw error;
     });
@@ -893,6 +913,7 @@ define(function (require) {
     }
     return target;
   }
+
 
   return logic;
 });

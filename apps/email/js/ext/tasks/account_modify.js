@@ -1,20 +1,21 @@
-define(function (require) {
-  'use strict';
+define(function(require) {
+'use strict';
 
-  const logic = require('logic');
-  const co = require('co');
-  const TaskDefiner = require('../task_infra/task_definer');
+const logic = require('logic');
+const co = require('co');
+const TaskDefiner = require('../task_infra/task_definer');
 
-  const { NOW } = require('../date');
+const { NOW } = require('../date');
 
-  /**
-   * Manipulate account settings.  This mainly entails mapping the request fields
-   * onto the actual storage fields.
-   */
-  return TaskDefiner.defineSimpleTask([{
+/**
+ * Manipulate account settings.  This mainly entails mapping the request fields
+ * onto the actual storage fields.
+ */
+return TaskDefiner.defineSimpleTask([
+  {
     name: 'account_modify',
 
-    plan: co.wrap(function* (ctx, rawTask) {
+    plan: co.wrap(function*(ctx, rawTask) {
       // Access the account for read-only consultation.  Because we don't need
       // to wait on any network access and because of how things actually work,
       // we could absolutely acquire this for write mutation and do an explicit
@@ -24,7 +25,7 @@ define(function (require) {
       // to our conditionalized username/password logic.
       const accountDef = ctx.readSingle('accounts', rawTask.accountId);
       const accountClobbers = new Map();
-      for (var key in rawTask.mods) {
+      for (let key in rawTask.mods) {
         const val = rawTask.mods[key];
 
         switch (key) {
@@ -36,7 +37,8 @@ define(function (require) {
             // See the 'password' section below and/or
             // MailAPI.modifyAccount docs for the rationale for this
             // username equality check:
-            if (accountDef.credentials.outgoingUsername === accountDef.credentials.username) {
+            if (accountDef.credentials.outgoingUsername ===
+                accountDef.credentials.username) {
               accountClobbers.set(['credentials', 'outgoingUsername'], val);
             }
             accountClobbers.set(['credentials', 'username'], val);
@@ -58,7 +60,8 @@ define(function (require) {
             // SMTP password is actually different, we'll just prompt
             // them for that independently if we discover it's still not
             // correct.
-            if (accountDef.credentials.outgoingPassword === accountDef.credentials.password) {
+            if (accountDef.credentials.outgoingPassword ===
+                accountDef.credentials.password) {
               accountClobbers.set(['credentials', 'outgoingPassword'], val);
             }
             accountClobbers.set(['credentials', 'password'], val);
@@ -70,9 +73,15 @@ define(function (require) {
             accountClobbers.set(['credentials', 'outgoingPassword'], val);
             break;
           case 'oauthTokens':
-            accountClobbers.set(['credentials', 'oauth2', 'accessToken'], val.accessToken);
-            accountClobbers.set(['credentials', 'oauth2', 'refreshToken'], val.refreshToken);
-            accountClobbers.set(['credentials', 'oauth2', 'expireTimeMS'], val.expireTimeMS);
+            accountClobbers.set(
+              ['credentials', 'oauth2', 'accessToken'],
+              val.accessToken);
+            accountClobbers.set(
+              ['credentials', 'oauth2', 'refreshToken'],
+              val.refreshToken);
+            accountClobbers.set(
+              ['credentials', 'oauth2', 'expireTimeMS'],
+              val.expireTimeMS);
             break;
 
           case 'identities':
@@ -120,9 +129,15 @@ define(function (require) {
 
       yield ctx.finishTask({
         atomicClobbers: {
-          accounts: new Map([[rawTask.accountId, accountClobbers]])
+          accounts: new Map([
+            [
+              rawTask.accountId,
+              accountClobbers
+            ]
+          ])
         }
       });
     })
-  }]);
+  }
+]);
 });

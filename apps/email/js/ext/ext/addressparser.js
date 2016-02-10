@@ -16,8 +16,9 @@
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
 
-(function (root, factory) {
+(function(root, factory) {
     "use strict";
 
     if (typeof define === 'function' && define.amd) {
@@ -27,7 +28,7 @@
     } else {
         root.addressparser = factory();
     }
-})(this, function () {
+}(this, function() {
     "use strict";
 
     /**
@@ -49,7 +50,7 @@
      * @param {String} str Address field
      * @return {Array} An array of address objects
      */
-    addressparser.parse = function (str) {
+    addressparser.parse = function(str) {
         var tokenizer = new addressparser.Tokenizer(str),
             tokens = tokenizer.tokenize();
 
@@ -57,7 +58,7 @@
             address = [],
             parsedAddresses = [];
 
-        tokens.forEach(function (token) {
+        tokens.forEach(function(token) {
             if (token.type === "operator" && (token.value === "," || token.value === ";")) {
                 if (address.length) {
                     addresses.push(address);
@@ -72,7 +73,7 @@
             addresses.push(address);
         }
 
-        addresses.forEach(function (address) {
+        addresses.forEach(function(address) {
             address = addressparser._handleAddress(address);
             if (address.length) {
                 parsedAddresses = parsedAddresses.concat(address);
@@ -88,20 +89,19 @@
      * @param {Array} tokens Tokens object
      * @return {Object} Address object
      */
-    addressparser._handleAddress = function (tokens) {
+    addressparser._handleAddress = function(tokens) {
         var token,
             isGroup = false,
             state = "text",
             address,
             addresses = [],
             data = {
-            address: [],
-            comment: [],
-            group: [],
-            text: []
-        },
-            i,
-            len;
+                address: [],
+                comment: [],
+                group: [],
+                text: []
+            },
+            i, len;
 
         // Filter out <addresses>, (comments) and regular text
         for (i = 0, len = tokens.length; i < len; i++) {
@@ -139,7 +139,7 @@
             // http://tools.ietf.org/html/rfc2822#appendix-A.1.3
             data.text = data.text.join(" ");
             addresses.push({
-                name: data.text || address && address.name,
+                name: data.text || (address && address.name),
                 group: data.group.length ? addressparser.parse(data.group.join(",")) : []
             });
         } else {
@@ -152,7 +152,7 @@
                     }
                 }
 
-                var _regexHandler = function (address) {
+                var _regexHandler = function(address) {
                     if (!data.address.length) {
                         data.address = [address.trim()];
                         return " ";
@@ -201,6 +201,7 @@
                     } else {
                         address.address = "";
                     }
+
                 }
 
                 addresses.push(address);
@@ -216,7 +217,7 @@
      * @constructor
      * @param {String} str Address field string
      */
-    addressparser.Tokenizer = function (str) {
+    addressparser.Tokenizer = function(str) {
 
         this.str = (str || "").toString();
         this.operatorCurrent = "";
@@ -225,6 +226,7 @@
         this.escaped = false;
 
         this.list = [];
+
     };
 
     /**
@@ -251,15 +253,14 @@
      *
      * @return {Array} An array of operator|text tokens
      */
-    addressparser.Tokenizer.prototype.tokenize = function () {
-        var chr,
-            list = [];
+    addressparser.Tokenizer.prototype.tokenize = function() {
+        var chr, list = [];
         for (var i = 0, len = this.str.length; i < len; i++) {
             chr = this.str.charAt(i);
             this.checkChar(chr);
         }
 
-        this.list.forEach(function (node) {
+        this.list.forEach(function(node) {
             node.value = (node.value || "").toString().trim();
             if (node.value) {
                 list.push(node);
@@ -274,7 +275,7 @@
      *
      * @param {String} chr Character from the address field
      */
-    addressparser.Tokenizer.prototype.checkChar = function (chr) {
+    addressparser.Tokenizer.prototype.checkChar = function(chr) {
         if ((chr in this.operators || chr === "\\") && this.escaped) {
             this.escaped = false;
         } else if (this.operatorExpecting && chr === this.operatorExpecting) {
@@ -321,5 +322,4 @@
     };
 
     return addressparser;
-});
-// THE SOFTWARE.
+}));

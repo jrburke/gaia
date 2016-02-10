@@ -13,8 +13,13 @@ function Blob(parts, properties) {
   this._parts = parts;
   var size = 0;
 
-  parts.forEach(function (part) {
-    if (part instanceof Blob) size += part.size;else if (part instanceof ArrayBuffer) size += part.byteLength;else size += part.length;
+  parts.forEach(function(part) {
+    if (part instanceof Blob)
+      size += part.size;
+    else if (part instanceof ArrayBuffer)
+      size += part.byteLength;
+    else
+      size += part.length;
   });
 
   this.size = size;
@@ -22,28 +27,31 @@ function Blob(parts, properties) {
 };
 exports.Blob = Blob;
 Blob.prototype = {
-  _asArrayBuffer: function () {
+  _asArrayBuffer: function() {
     var buffer = new ArrayBuffer(this.size);
     var u8 = new Uint8Array(buffer);
     var offset = 0;
 
-    this._parts.forEach(function (part) {
+    this._parts.forEach(function(part) {
       var sub8;
       if (part instanceof Blob) {
         var subarr = part._asArrayBuffer();
         sub8 = new Uint8Array(subarr);
         u8.set(sub8, offset);
         offset += sub8.length;
-      } else if (typeof part === 'string') {
+      }
+      else if (typeof(part) === 'string') {
         var encoder = new TextEncoder('utf-8');
         sub8 = encoder.encode(part);
         u8.set(sub8, offset);
         offset += sub8.length;
-      } else if (part instanceof ArrayBuffer) {
+      }
+      else if (part instanceof ArrayBuffer) {
         sub8 = new Uint8Array(part);
         u8.set(sub8, offset);
         offset += sub8.length;
-      } else {
+      }
+      else {
         u8.set(part, offset);
         offset += part.length;
       }
@@ -71,21 +79,23 @@ FileReader.prototype = {
   LOADING: 1,
   DONE: 2,
 
-  readAsArrayBuffer: function (blob) {
-    process.nextTick((function () {
+  readAsArrayBuffer: function(blob) {
+    process.nextTick(function() {
       var event = { target: this };
-      if (this.onload) this.onload(event);
-      if (this.onloadend) this.onloadend(event);
-    }).bind(this));
+      if (this.onload)
+        this.onload(event);
+      if (this.onloadend)
+        this.onloadend(event);
+    }.bind(this));
     this.result = blob._asArrayBuffer();
   },
-  readAsBinaryString: function (blob) {
+  readAsBinaryString: function(blob) {
     throw new Error('not implemented');
   },
-  readAsDataURL: function (blob) {
+  readAsDataURL: function(blob) {
     throw new Error('not implemented');
   },
-  readAsText: function (blob, encoding) {
+  readAsText: function(blob, encoding) {
     throw new Error('not implemented');
-  }
+  },
 };

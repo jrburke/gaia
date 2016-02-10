@@ -1,4 +1,4 @@
-define(function (require, exports) {
+define(function(require, exports) {
   'use strict';
 
   var errorutils = require('./errorutils');
@@ -35,7 +35,7 @@ define(function (require, exports) {
    * RENEW_WINDOW_MS if the app has been closed but restarted within that
    * window.
    */
-  exports.isRenewPossible = function (credentials) {
+  exports.isRenewPossible = function(credentials) {
     var oauth2 = credentials.oauth2,
         lastRenew = oauth2 && (oauth2._transientLastRenew || 0),
         now = date.PERFNOW();
@@ -44,7 +44,7 @@ define(function (require, exports) {
       return false;
     }
 
-    if (!oauth2 || lastRenew && now - lastRenew < RENEW_WINDOW_MS) {
+    if (!oauth2 || (lastRenew && (now - lastRenew) < RENEW_WINDOW_MS)) {
       return false;
     } else {
       return true;
@@ -67,7 +67,9 @@ define(function (require, exports) {
    *   success: {boolean} True if the credentials were modified.
    *   failure: {String} A normalized error string.
    */
-  exports.ensureUpdatedCredentials = function (credentials, credsUpdatedCallback, forceRenew) {
+  exports.ensureUpdatedCredentials = function(credentials,
+                                              credsUpdatedCallback,
+                                              forceRenew) {
     if (forceRenew) {
       console.log('ensureUpdatedCredentials: force renewing token');
     }
@@ -75,20 +77,24 @@ define(function (require, exports) {
     var oauth2 = credentials.oauth2;
     // If this is an OAUTH account, see if we need to refresh the
     // accessToken. If not, just continue on our way.
-    if (oauth2 && (!oauth2.accessToken || oauth2.expireTimeMS < date.NOW()) || forceRenew) {
-      return renewAccessToken(oauth2).then(function (newTokenData) {
-        oauth2.accessToken = newTokenData.accessToken;
-        oauth2.expireTimeMS = newTokenData.expireTimeMS;
+    if (oauth2 &&
+        (!oauth2.accessToken ||
+         oauth2.expireTimeMS < date.NOW()) ||
+         forceRenew) {
+      return renewAccessToken(oauth2)
+        .then(function(newTokenData) {
+          oauth2.accessToken = newTokenData.accessToken;
+          oauth2.expireTimeMS = newTokenData.expireTimeMS;
 
-        logic(scope, 'credentials-changed', {
-          _accessToken: oauth2.accessToken,
-          expireTimeMS: oauth2.expireTimeMS
+          logic(scope, 'credentials-changed', {
+            _accessToken: oauth2.accessToken,
+            expireTimeMS: oauth2.expireTimeMS
+          });
+
+          if (credsUpdatedCallback) {
+            credsUpdatedCallback(credentials);
+          }
         });
-
-        if (credsUpdatedCallback) {
-          credsUpdatedCallback(credentials);
-        }
-      });
     } else {
       logic(scope, 'credentials-ok');
       // Not OAUTH; everything is fine.
@@ -110,16 +116,21 @@ define(function (require, exports) {
    */
   function renewAccessToken(oauthInfo) {
     logic(scope, 'renewing-access-token');
-    return new Promise(function (resolve, reject) {
+    return new Promise(function(resolve, reject) {
       oauthInfo._transientLastRenew = date.PERFNOW();
-      var xhr = logic.interceptable('oauth:renew-xhr', function () {
+      var xhr = logic.interceptable('oauth:renew-xhr', function() {
         return new XMLHttpRequest({ mozSystem: true });
       });
       xhr.open('POST', oauthInfo.tokenEndpoint, true);
       xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
       xhr.timeout = syncbase.CONNECT_TIMEOUT_MS;
-      xhr.send(['client_id=', encodeURIComponent(oauthInfo.clientId), '&client_secret=', encodeURIComponent(oauthInfo.clientSecret), '&refresh_token=', encodeURIComponent(oauthInfo.refreshToken), '&grant_type=refresh_token'].join(''));
-      xhr.onload = function () {
+      xhr.send([
+        'client_id=', encodeURIComponent(oauthInfo.clientId),
+        '&client_secret=', encodeURIComponent(oauthInfo.clientSecret),
+        '&refresh_token=', encodeURIComponent(oauthInfo.refreshToken),
+        '&grant_type=refresh_token'
+      ].join(''));
+      xhr.onload = function() {
         // If we couldn't retrieve the access token, either the user
         // revoked the access we granted (per Google's OAUTH docs) or
         // something has gone horribly wrong. The best we can assume
@@ -130,11 +141,13 @@ define(function (require, exports) {
           // it.
           try {
             var errResp = JSON.parse(xhr.responseText);
-          } catch (ex) {
+          }
+          catch (ex) {
             // ignore the error.
           }
-          logic(scope, 'xhr-fail', { tokenEndpoint: oauthInfo.tokenEndpoint,
-            status: xhr.status, errResp: errResp });
+         logic(scope, 'xhr-fail',
+               { tokenEndpoint: oauthInfo.tokenEndpoint,
+                 status: xhr.status, errResp: errResp });
           reject('needs-oauth-reauth');
         } else {
           try {
@@ -148,18 +161,19 @@ define(function (require, exports) {
               // to give a buffer from a the token expiring before a renewal is
               // attempted.
               var expiresInMS = data.expires_in * 1000;
-              var expireTimeMS = date.NOW() + Math.max(0, expiresInMS - TIMEOUT_MS);
+              var expireTimeMS = date.NOW() +
+                                 Math.max(0, expiresInMS - TIMEOUT_MS);
               resolve({
                 accessToken: data.access_token,
                 expireTimeMS: expireTimeMS
               });
             } else {
-              logic(scope, 'no-access-token', {
+             logic(scope, 'no-access-token', {
                 data: xhr.responseText
               });
               reject('needs-oauth-reauth');
             }
-          } catch (e) {
+          } catch(e) {
             logic(scope, 'bad-json', {
               error: e,
               data: xhr.responseText
@@ -169,11 +183,11 @@ define(function (require, exports) {
         }
       };
 
-      xhr.onerror = function (err) {
+      xhr.onerror = function(err) {
         reject(errorutils.analyzeException(err));
       };
 
-      xhr.ontimeout = function () {
+      xhr.ontimeout = function() {
         reject('unresponsive-server');
       };
     });

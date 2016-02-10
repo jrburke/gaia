@@ -1,4 +1,4 @@
-define(function (require) {
+define(function(require) {
   'use strict';
 
   const logic = require('logic');
@@ -32,8 +32,6 @@ define(function (require) {
    *   onto us later on or clear it.
    */
   function SmartWakeLock(opts) {
-    var _this = this;
-
     logic.defineScope(this, 'SmartWakeLock', { types: opts.locks });
 
     var locks = this.locks = {}; // map of lockType -> wakeLockInstance
@@ -57,15 +55,15 @@ define(function (require) {
     // ugly asynchronous parts and not worry about when things happen
     // under the hood.
     logic(this, 'requestLock', { durationMs: this.timeoutMs });
-    this._readyPromise = Promise.all(opts.locks.map(function (type) {
-      return sendWakeLockMessage('requestWakeLock', [type]).then(function (lockId) {
+    this._readyPromise = Promise.all(opts.locks.map((type) => {
+      return sendWakeLockMessage('requestWakeLock', [type]).then((lockId) => {
         locks[type] = lockId;
       });
-    })).then(function () {
-      logic(_this, 'locked', {});
+    })).then(() => {
+      logic(this, 'locked', {});
       // For simplicity of implementation, we reuse the `renew` method
       // here to add the initial `opts.timeout` to the unlock clock.
-      _this.renew(); // Start the initial timeout.
+      this.renew(); // Start the initial timeout.
     });
   }
 
@@ -76,37 +74,38 @@ define(function (require) {
      * Renew the timeout, if you're certain that you still need to hold
      * the locks longer.
      */
-    renew: function ( /* optional */reason) {
-      var _this2 = this;
-
+    renew: function(/* optional */ reason) {
       // Wait until we've successfully acquired the wakelocks, then...
-      return this._readyPromise.then(function () {
+      return this._readyPromise.then(() => {
         // If we've already set a timeout, we'll clear that first.
         // (Otherwise, we're just loading time on for the first time,
         // and don't need to clear or log anything.)
-        if (_this2._timeout) {
-          clearTimeout(_this2._timeout);
-          logic(_this2, 'renew', {
-            reason,
-            renewDurationMs: _this2.timeoutMs,
-            durationLeftMs: _this2.timeoutMs - (Date.now() - _this2._timeLastRenewed)
-          });
+        if (this._timeout) {
+          clearTimeout(this._timeout);
+          logic(this, 'renew',
+                {
+                  reason,
+                  renewDurationMs: this.timeoutMs,
+                  durationLeftMs: (this.timeoutMs -
+                               (Date.now() - this._timeLastRenewed))
+                });
         }
 
-        _this2._timeLastRenewed = Date.now(); // Solely for debugging.
+        this._timeLastRenewed = Date.now(); // Solely for debugging.
 
-        _this2._timeout = setTimeout(function () {
-          logic(_this2, 'timeoutUnlock');
-          if (_this2.imminentDoomHandler) {
+        this._timeout = setTimeout(() => {
+          logic(this, 'timeoutUnlock');
+          if (this.imminentDoomHandler) {
             try {
               // doomity doom doom!
-              _this2.imminentDoomHandler();
-            } catch (ex) {
+              this.imminentDoomHandler();
+            }
+            catch (ex) {
               // do nothing, we just don't want to fail to unlock the wakelock.
             }
           }
-          _this2.unlock('timeout');
-        }, _this2.timeoutMs);
+          this.unlock('timeout');
+        }, this.timeoutMs);
       });
     },
 
@@ -115,33 +114,31 @@ define(function (require) {
      * scenes; if you want to block on completion, hook onto the
      * Promise returned from this function.
      */
-    unlock: function ( /* optional */reason) {
-      var _this3 = this;
-
+    unlock: function(/* optional */ reason) {
       // Make sure weve been locked before we try to unlock. Also,
       // return the promise, throughout the chain of calls here, so
       // that listeners can listen for completion if they need to.
-      return this._readyPromise.then(function () {
-        var locks = _this3.locks;
-        _this3.locks = {}; // Clear the locks.
-        clearTimeout(_this3._timeout);
-        _this3._timeout = null;
+      return this._readyPromise.then(() => {
+        var locks = this.locks;
+        this.locks = {}; // Clear the locks.
+        clearTimeout(this._timeout);
+        this._timeout = null;
 
-        logic(_this3, 'unlock', { reason });
+        logic(this, 'unlock', { reason });
         // Wait for all of them to successfully unlock.
-        return Promise.all(Object.keys(locks).map(function (type) {
-          return sendWakeLockMessage('unlock', [locks[type]], function () {
+        return Promise.all(Object.keys(locks).map((type) => {
+          return sendWakeLockMessage('unlock', [locks[type]], () => {
             return type;
           });
-        })).then(function () {
-          logic(_this3, 'unlocked', { reason });
+        })).then(() => {
+          logic(this, 'unlocked', { reason });
         });
       });
     },
 
-    toString: function () {
+    toString: function() {
       return Object.keys(this.locks).join('+') || '(no locks)';
-    }
+    },
   };
 
   /**
@@ -154,7 +151,7 @@ define(function (require) {
    * (which can get typo'd or missed in a renaming pass, etc.).
    */
   function wrapMainThreadAcquiredWakelock({ wakelockId, timeout,
-    imminentDoomHandler }) {
+      imminentDoomHandler }) {
     return new SmartWakeLock({
       locks: ['mainthread-acquired'],
       timeout,

@@ -1,22 +1,26 @@
-define(function (require) {
-  'use strict';
+define(function(require) {
+'use strict';
 
-  const { numericUidFromMessageId } = require('../../id_conversions');
+const { numericUidFromMessageId } = require('../../id_conversions');
 
-  const TaskDefiner = require('../../task_infra/task_definer');
+const TaskDefiner = require('../../task_infra/task_definer');
 
-  return TaskDefiner.defineComplexTask([require('../../task_mixins/mix_sync_body'), require('../task_mixins/imap_mix_sync_body'), {
-    prepForMessages: function (ctx, account /*, messages*/) {
+return TaskDefiner.defineComplexTask([
+  require('../../task_mixins/mix_sync_body'),
+  require('../task_mixins/imap_mix_sync_body'),
+  {
+    prepForMessages: function(ctx, account/*, messages*/) {
       // For the gmail case we don't have any meaningful prep to do.
-      var allMailFolderInfo = account.getFirstFolderWithType('all');
+      let allMailFolderInfo = account.getFirstFolderWithType('all');
       return Promise.resolve(allMailFolderInfo);
     },
 
-    getFolderAndUidForMesssage: function (prepped, account, message) {
+    getFolderAndUidForMesssage: function(prepped, account, message) {
       return {
         folderInfo: prepped,
         uid: numericUidFromMessageId(message.id)
       };
     }
-  }]);
+  }
+]);
 });

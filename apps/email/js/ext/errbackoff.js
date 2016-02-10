@@ -45,153 +45,182 @@
  *   that's way down the road.
  **/
 
-define(['./date', 'logic', 'module', 'exports'], function ($date, logic, $module, exports) {
+define(
+  [
+    './date',
+    'logic',
+    'module',
+    'exports'
+  ],
+  function(
+    $date,
+    logic,
+    $module,
+    exports
+  ) {
 
-  var BACKOFF_DURATIONS = exports.BACKOFF_DURATIONS = [{ fixedMS: 0, randomMS: 0 }, { fixedMS: 800, randomMS: 400 }, { fixedMS: 4500, randomMS: 1000 }];
+var BACKOFF_DURATIONS = exports.BACKOFF_DURATIONS = [
+  { fixedMS: 0,    randomMS: 0 },
+  { fixedMS: 800,  randomMS: 400 },
+  { fixedMS: 4500, randomMS: 1000 },
+];
 
-  var BAD_RESOURCE_RETRY_DELAYS_MS = [1000, 60 * 1000, 2 * 60 * 1000];
+var BAD_RESOURCE_RETRY_DELAYS_MS = [
+  1000,
+  60 * 1000,
+  2 * 60 * 1000,
+];
 
-  var setTimeoutFunc = window.setTimeout.bind(window);
+var setTimeoutFunc = window.setTimeout.bind(window);
 
-  exports.TEST_useTimeoutFunc = function (func) {
-    setTimeoutFunc = func;
-    for (var i = 0; i < BACKOFF_DURATIONS.length; i++) {
-      BACKOFF_DURATIONS[i].randomMS = 0;
-    }
-  };
+exports.TEST_useTimeoutFunc = function(func) {
+  setTimeoutFunc = func;
+  for (var i = 0; i < BACKOFF_DURATIONS.length; i++) {
+    BACKOFF_DURATIONS[i].randomMS = 0;
+  }
+};
+
+/**
+ * @args[
+ *   @param[listener @dict[
+ *     @key[onEndpointStateChange @func[
+ *       @args[state]
+ *     ]]
+ *   ]]
+ * ]
+ */
+function BackoffEndpoint(name, listener) {
+  /** @oneof[
+   *    @case['healthy']
+   *    @case['unreachable']
+   *    @case['broken']
+   *    @case['shutdown']{
+   *      We are shutting down; ignore any/all errors and avoid performing
+   *      activities that would result in new network traffic, etc.
+   *    }
+   *  ]
+   */
+  this.state = 'healthy';
+  this._iNextBackoff = 0;
+
+  logic.defineScope(this, 'BackoffEndpoint', { name: name });
+
+  logic(this, 'state', { state: this.state });
+
+  this._badResources = {};
+
+  this.listener = listener;
+}
+BackoffEndpoint.prototype = {
+  _setState: function(newState) {
+    if (this.state === newState)
+      return;
+    this.state = newState;
+    logic(this, 'state', { state: newState });
+    if (this.listener)
+      this.listener.onEndpointStateChange(newState);
+  },
+
+  noteConnectSuccess: function() {
+    this._setState('healthy');
+    this._iNextBackoff = 0;
+  },
 
   /**
+   * Logs a connection failure and returns true if a retry attempt should be
+   * made.
+   *
    * @args[
-   *   @param[listener @dict[
-   *     @key[onEndpointStateChange @func[
-   *       @args[state]
-   *     ]]
-   *   ]]
+   *   @param[reachable Boolean]{
+   *     If true, we were able to connect to the endpoint, but failed to login
+   *     for some reason.
+   *   }
    * ]
+   * @return[shouldRetry Boolean]{
+   *   Returns true if we should retry creating the connection, false if we
+   *   should give up.
+   * }
    */
-  function BackoffEndpoint(name, listener) {
-    /** @oneof[
-     *    @case['healthy']
-     *    @case['unreachable']
-     *    @case['broken']
-     *    @case['shutdown']{
-     *      We are shutting down; ignore any/all errors and avoid performing
-     *      activities that would result in new network traffic, etc.
-     *    }
-     *  ]
-     */
-    this.state = 'healthy';
-    this._iNextBackoff = 0;
+  noteConnectFailureMaybeRetry: function(reachable) {
+    logic(this, 'connectFailure', { reachable: reachable });
+    if (this.state === 'shutdown')
+      return false;
 
-    logic.defineScope(this, 'BackoffEndpoint', { name: name });
-
-    logic(this, 'state', { state: this.state });
-
-    this._badResources = {};
-
-    this.listener = listener;
-  }
-  BackoffEndpoint.prototype = {
-    _setState: function (newState) {
-      if (this.state === newState) return;
-      this.state = newState;
-      logic(this, 'state', { state: newState });
-      if (this.listener) this.listener.onEndpointStateChange(newState);
-    },
-
-    noteConnectSuccess: function () {
-      this._setState('healthy');
-      this._iNextBackoff = 0;
-    },
-
-    /**
-     * Logs a connection failure and returns true if a retry attempt should be
-     * made.
-     *
-     * @args[
-     *   @param[reachable Boolean]{
-     *     If true, we were able to connect to the endpoint, but failed to login
-     *     for some reason.
-     *   }
-     * ]
-     * @return[shouldRetry Boolean]{
-     *   Returns true if we should retry creating the connection, false if we
-     *   should give up.
-     * }
-     */
-    noteConnectFailureMaybeRetry: function (reachable) {
-      logic(this, 'connectFailure', { reachable: reachable });
-      if (this.state === 'shutdown') return false;
-
-      if (reachable) {
-        this._setState('broken');
-        return false;
-      }
-
-      if (this._iNextBackoff > 0) this._setState(reachable ? 'broken' : 'unreachable');
-
-      // (Once this saturates, we never perform retries until the connection is
-      // healthy again.  We do attempt re-connections when triggered by user
-      // activity or synchronization logic; they just won't get retries.)
-      if (this._iNextBackoff >= BACKOFF_DURATIONS.length) return false;
-
-      return true;
-    },
-
-    /**
-     * Logs a connection problem where we can talk to the server but we are
-     * confident there is no reason retrying.  In some cases, like bad
-     * credentials, this is part of what you want to do, but you will still also
-     * want to put the kibosh on additional requests at a higher level since
-     * servers can lock people out if they make repeated bad authentication
-     * requests.
-     */
-    noteBrokenConnection: function () {
-      logic(this, 'connectFailure', { reachable: true });
+    if (reachable) {
       this._setState('broken');
-
-      this._iNextBackoff = BACKOFF_DURATIONS.length;
-    },
-
-    scheduleConnectAttempt: function (connectFunc) {
-      if (this.state === 'shutdown') return;
-
-      // If we have already saturated our retries then there won't be any
-      // automatic retries and this request is assumed to want us to try and
-      // create a connection right now.
-      if (this._iNextBackoff >= BACKOFF_DURATIONS.length) {
-        connectFunc();
-        return;
-      }
-
-      var backoff = BACKOFF_DURATIONS[this._iNextBackoff++],
-          delay = backoff.fixedMS + Math.floor(Math.random() * backoff.randomMS);
-      setTimeoutFunc(connectFunc, delay);
-    },
-
-    noteBadResource: function (resourceId) {
-      var now = $date.NOW();
-      if (!this._badResources.hasOwnProperty(resourceId)) {
-        this._badResources[resourceId] = { count: 1, last: now };
-      } else {
-        var info = this._badResources[resourceId];
-        info.count++;
-        info.last = now;
-      }
-    },
-
-    resourceIsOkayToUse: function (resourceId) {
-      if (!this._badResources.hasOwnProperty(resourceId)) return true;
-      var info = this._badResources[resourceId],
-          now = $date.NOW();
-    },
-
-    shutdown: function () {
-      this._setState('shutdown');
+      return false;
     }
-  };
 
-  exports.createEndpoint = function (name, listener) {
-    return new BackoffEndpoint(name, listener);
-  };
+    if (this._iNextBackoff > 0)
+      this._setState(reachable ? 'broken' : 'unreachable');
+
+    // (Once this saturates, we never perform retries until the connection is
+    // healthy again.  We do attempt re-connections when triggered by user
+    // activity or synchronization logic; they just won't get retries.)
+    if (this._iNextBackoff >= BACKOFF_DURATIONS.length)
+      return false;
+
+    return true;
+  },
+
+  /**
+   * Logs a connection problem where we can talk to the server but we are
+   * confident there is no reason retrying.  In some cases, like bad
+   * credentials, this is part of what you want to do, but you will still also
+   * want to put the kibosh on additional requests at a higher level since
+   * servers can lock people out if they make repeated bad authentication
+   * requests.
+   */
+  noteBrokenConnection: function() {
+    logic(this, 'connectFailure', { reachable: true });
+    this._setState('broken');
+
+    this._iNextBackoff = BACKOFF_DURATIONS.length;
+  },
+
+  scheduleConnectAttempt: function(connectFunc) {
+    if (this.state === 'shutdown')
+      return;
+
+    // If we have already saturated our retries then there won't be any
+    // automatic retries and this request is assumed to want us to try and
+    // create a connection right now.
+    if (this._iNextBackoff >= BACKOFF_DURATIONS.length) {
+      connectFunc();
+      return;
+    }
+
+    var backoff = BACKOFF_DURATIONS[this._iNextBackoff++],
+        delay = backoff.fixedMS +
+                Math.floor(Math.random() * backoff.randomMS);
+    setTimeoutFunc(connectFunc, delay);
+  },
+
+  noteBadResource: function(resourceId) {
+    var now = $date.NOW();
+    if (!this._badResources.hasOwnProperty(resourceId)) {
+      this._badResources[resourceId] = { count: 1, last: now };
+    }
+    else {
+      var info = this._badResources[resourceId];
+      info.count++;
+      info.last = now;
+    }
+  },
+
+  resourceIsOkayToUse: function(resourceId) {
+    if (!this._badResources.hasOwnProperty(resourceId))
+      return true;
+    var info = this._badResources[resourceId], now = $date.NOW();
+  },
+
+  shutdown: function() {
+    this._setState('shutdown');
+  },
+};
+
+exports.createEndpoint = function(name, listener) {
+  return new BackoffEndpoint(name, listener);
+};
+
 }); // end define
