@@ -1,9 +1,14 @@
 define(function () {
   'use strict';
 
-  function callRender(element) {
+  function callRender(element, checkCached) {
     // console.log('> rendering: ' + element.nodeName);
-    element.render();
+    if (checkCached && element.dataset.cached) {
+      // Uncomment for debugging.
+      // console.log('>> skipping render for ' + element.nodeName);
+    } else {
+      element.render();
+    }
 
     if (element.renderEnd) {
       element.renderEnd();
@@ -33,6 +38,8 @@ define(function () {
         if (this.model) {
           this.model.removeObjectListener(this);
         }
+
+        var firstRender = true;
 
         this.model = args.model;
 
@@ -75,7 +82,10 @@ define(function () {
               });
             }
 
-            callRender(this);
+            // on('model') listener could be called as part of first render, see
+            // the `this.emit('model')` code a bit further down. In that case,
+            // Do not want to trigger a render yet.
+            callRender(this, modelId === 'model' && firstRender);
           });
 
           this.state[modelId] = this.model[modelId];
@@ -93,8 +103,10 @@ define(function () {
         // 'this.model' is used, then skip it since the model emit above will
         // have done it.
         if (modelIds.length > 1 || modelIds[0] !== 'this.model') {
-          callRender(this);
+          callRender(this, firstRender);
         }
+
+        firstRender = false;
       },
 
       removeModelRenderListeners: function() {

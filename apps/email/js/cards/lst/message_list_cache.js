@@ -66,11 +66,7 @@ return {
     }
 
     // Hide the last sync number
-    var tempNode = cacheNode.querySelector('.msg-last-synced-label');
-    if (tempNode) {
-      tempNode.classList.add('collapsed');
-    }
-    tempNode = cacheNode.querySelector('.msg-last-synced-value');
+    var tempNode = cacheNode.querySelector('lst-last-synced');
     if (tempNode) {
       tempNode.innerHTML = '';
     }
